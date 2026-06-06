@@ -275,10 +275,87 @@
     float: right;
   }
 
+  /* ===== Interactive logging components ===== */
+  .q-block { margin-bottom: 22px; }
+  .q-label { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .q-hint { font-size: 12px; color: var(--text-mute); margin-bottom: 12px; }
+
+  /* Emoji / segmented picker */
+  .pick-row { display: flex; gap: 8px; }
+  .pick {
+    flex: 1; background: var(--bg-elev); border: 1.5px solid var(--border);
+    border-radius: 14px; padding: 12px 4px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    transition: all 0.12s; user-select: none;
+  }
+  .pick:active { transform: scale(0.95); }
+  .pick .emoji { font-size: 26px; line-height: 1; }
+  .pick .cap { font-size: 10px; color: var(--text-mute); font-weight: 500; }
+  .pick.sel { border-color: var(--accent); background: rgba(110,231,183,0.10); }
+  .pick.sel .cap { color: var(--accent); }
+
+  /* Slider */
+  .slider-wrap { padding: 4px 2px; }
+  .slider-val { font-size: 32px; font-weight: 800; text-align: center; color: var(--accent);
+    font-family: "SF Mono", Menlo, monospace; margin-bottom: 6px; }
+  .slider-val small { font-size: 14px; color: var(--text-dim); font-weight: 500; }
+  input[type=range].vslider {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 8px;
+    border-radius: 999px; background: var(--bg-elev); outline: none;
+  }
+  input[type=range].vslider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 28px; height: 28px;
+    border-radius: 50%; background: var(--accent); cursor: pointer;
+    border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  .slider-ends { display: flex; justify-content: space-between; font-size: 11px;
+    color: var(--text-mute); margin-top: 6px; }
+
+  /* Stepper */
+  .stepper { display: flex; align-items: center; gap: 0; }
+  .stepper button {
+    width: 48px; height: 48px; border-radius: 12px; border: 1.5px solid var(--border);
+    background: var(--bg-elev); color: var(--text); font-size: 24px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.1s; flex-shrink: 0;
+  }
+  .stepper button:active { transform: scale(0.92); background: var(--bg-card); }
+  .stepper .sval {
+    flex: 1; text-align: center; font-size: 22px; font-weight: 700;
+    font-family: "SF Mono", Menlo, monospace; min-width: 70px;
+  }
+  .stepper .sval small { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+
+  /* Quick-add chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    background: var(--bg-elev); border: 1.5px solid var(--border); border-radius: 999px;
+    padding: 10px 14px; font-size: 14px; cursor: pointer; display: flex;
+    align-items: center; gap: 6px; transition: all 0.1s; user-select: none;
+  }
+  .chip:active { transform: scale(0.95); border-color: var(--accent); }
+  .chip .ce { font-size: 17px; }
+
+  /* Exercise log card */
+  .ex-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  .ex-head { padding: 14px 16px; cursor: pointer; display: flex;
+    justify-content: space-between; align-items: center; }
+  .ex-head .exn { font-size: 15px; font-weight: 600; }
+  .ex-head .exm { font-size: 12px; color: var(--text-dim); }
+  .ex-body { padding: 0 16px 16px; display: none; }
+  .ex-card.open .ex-body { display: block; }
+  .ex-card.done { border-color: var(--green); }
+  .ex-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+  .ex-row .exlbl { width: 64px; font-size: 13px; color: var(--text-dim); }
+
   @media (max-width: 480px) {
     main { padding: 12px 16px; }
     .readiness-score { font-size: 44px; }
     .readiness-components { grid-template-columns: repeat(2, 1fr); }
+    .pick .emoji { font-size: 22px; }
   }
 </style>
 </head>
@@ -623,21 +700,9 @@
     </div>
 
     <div class="card">
-      <h3>Today's check-in (mocks the morning inputs)</h3>
-      <p class="meta">Update these to recompute your readiness</p>
-      <div class="form-grid">
-        <div class="form-row"><label>HRV today (ms)</label><input type="number" id="c-hrv" value="58"></div>
-        <div class="form-row"><label>HRV baseline (ms)</label><input type="number" id="c-hrvb" value="50"></div>
-        <div class="form-row"><label>RHR today (bpm)</label><input type="number" id="c-rhr" value="58"></div>
-        <div class="form-row"><label>RHR baseline</label><input type="number" id="c-rhrb" value="60"></div>
-        <div class="form-row"><label>Sleep (min)</label><input type="number" id="c-sleep" value="445"></div>
-        <div class="form-row"><label>Energy (1-5)</label><input type="number" id="c-energy" min="1" max="5" value="4"></div>
-        <div class="form-row"><label>Soreness (1-5)</label><input type="number" id="c-soreness" min="1" max="5" value="2"></div>
-        <div class="form-row"><label>Mood (1-5)</label><input type="number" id="c-mood" min="1" max="5" value="4"></div>
-        <div class="form-row"><label>Stress (1-5)</label><input type="number" id="c-stress" min="1" max="5" value="2"></div>
-      </div>
-      <button class="btn primary full" onclick="saveCheckin()" style="margin-top: 12px;">Save check-in</button>
-      <div id="checkin-status" class="meta" style="margin-top: 8px;"></div>
+      <h3>Daily check-in</h3>
+      <p class="meta" style="margin-bottom:12px;">Answer 6 quick taps each morning to get your readiness score. No wearable needed.</p>
+      <button class="btn primary full" onclick="openLogModal('checkin')">Do today's check-in →</button>
     </div>
 
     <div class="card">
@@ -872,48 +937,43 @@
     // Check if user has done a real check-in today
     let todayCheckin = null;
     try {
-      const r = await api(`/v1/logs/checkins`);
-      // checkins endpoint doesn't exist as GET yet — we try the daily report
       const report = await api(`/v1/report/daily?date=${today}`);
-      if (report.checkin && report.checkin.energy_1to5 !== null) {
+      if (report.checkin && report.checkin.energy_1to5 !== null && report.checkin.energy_1to5 !== undefined) {
         todayCheckin = report.checkin;
       }
     } catch(_) {}
 
     if (todayCheckin) {
-      // Real data — compute readiness from actual check-in
-      const realCheckin = {
-        hrv_today_ms: todayCheckin.hrv_today_ms || checkin.hrv_today_ms,
-        hrv_7d_baseline_ms: todayCheckin.hrv_7d_baseline_ms || checkin.hrv_7d_baseline_ms,
-        rhr_today_bpm: todayCheckin.rhr_today_bpm || checkin.rhr_today_bpm,
-        rhr_30d_baseline_bpm: todayCheckin.rhr_30d_baseline_bpm || checkin.rhr_30d_baseline_bpm,
-        sleep_min: todayCheckin.sleep_min || checkin.sleep_min,
-        sleep_deep_pct: todayCheckin.sleep_deep_pct || 17,
-        sleep_rem_pct: todayCheckin.sleep_rem_pct || 22,
-        sleep_eff_pct: todayCheckin.sleep_eff_pct || 92,
-        sleep_continuity_min: todayCheckin.sleep_continuity_min || 0,
-        energy_1to5: todayCheckin.energy_1to5,
-        soreness_1to5: todayCheckin.soreness_1to5,
-        mood_1to5: todayCheckin.mood_1to5,
-        stress_1to5: todayCheckin.stress_1to5,
-        acute_load: todayCheckin.acute_load || checkin.acute_load,
-        chronic_load: todayCheckin.chronic_load || checkin.chronic_load,
-      };
+      // Reconstruct the simple inputs from the stored check-in
+      const sleepHours = (todayCheckin.sleep_min || 420) / 60;
+      const sleepQuality = Math.max(1, Math.min(5, Math.round(((todayCheckin.sleep_eff_pct || 82) - 55) / 9)));
+      let readinessOverall = 75;
       try {
-        cachedSnapshot = await api('/v1/state/snapshot', { method: 'POST', body: { profile, checkin: realCheckin } });
-        renderSnapshot(cachedSnapshot);
+        const r = await api('/v1/readiness/simple', { method: 'POST', body: {
+          sleep_hours: sleepHours,
+          sleep_quality_1to5: sleepQuality,
+          energy_1to5: todayCheckin.energy_1to5,
+          soreness_1to5: todayCheckin.soreness_1to5,
+          mood_1to5: todayCheckin.mood_1to5,
+          stress_1to5: todayCheckin.stress_1to5,
+          hrv_today_ms: todayCheckin.hrv_today_ms || null,
+          hrv_baseline_ms: todayCheckin.hrv_7d_baseline_ms || null,
+          rhr_today_bpm: todayCheckin.rhr_today_bpm || null,
+          rhr_baseline_bpm: todayCheckin.rhr_30d_baseline_bpm || null,
+        }});
+        readinessOverall = r.overall;
+        cachedSnapshot = { readiness: r };
+        renderSnapshot({ readiness: r });
         document.getElementById('tiers-title').style.display = '';
         document.getElementById('tier-row').style.display = '';
       } catch(e) {
         renderReadinessEmpty();
       }
       try {
-        const readiness = cachedSnapshot?.readiness?.overall || 75;
         cachedWorkout = await api('/v1/workouts/today', { method: 'POST', body: {
-          program: 'ppl_power', week: 3, day_index: 0, readiness,
-          subjective_energy: realCheckin.energy_1to5,
-          soreness: realCheckin.soreness_1to5,
-          acute_chronic_ratio: (realCheckin.acute_load || 85) / (realCheckin.chronic_load || 100),
+          program: 'ppl_power', week: 3, day_index: 0, readiness: readinessOverall,
+          subjective_energy: todayCheckin.energy_1to5,
+          soreness: todayCheckin.soreness_1to5, acute_chronic_ratio: 1.0,
         }});
         renderWorkout(cachedWorkout);
       } catch(e) { showError('workout-card', e.message); }
@@ -951,8 +1011,8 @@
       <div class="card" style="border: 2px dashed var(--border); text-align:center; padding: 28px 20px;">
         <div style="font-size: 32px; margin-bottom: 8px;">🌅</div>
         <h3 style="font-size: 16px; margin-bottom: 6px;">No check-in yet today</h3>
-        <p class="meta" style="margin-bottom: 16px;">Log your HRV, sleep, energy and soreness to see your real readiness score.</p>
-        <button class="btn primary full" onclick="openLogModal('checkin')">Do morning check-in</button>
+        <p class="meta" style="margin-bottom: 16px;">Answer 6 quick taps about your sleep and how you feel — get your readiness score in 15 seconds.</p>
+        <button class="btn primary full" onclick="openLogModal('checkin')">Start morning check-in →</button>
       </div>
     `;
     document.getElementById('tiers-title').style.display = 'none';
@@ -967,11 +1027,9 @@
       YELLOW: '🟡 Yellow day — pull back a little',
       RED: '🔴 Red day — active recovery only',
     }[r.color] || r.color;
-    const comps = [
-      ['HRV', r.components.hrv], ['RHR', r.components.rhr],
-      ['Sleep', r.components.sleep], ['Wellness', r.components.wellness],
-      ['Load', r.components.load], ['Trend', r.components.trend],
-    ];
+    // Render only the components we actually measured (honest — no fake HRV)
+    const niceName = { sleep: 'Sleep', wellness: 'Wellness', hrv: 'HRV', rhr: 'RHR', load: 'Load', trend: 'Trend' };
+    const comps = Object.entries(r.components).map(([k, v]) => [niceName[k] || k, v]);
     const compColor = v => v >= 75 ? 'var(--green)' : v >= 50 ? 'var(--yellow)' : 'var(--red)';
     document.getElementById('readiness-card-wrap').innerHTML = `
       <div class="readiness-card ${colorClass}" id="readiness-card">
@@ -1047,69 +1105,175 @@
   // ========== LOG MODALS ==========
   function openLogModal(kind) {
     const content = document.getElementById('modal-content');
-    if (kind === 'workout') content.innerHTML = workoutModal();
-    else if (kind === 'meal') content.innerHTML = mealModal();
+    if (kind === 'workout') { content.innerHTML = workoutModal(); loadWorkoutLogger(); }
+    else if (kind === 'meal') { content.innerHTML = mealModal(); renderQuickFoods(); }
     else if (kind === 'bp') content.innerHTML = bpModal();
     else if (kind === 'glucose') content.innerHTML = glucoseModal();
     else if (kind === 'checkin') content.innerHTML = checkinModal();
     document.getElementById('modal-bg').classList.add('active');
+    document.querySelector('.modal').scrollTop = 0;
   }
   function closeModal() { document.getElementById('modal-bg').classList.remove('active'); }
 
+  // ----- Workout logger: tap an exercise, +/- the numbers, log -----
+  let workoutState = {};   // exId -> {weight, reps, rpe, name}
+
   function workoutModal() {
     return `
-      <h3>🏋️ Log a set</h3>
-      <p class="meta" style="margin-bottom: 16px;">Auto-detects PRs</p>
-      <div class="form-grid">
-        <div class="form-row"><label>Exercise</label>
-          <input type="text" id="m-ex" value="bench_press" style="width: 140px; text-align: right;">
-        </div>
-        <div class="form-row"><label>Weight (kg)</label><input type="number" id="m-w" value="100" step="0.5"></div>
-        <div class="form-row"><label>Reps</label><input type="number" id="m-r" value="5"></div>
-        <div class="form-row"><label>RPE</label><input type="number" id="m-rpe" min="1" max="10" step="0.5" value="8"></div>
-      </div>
-      <button class="btn primary full" style="margin-top: 16px;" onclick="submitSet()">Log set</button>
-      <div id="m-result" style="margin-top: 12px;"></div>
+      <h3>🏋️ Log your workout</h3>
+      <p class="meta" style="margin-bottom: 16px;">Tap an exercise, adjust with + / −, log each set.</p>
+      <div id="ex-list"><div class="loading">Loading today's plan…</div></div>
     `;
   }
 
-  async function submitSet() {
-    const result = document.getElementById('m-result');
-    result.innerHTML = '<div class="loading">Logging…</div>';
+  async function loadWorkoutLogger() {
+    const list = document.getElementById('ex-list');
     try {
-      const r = await api('/v1/workouts/log', {
-        method: 'POST',
-        body: {
-          exercise_id: document.getElementById('m-ex').value,
-          weight_kg: parseFloat(document.getElementById('m-w').value),
-          reps: parseInt(document.getElementById('m-r').value),
-          rpe: parseFloat(document.getElementById('m-rpe').value),
-          history: [],   // Empty for now; in production, this would come from your stored sets
-        },
-      });
-      const pr = r.pr;
-      const isPR = pr.is_pr;
-      result.innerHTML = `
-        <div class="card" style="background: var(--bg-elev);">
-          <h3>${isPR ? '🎉 PR!' : '✓ Logged'}</h3>
-          <p class="meta">${r.logged.exercise_id} · ${r.logged.weight_kg}kg × ${r.logged.reps}${r.logged.rpe ? ' RPE ' + r.logged.rpe : ''}</p>
-          ${isPR ? `<p class="meta" style="color:var(--accent); margin-top: 8px;">${pr.pr_type.toUpperCase()} PR — previous: ${pr.previous}, current: ${pr.current}</p>` : `<p class="meta" style="margin-top: 8px;">No PR this time. Current e1RM: ${pr.current.toFixed(1)} kg, best was ${pr.previous.toFixed(1)} kg.</p>`}
-        </div>
-      `;
+      const w = cachedWorkout || await api('/v1/workouts/today', { method: 'POST', body: {
+        program: 'ppl_power', week: 3, day_index: 0, readiness: 75,
+        subjective_energy: 3, soreness: 3, acute_chronic_ratio: 1.0,
+      }});
+      cachedWorkout = w;
+      workoutState = {};
+      list.innerHTML = `<p class="meta" style="margin-bottom:12px;">${w.day_name} · ${w.program}</p>` +
+        w.exercises.map((ex, i) => {
+          const reps = parseInt((ex.reps + '').split('-')[0]) || 8;
+          workoutState[ex.id] = { weight: 20, reps, rpe: 8, name: ex.id };
+          return `
+          <div class="ex-card" id="exc-${ex.id}">
+            <div class="ex-head" onclick="this.parentElement.classList.toggle('open')">
+              <div><div class="exn">${ex.id.replace(/_/g,' ')}</div><div class="exm">${ex.sets} sets × ${ex.reps} · ${ex.intensity}</div></div>
+              <span style="color:var(--text-mute); font-size:13px;">tap ▾</span>
+            </div>
+            <div class="ex-body">
+              <div class="ex-row">
+                <span class="exlbl">Weight</span>
+                <div class="stepper" style="flex:1;">
+                  <button onclick="exStep('${ex.id}','weight',-2.5)">−</button>
+                  <div class="sval" id="w-${ex.id}">20 <small>kg</small></div>
+                  <button onclick="exStep('${ex.id}','weight',2.5)">+</button>
+                </div>
+              </div>
+              <div class="ex-row">
+                <span class="exlbl">Reps</span>
+                <div class="stepper" style="flex:1;">
+                  <button onclick="exStep('${ex.id}','reps',-1)">−</button>
+                  <div class="sval" id="r-${ex.id}">${reps}</div>
+                  <button onclick="exStep('${ex.id}','reps',1)">+</button>
+                </div>
+              </div>
+              <div class="ex-row">
+                <span class="exlbl">Effort</span>
+                <div class="pick-row" style="flex:1;">
+                  <div class="pick" onclick="exEffort('${ex.id}',6,this)"><span class="cap">Easy</span></div>
+                  <div class="pick" onclick="exEffort('${ex.id}',7,this)"><span class="cap">Solid</span></div>
+                  <div class="pick sel" onclick="exEffort('${ex.id}',8,this)"><span class="cap">Hard</span></div>
+                  <div class="pick" onclick="exEffort('${ex.id}',9.5,this)"><span class="cap">Max</span></div>
+                </div>
+              </div>
+              <button class="btn primary full" style="margin-top:10px;" onclick="logExerciseSet('${ex.id}')">Log set</button>
+              <div id="res-${ex.id}" style="margin-top:8px;"></div>
+            </div>
+          </div>`;
+        }).join('');
     } catch (e) {
-      result.innerHTML = `<div class="error">${e.message}</div>`;
+      list.innerHTML = `<div class="error">${e.message}</div>`;
     }
+  }
+
+  function exStep(id, field, delta) {
+    const s = workoutState[id];
+    s[field] = Math.max(field === 'weight' ? 0 : 1, s[field] + delta);
+    if (field === 'weight') document.getElementById('w-' + id).innerHTML = s.weight + ' <small>kg</small>';
+    else document.getElementById('r-' + id).textContent = s.reps;
+  }
+
+  function exEffort(id, rpe, el) {
+    workoutState[id].rpe = rpe;
+    el.parentElement.querySelectorAll('.pick').forEach(p => p.classList.remove('sel'));
+    el.classList.add('sel');
+  }
+
+  async function logExerciseSet(id) {
+    const s = workoutState[id];
+    const res = document.getElementById('res-' + id);
+    res.innerHTML = '<div class="loading">Logging…</div>';
+    try {
+      const r = await api('/v1/workouts/log', { method: 'POST', body: {
+        exercise_id: id, weight_kg: s.weight, reps: s.reps, rpe: s.rpe, history: [],
+      }});
+      // Persist to history too
+      await api('/v1/logs/workouts', { method: 'POST', body: {
+        program: cachedWorkout?.program || 'ppl_power',
+        day_name: cachedWorkout?.day_name || 'Workout',
+        week: cachedWorkout?.week || 1, day_index: 0,
+        decision: cachedWorkout?.decision || 'GREEN',
+        sets: [{ exercise_id: id, set_index: 1, weight_kg: s.weight, reps: s.reps, rpe: s.rpe }],
+      }});
+      const pr = r.pr;
+      document.getElementById('exc-' + id).classList.add('done');
+      if (pr.is_pr) {
+        res.innerHTML = `<div style="color:var(--green); font-weight:600; padding:8px 0;">🎉 ${pr.pr_type.toUpperCase()} PR! ${s.weight}kg × ${s.reps}</div>`;
+      } else {
+        res.innerHTML = `<div style="color:var(--green); padding:8px 0;">✓ Logged ${s.weight}kg × ${s.reps}</div>`;
+      }
+    } catch (e) {
+      res.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  const QUICK_FOODS = [
+    ['🫓','Roti','roti_wheat_1pc'], ['🍚','Rice','rice_basmati_100g'],
+    ['🍗','Chicken','chicken_breast_100g'], ['🥚','Egg','egg_whole_1pc'],
+    ['🧀','Paneer','paneer_100g'], ['🥛','Milk','milk_toned_1cup'],
+    ['🥣','Dal','dal_toor_1cup'], ['🍶','Curd','dahi_1cup'],
+    ['🌾','Oats','oats_rolled_50g'], ['💪','Whey','whey_isolate_30g'],
+    ['🍌','Banana','banana_1pc'], ['🍎','Apple','apple_1pc'],
+    ['🥔','Potato','aloo_1cup'], ['🥜','Peanuts','peanuts_28g'],
+    ['⚪','Idli','idli_1pc'], ['🥞','Dosa','dosa_plain_1pc'],
+  ];
+
+  function mealContext() {
+    const h = new Date().getHours();
+    return h < 11 ? 'breakfast' : h < 16 ? 'lunch' : h < 19 ? 'snack' : 'dinner';
   }
 
   function mealModal() {
     return `
       <h3>🍽️ Log a meal</h3>
-      <p class="meta" style="margin-bottom: 16px;">Search, tap to select, set portions, log</p>
-      <input type="text" id="m-search" placeholder="Search foods (try 'chicken', 'roti', 'paneer')" style="width: 100%; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px;"
+      <p class="meta" id="meal-day-total" style="margin-bottom: 16px;">Tap any food to log one serving instantly.</p>
+      <div class="q-label" style="font-size:13px; margin-bottom:10px;">⚡ Quick add (${mealContext()})</div>
+      <div class="chips" id="quick-foods"></div>
+      <div class="q-label" style="font-size:13px; margin:20px 0 10px;">🔍 Or search 80+ foods</div>
+      <input type="text" id="m-search" placeholder="Try 'thigh', 'brown rice', 'moong'…" style="width: 100%; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 12px;"
         oninput="clearTimeout(window._mealTimer); window._mealTimer = setTimeout(() => searchFoods(this.value), 250)">
       <div id="m-results" style="margin-top: 12px;"></div>
       <div id="m-result" style="margin-top: 12px;"></div>
     `;
+  }
+
+  function renderQuickFoods() {
+    const el = document.getElementById('quick-foods');
+    if (!el) return;
+    el.innerHTML = QUICK_FOODS.map(([e, n, id]) =>
+      `<div class="chip" onclick="quickAddFood('${id}','${n}',this)"><span class="ce">${e}</span>${n}</div>`
+    ).join('');
+  }
+
+  async function quickAddFood(id, name, el) {
+    const orig = el.innerHTML;
+    el.innerHTML = '<span class="ce">⏳</span>' + name;
+    try {
+      const r = await api('/v1/logs/meals', { method: 'POST', body: { food_id: id, portions: 1, context: mealContext() } });
+      el.style.borderColor = 'var(--green)';
+      el.innerHTML = '<span class="ce">✓</span>' + name;
+      document.getElementById('meal-day-total').innerHTML =
+        `<span style="color:var(--accent); font-weight:600;">Today: ${Math.round(r.day_kcal_total)} kcal</span> · keep tapping to add more`;
+      setTimeout(() => { el.innerHTML = orig; el.style.borderColor = ''; }, 1400);
+    } catch (e) {
+      el.innerHTML = orig;
+      document.getElementById('m-result').innerHTML = `<div class="error">${e.message}</div>`;
+    }
   }
 
   async function searchFoods(q) {
@@ -1190,8 +1354,8 @@
 
   function bpModal() {
     return `
-      <h3>🩺 Log BP</h3>
-      <p class="meta" style="margin-bottom: 16px;">Sends to API; triggers CRITICAL escalation if hypertensive crisis</p>
+      <h3>🩺 Log blood pressure</h3>
+      <p class="meta" style="margin-bottom: 16px;">Read the two numbers off your BP cuff and type them in.</p>
       <div class="form-grid">
         <div class="form-row"><label>Systolic</label><input type="number" id="m-sys" value="125"></div>
         <div class="form-row"><label>Diastolic</label><input type="number" id="m-dia" value="80"></div>
@@ -1245,7 +1409,7 @@
   function glucoseModal() {
     return `
       <h3>🩸 Log glucose</h3>
-      <p class="meta" style="margin-bottom: 16px;">Try 40 to see CRITICAL escalation (hypoglycemia)</p>
+      <p class="meta" style="margin-bottom: 16px;">Read the number off your glucose meter (mg/dL) and type it in.</p>
       <div class="form-grid">
         <div class="form-row"><label>Value (mg/dL)</label><input type="number" id="m-glu" value="100"></div>
         <div class="form-row"><label>Context</label>
@@ -1285,35 +1449,140 @@
     }
   }
 
+  // ----- Check-in: tap & slide, no devices needed -----
+  let checkinPicks = { sleep_hours: 7, sleep_quality: 0, energy: 0, soreness: 0, mood: 0, stress: 0 };
+
+  function pickerRow(key, options) {
+    // options: array of [emoji, caption]; value = index+1
+    return `<div class="pick-row">` + options.map((o, i) =>
+      `<div class="pick" data-key="${key}" data-val="${i + 1}" onclick="pickSet('${key}',${i + 1},this)">
+         <span class="emoji">${o[0]}</span><span class="cap">${o[1]}</span>
+       </div>`).join('') + `</div>`;
+  }
+
+  function pickSet(key, val, el) {
+    checkinPicks[key] = val;
+    el.parentElement.querySelectorAll('.pick').forEach(p => p.classList.remove('sel'));
+    el.classList.add('sel');
+  }
+
+  function sleepSlide(v) {
+    checkinPicks.sleep_hours = parseFloat(v);
+    document.getElementById('sleep-val').innerHTML = v + ' <small>hrs</small>';
+  }
+
   function checkinModal() {
+    checkinPicks = { sleep_hours: 7, sleep_quality: 0, energy: 0, soreness: 0, mood: 0, stress: 0 };
     return `
-      <h3>📋 Daily check-in</h3>
-      <p class="meta" style="margin-bottom: 16px;">These update your readiness score</p>
-      <div class="form-grid">
-        <div class="form-row"><label>HRV today</label><input type="number" id="c2-hrv" value="${checkin.hrv_today_ms}"></div>
-        <div class="form-row"><label>RHR today</label><input type="number" id="c2-rhr" value="${checkin.rhr_today_bpm}"></div>
-        <div class="form-row"><label>Sleep (min)</label><input type="number" id="c2-sleep" value="${checkin.sleep_min}"></div>
-        <div class="form-row"><label>Energy (1-5)</label><input type="number" id="c2-energy" min="1" max="5" value="${checkin.energy_1to5}"></div>
-        <div class="form-row"><label>Soreness (1-5)</label><input type="number" id="c2-soreness" min="1" max="5" value="${checkin.soreness_1to5}"></div>
-        <div class="form-row"><label>Mood (1-5)</label><input type="number" id="c2-mood" min="1" max="5" value="${checkin.mood_1to5}"></div>
-        <div class="form-row"><label>Stress (1-5)</label><input type="number" id="c2-stress" min="1" max="5" value="${checkin.stress_1to5}"></div>
+      <h3>🌅 Morning check-in</h3>
+      <p class="meta" style="margin-bottom: 20px;">Six quick taps — no smartwatch needed.</p>
+
+      <div class="q-block">
+        <div class="q-label">How long did you sleep?</div>
+        <div class="slider-wrap">
+          <div class="slider-val" id="sleep-val">7 <small>hrs</small></div>
+          <input type="range" class="vslider" min="3" max="10" step="0.5" value="7" oninput="sleepSlide(this.value)">
+          <div class="slider-ends"><span>3h</span><span>10h</span></div>
+        </div>
       </div>
-      <button class="btn primary full" style="margin-top: 16px;" onclick="submitCheckinModal()">Save & recompute</button>
+
+      <div class="q-block">
+        <div class="q-label">How rested do you feel?</div>
+        ${pickerRow('sleep_quality', [['😫','Awful'],['😕','Poor'],['😐','OK'],['🙂','Good'],['😄','Great']])}
+      </div>
+
+      <div class="q-block">
+        <div class="q-label">Energy level?</div>
+        ${pickerRow('energy', [['🪫','Drained'],['😪','Low'],['😐','OK'],['💪','Good'],['⚡','High']])}
+      </div>
+
+      <div class="q-block">
+        <div class="q-label">Muscle soreness?</div>
+        ${pickerRow('soreness', [['😌','None'],['🙂','Mild'],['😐','Some'],['😣','Sore'],['🥵','Very']])}
+      </div>
+
+      <div class="q-block">
+        <div class="q-label">Mood?</div>
+        ${pickerRow('mood', [['😞','Low'],['😕','Meh'],['😐','OK'],['🙂','Good'],['😄','Great']])}
+      </div>
+
+      <div class="q-block">
+        <div class="q-label">Stress level?</div>
+        ${pickerRow('stress', [['😌','Calm'],['🙂','Light'],['😐','Some'],['😟','High'],['😰','Maxed']])}
+      </div>
+
+      <button class="btn primary full" style="margin-top: 8px; padding:16px;" onclick="submitCheckinModal()">See my readiness →</button>
       <div id="m-result" style="margin-top: 12px;"></div>
     `;
   }
 
   async function submitCheckinModal() {
-    checkin.hrv_today_ms = parseFloat(document.getElementById('c2-hrv').value);
-    checkin.rhr_today_bpm = parseFloat(document.getElementById('c2-rhr').value);
-    checkin.sleep_min = parseInt(document.getElementById('c2-sleep').value);
-    checkin.energy_1to5 = parseInt(document.getElementById('c2-energy').value);
-    checkin.soreness_1to5 = parseInt(document.getElementById('c2-soreness').value);
-    checkin.mood_1to5 = parseInt(document.getElementById('c2-mood').value);
-    checkin.stress_1to5 = parseInt(document.getElementById('c2-stress').value);
-    localStorage.setItem('varunos_checkin', JSON.stringify(checkin));
-    document.getElementById('m-result').innerHTML = '<div style="color:var(--green);">✓ Saved</div>';
-    setTimeout(() => { closeModal(); openTab('today'); }, 800);
+    const p = checkinPicks;
+    const missing = [];
+    if (!p.sleep_quality) missing.push('rested');
+    if (!p.energy) missing.push('energy');
+    if (!p.soreness) missing.push('soreness');
+    if (!p.mood) missing.push('mood');
+    if (!p.stress) missing.push('stress');
+    if (missing.length) {
+      document.getElementById('m-result').innerHTML =
+        `<div class="error">Please answer: ${missing.join(', ')}.</div>`;
+      return;
+    }
+    document.getElementById('m-result').innerHTML = '<div class="loading">Computing your readiness…</div>';
+    try {
+      const r = await api('/v1/readiness/simple', {
+        method: 'POST',
+        body: {
+          sleep_hours: p.sleep_hours,
+          sleep_quality_1to5: p.sleep_quality,
+          energy_1to5: p.energy,
+          soreness_1to5: p.soreness,
+          mood_1to5: p.mood,
+          stress_1to5: p.stress,
+        },
+      });
+      // Persist the check-in for history (derive storage fields)
+      await api('/v1/logs/checkins', {
+        method: 'POST',
+        body: {
+          sleep_min: Math.round(p.sleep_hours * 60),
+          sleep_eff_pct: 55 + p.sleep_quality * 9,  // carries quality
+          energy_1to5: p.energy,
+          soreness_1to5: p.soreness,
+          mood_1to5: p.mood,
+          stress_1to5: p.stress,
+        },
+      });
+      // Celebrate with the result, right in the modal
+      const col = r.color === 'GREEN' ? 'var(--green)' : r.color === 'YELLOW' ? 'var(--yellow)' : 'var(--red)';
+      const headline = {
+        GREEN: 'Green day — go for it 💪',
+        YELLOW: 'Yellow day — pull back a little',
+        RED: 'Red day — recover today 🧘',
+      }[r.color];
+      const advice = {
+        GREEN: 'Your body is recovered. Push hard on today\'s session.',
+        YELLOW: 'Train, but cut a set or two and keep RPE in check.',
+        RED: 'Skip the heavy stuff. Walk, stretch, sleep early.',
+      }[r.color];
+      document.getElementById('modal-content').innerHTML = `
+        <h3>Your readiness today</h3>
+        <div class="readiness-card ${r.color.toLowerCase()}" style="margin-top:12px;">
+          <div class="readiness-label">Readiness</div>
+          <div class="readiness-score" style="color:${col}">${Math.round(r.overall)}</div>
+          <div class="readiness-status" style="color:${col}">${headline}</div>
+          <div class="readiness-components" style="margin-top:14px;">
+            ${Object.entries(r.components).map(([k, v]) =>
+              `<div class="readiness-component"><div class="label">${k}</div><div class="value">${Math.round(v)}</div></div>`).join('')}
+          </div>
+        </div>
+        <p class="meta" style="margin:14px 0;">${advice}</p>
+        <button class="btn primary full" onclick="closeModal(); openTab('today');">Done</button>
+      `;
+    } catch (e) {
+      document.getElementById('m-result').innerHTML = `<div class="error">${e.message}</div>`;
+    }
   }
 
   // ========== INSIGHTS TAB ==========
@@ -1519,35 +1788,6 @@
     document.getElementById('profile-status').innerHTML = '<span style="color:var(--green);">✓ Saved. Reloading Today…</span>';
     setTimeout(() => openTab('today'), 600);
   }
-  function loadCheckinForm() {
-    document.getElementById('c-hrv').value = checkin.hrv_today_ms;
-    document.getElementById('c-hrvb').value = checkin.hrv_7d_baseline_ms;
-    document.getElementById('c-rhr').value = checkin.rhr_today_bpm;
-    document.getElementById('c-rhrb').value = checkin.rhr_30d_baseline_bpm;
-    document.getElementById('c-sleep').value = checkin.sleep_min;
-    document.getElementById('c-energy').value = checkin.energy_1to5;
-    document.getElementById('c-soreness').value = checkin.soreness_1to5;
-    document.getElementById('c-mood').value = checkin.mood_1to5;
-    document.getElementById('c-stress').value = checkin.stress_1to5;
-  }
-  function saveCheckin() {
-    checkin = {
-      ...checkin,
-      hrv_today_ms: parseFloat(document.getElementById('c-hrv').value),
-      hrv_7d_baseline_ms: parseFloat(document.getElementById('c-hrvb').value),
-      rhr_today_bpm: parseFloat(document.getElementById('c-rhr').value),
-      rhr_30d_baseline_bpm: parseFloat(document.getElementById('c-rhrb').value),
-      sleep_min: parseInt(document.getElementById('c-sleep').value),
-      energy_1to5: parseInt(document.getElementById('c-energy').value),
-      soreness_1to5: parseInt(document.getElementById('c-soreness').value),
-      mood_1to5: parseInt(document.getElementById('c-mood').value),
-      stress_1to5: parseInt(document.getElementById('c-stress').value),
-    };
-    localStorage.setItem('varunos_checkin', JSON.stringify(checkin));
-    document.getElementById('checkin-status').innerHTML = '<span style="color:var(--green);">✓ Saved. Recomputing readiness…</span>';
-    setTimeout(() => openTab('today'), 600);
-  }
-
   // ========== CONNECTION (Settings) ==========
   function loadConnectionForm() {
     const baseEl = document.getElementById('s-api-base');
@@ -1736,7 +1976,6 @@
   maybeShowOnboard();
   healthCheck();
   loadProfileForm();
-  loadCheckinForm();
   loadToday();
   refreshConsent();
 

@@ -253,6 +253,39 @@ class CheckinIn(BaseModel):
     notes: Optional[str] = None
 
 
+class SimpleReadinessIn(BaseModel):
+    """Human-first readiness inputs — answers a person knows on waking."""
+    sleep_hours: float = 7.0
+    sleep_quality_1to5: int = 3
+    energy_1to5: int = 3
+    soreness_1to5: int = 3
+    mood_1to5: int = 3
+    stress_1to5: int = 3
+    # Optional: only if the user has a wearable
+    hrv_today_ms: Optional[float] = None
+    hrv_baseline_ms: Optional[float] = None
+    rhr_today_bpm: Optional[float] = None
+    rhr_baseline_bpm: Optional[float] = None
+
+
+@router.post("/v1/readiness/simple")
+def readiness_simple_endpoint(payload: SimpleReadinessIn):
+    """Compute readiness from simple human answers. No wearable needed."""
+    from varunos.core.readiness import readiness_simple
+    return readiness_simple(
+        sleep_hours=payload.sleep_hours,
+        sleep_quality_1to5=payload.sleep_quality_1to5,
+        energy_1to5=payload.energy_1to5,
+        soreness_1to5=payload.soreness_1to5,
+        mood_1to5=payload.mood_1to5,
+        stress_1to5=payload.stress_1to5,
+        hrv_today_ms=payload.hrv_today_ms,
+        hrv_baseline_ms=payload.hrv_baseline_ms,
+        rhr_today_bpm=payload.rhr_today_bpm,
+        rhr_baseline_bpm=payload.rhr_baseline_bpm,
+    )
+
+
 @router.get("/v1/logs/checkins")
 def get_checkin_today(date: Optional[str] = None):
     """Get the check-in for a given date (default today). Returns null if none logged."""

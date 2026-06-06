@@ -214,3 +214,58 @@ def decision_color(overall: float) -> str:
     if overall >= 50:
         return "YELLOW"
     return "RED"
+
+
+def readiness_simple(
+    *,
+    sleep_hours: float,
+    sleep_quality_1to5: int,
+    energy_1to5: int,
+    soreness_1to5: int,
+    mood_1to5: int,
+    stress_1to5: int,
+    hrv_today_ms: float | None = None,
+    hrv_baseline_ms: float | None = None,
+    rhr_today_bpm: float | None = None,
+    rhr_baseline_bpm: float | None = None,
+) -> dict:
+    """Human-first readiness. Works from answers a person knows on waking.
+
+    No wearable required. If the user DOES have HRV/RHR from a watch, those
+    are folded in and the weighting shifts to include them. Otherwise the
+    score is computed honestly from sleep + subjective wellness only, and
+    only those components are reported (no fake HRV numbers shown).
+    """
+    # Sleep sub-score: half duration (target 7.5h), half felt quality
+    dur_score = max(0.0, min(100.0, (sleep_hours / 7.5) * 100))
+    qual_score = max(0.0, min(100.0, (sleep_quality_1to5 - 1) * 25))
+    sleep = round(0.5 * dur_score + 0.5 * qual_score, 1)
+
+    well = wellness_score(
+        energy_1to5=energy_1to5, soreness_1to5=soreness_1to5,
+        mood_1to5=mood_1to5, stress_1to5=stress_1to5,
+    )
+
+    has_hrv = bool(hrv_today_ms and hrv_baseline_ms)
+    has_rhr = bool(rhr_today_bpm and rhr_baseline_bpm)
+
+    components: dict[str, float] = {"sleep": sleep, "wellness": well}
+
+    if has_hrv and has_rhr:
+        h = hrv_score(hrv_today_ms=hrv_today_ms, hrv_7d_baseline_ms=hrv_baseline_ms)
+        r = rhr_score(rhr_today_bpm=rhr_today_bpm, rhr_30d_baseline_bpm=rhr_baseline_bpm)
+        components["hrv"] = round(h, 1)
+        components["rhr"] = round(r, 1)
+        overall = round(0.25 * h + 0.15 * r + 0.30 * sleep + 0.30 * well, 1)
+    elif has_hrv:
+        h = hrv_score(hrv_today_ms=hrv_today_ms, hrv_7d_baseline_ms=hrv_baseline_ms)
+        components["hrv"] = round(h, 1)
+        overall = round(0.30 * h + 0.35 * sleep + 0.35 * well, 1)
+    else:
+        overall = round(0.45 * sleep + 0.55 * well, 1)
+
+    return {
+        "overall": overall,
+        "color": decision_color(overall),
+        "components": components,
+    }
