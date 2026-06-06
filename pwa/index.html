@@ -431,15 +431,10 @@
       <p id="today-date">—</p>
     </div>
 
-    <div class="readiness-card green" id="readiness-card">
-      <div class="readiness-label">Readiness</div>
-      <div class="readiness-score" id="readiness-score">—</div>
-      <div class="readiness-status" id="readiness-status">—</div>
-      <div class="readiness-components" id="readiness-components"></div>
-    </div>
+    <div id="readiness-card-wrap"></div>
 
-    <div class="section-title">Risk tiers (today)</div>
-    <div class="tier-row" id="tier-row">
+    <div class="section-title" id="tiers-title" style="display:none">Risk tiers (today)</div>
+    <div class="tier-row" id="tier-row" style="display:none">
       <span class="tier-chip LOW" id="chip-glucose"><span class="tier-dot LOW"></span>Glucose —</span>
       <span class="tier-chip LOW" id="chip-bp"><span class="tier-dot LOW"></span>BP —</span>
       <span class="tier-chip LOW" id="chip-cvd"><span class="tier-dot LOW"></span>CVD —</span>
@@ -491,6 +486,12 @@
       <p>Updates your readiness score</p>
       <span class="arrow">→</span>
     </div>
+
+    <div class="section-title">Today's meals</div>
+    <div id="today-meals-list"><div class="empty">Loading…</div></div>
+
+    <div class="section-title">Recent workouts</div>
+    <div id="recent-workouts-list"><div class="empty">Loading…</div></div>
   </section>
 
   <!-- INSIGHTS TAB -->
@@ -734,8 +735,8 @@
 
 <script>
   // ========== CONFIG ==========
-  const API_BASE = localStorage.getItem('varunos_api') || 'http://127.0.0.1:8000';
-  const API_KEY = localStorage.getItem('varunos_key') || '';
+  let API_BASE = localStorage.getItem('varunos_api') || 'http://127.0.0.1:8000';
+  let API_KEY = localStorage.getItem('varunos_key') || '';
 
   // ========== STATE ==========
   let profile = JSON.parse(localStorage.getItem('varunos_profile') || JSON.stringify({
@@ -809,96 +810,198 @@
     document.getElementById('tab-' + name).classList.add('active');
     document.querySelector(`nav.bottom button[data-tab="${name}"]`).classList.add('active');
     if (name === 'today') loadToday();
+    if (name === 'log') loadLogHistory();
+  }
+
+  async function loadLogHistory() {
+    const mealsEl = document.getElementById('today-meals-list');
+    const workoutsEl = document.getElementById('recent-workouts-list');
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const meals = await api('/v1/logs/meals?limit=50');
+      const todayMeals = (meals.meals || []).filter(m => m.ts?.startsWith(today));
+      if (todayMeals.length === 0) {
+        mealsEl.innerHTML = '<div class="empty">No meals logged today. Tap "Log meal" above.</div>';
+      } else {
+        const total = todayMeals.reduce((s, m) => s + (m.kcal || 0), 0);
+        mealsEl.innerHTML = todayMeals.map(m => `
+          <div class="card" style="margin-bottom: 6px; padding: 10px 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <span style="font-size:13px; font-weight:600;">${m.food_id.replace(/_/g, ' ')}</span>
+                <span class="meta" style="margin-left:8px;">${m.context || ''}</span>
+              </div>
+              <span style="font-family:monospace; font-size:13px; font-weight:600;">${Math.round(m.kcal)} kcal</span>
+            </div>
+            <span class="meta">P${Math.round(m.p_g)}g C${Math.round(m.c_g)}g F${Math.round(m.f_g)}g · ${m.portions}×</span>
+          </div>
+        `).join('') + `<div style="text-align:right; font-size:13px; color:var(--accent); font-weight:600; margin-top:6px;">Total: ${Math.round(total)} kcal</div>`;
+      }
+    } catch (e) {
+      mealsEl.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+    try {
+      const wk = await api('/v1/logs/workouts?limit=5');
+      if ((wk.workouts || []).length === 0) {
+        workoutsEl.innerHTML = '<div class="empty">No workouts logged yet.</div>';
+      } else {
+        workoutsEl.innerHTML = wk.workouts.map(w => `
+          <div class="card" style="margin-bottom: 6px; padding: 10px 14px;">
+            <div style="display:flex; justify-content:space-between;">
+              <span style="font-size:13px; font-weight:600;">${w.day_name} · ${w.program}</span>
+              <span class="meta">${w.ts?.slice(0, 10)}</span>
+            </div>
+            <span class="meta">${w.decision} · ${w.duration_min ? w.duration_min + ' min' : 'no duration'}</span>
+          </div>
+        `).join('');
+      }
+    } catch (e) {
+      workoutsEl.innerHTML = `<div class="error">${e.message}</div>`;
+    }
   }
 
   // ========== TODAY TAB ==========
   async function loadToday() {
     const date = new Date();
+    const today = date.toISOString().slice(0, 10);
     document.getElementById('today-date').textContent =
       date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-
     document.getElementById('user-first-name').textContent = profile.user_id.charAt(0).toUpperCase() + profile.user_id.slice(1);
     document.getElementById('avatar').textContent = profile.user_id.charAt(0).toUpperCase();
 
-    // Snapshot
+    // Check if user has done a real check-in today
+    let todayCheckin = null;
     try {
-      cachedSnapshot = await api('/v1/state/snapshot', {
-        method: 'POST',
-        body: { profile, checkin },
-      });
-      renderSnapshot(cachedSnapshot);
-    } catch (e) {
-      showError('workout-card', `Could not reach API at ${API_BASE}. ${e.message}`);
+      const r = await api(`/v1/logs/checkins`);
+      // checkins endpoint doesn't exist as GET yet — we try the daily report
+      const report = await api(`/v1/report/daily?date=${today}`);
+      if (report.checkin && report.checkin.energy_1to5 !== null) {
+        todayCheckin = report.checkin;
+      }
+    } catch(_) {}
+
+    if (todayCheckin) {
+      // Real data — compute readiness from actual check-in
+      const realCheckin = {
+        hrv_today_ms: todayCheckin.hrv_today_ms || checkin.hrv_today_ms,
+        hrv_7d_baseline_ms: todayCheckin.hrv_7d_baseline_ms || checkin.hrv_7d_baseline_ms,
+        rhr_today_bpm: todayCheckin.rhr_today_bpm || checkin.rhr_today_bpm,
+        rhr_30d_baseline_bpm: todayCheckin.rhr_30d_baseline_bpm || checkin.rhr_30d_baseline_bpm,
+        sleep_min: todayCheckin.sleep_min || checkin.sleep_min,
+        sleep_deep_pct: todayCheckin.sleep_deep_pct || 17,
+        sleep_rem_pct: todayCheckin.sleep_rem_pct || 22,
+        sleep_eff_pct: todayCheckin.sleep_eff_pct || 92,
+        sleep_continuity_min: todayCheckin.sleep_continuity_min || 0,
+        energy_1to5: todayCheckin.energy_1to5,
+        soreness_1to5: todayCheckin.soreness_1to5,
+        mood_1to5: todayCheckin.mood_1to5,
+        stress_1to5: todayCheckin.stress_1to5,
+        acute_load: todayCheckin.acute_load || checkin.acute_load,
+        chronic_load: todayCheckin.chronic_load || checkin.chronic_load,
+      };
+      try {
+        cachedSnapshot = await api('/v1/state/snapshot', { method: 'POST', body: { profile, checkin: realCheckin } });
+        renderSnapshot(cachedSnapshot);
+        document.getElementById('tiers-title').style.display = '';
+        document.getElementById('tier-row').style.display = '';
+      } catch(e) {
+        renderReadinessEmpty();
+      }
+      try {
+        const readiness = cachedSnapshot?.readiness?.overall || 75;
+        cachedWorkout = await api('/v1/workouts/today', { method: 'POST', body: {
+          program: 'ppl_power', week: 3, day_index: 0, readiness,
+          subjective_energy: realCheckin.energy_1to5,
+          soreness: realCheckin.soreness_1to5,
+          acute_chronic_ratio: (realCheckin.acute_load || 85) / (realCheckin.chronic_load || 100),
+        }});
+        renderWorkout(cachedWorkout);
+      } catch(e) { showError('workout-card', e.message); }
+    } else {
+      // No check-in yet — show empty state, prompt user
+      renderReadinessEmpty();
+      // Still show workout plan (not dependent on biometrics)
+      try {
+        cachedWorkout = await api('/v1/workouts/today', { method: 'POST', body: {
+          program: 'ppl_power', week: 3, day_index: 0,
+          readiness: 75, subjective_energy: 3, soreness: 3, acute_chronic_ratio: 1.0,
+        }});
+        renderWorkout(cachedWorkout, true);
+      } catch(e) { showError('workout-card', e.message); }
     }
 
-    // Workout
+    // Diet — macros from profile (always shown), consumed from real logs
     try {
-      const readiness = cachedSnapshot?.readiness?.overall || 75;
-      cachedWorkout = await api('/v1/workouts/today', {
-        method: 'POST',
-        body: {
-          program: 'ppl_power',
-          week: 3,
-          day_index: 0,
-          readiness,
-          subjective_energy: checkin.energy_1to5,
-          soreness: checkin.soreness_1to5,
-          acute_chronic_ratio: checkin.acute_load / checkin.chronic_load,
-        },
-      });
-      renderWorkout(cachedWorkout);
-    } catch (e) {
-      showError('workout-card', e.message);
+      const dietData = await api('/v1/diet/calc', { method: 'POST', body: {
+        sex: profile.sex, weight_kg: profile.weight_kg, height_cm: profile.height_cm,
+        age: profile.age, activity: profile.activity, goal: profile.goal,
+      }});
+      const meals = await api('/v1/logs/meals?limit=100');
+      const consumed = (meals.meals || [])
+        .filter(m => m.ts && m.ts.startsWith(today))
+        .reduce((s, m) => s + (m.kcal || 0), 0);
+      renderDiet(dietData, consumed);
+    } catch(e) {
+      if (cachedSnapshot?.diet) renderDiet(cachedSnapshot.diet, 0);
     }
+  }
 
-    // Diet (from snapshot)
-    if (cachedSnapshot?.diet) renderDiet(cachedSnapshot.diet);
+  function renderReadinessEmpty() {
+    document.getElementById('readiness-card-wrap').innerHTML = `
+      <div class="card" style="border: 2px dashed var(--border); text-align:center; padding: 28px 20px;">
+        <div style="font-size: 32px; margin-bottom: 8px;">🌅</div>
+        <h3 style="font-size: 16px; margin-bottom: 6px;">No check-in yet today</h3>
+        <p class="meta" style="margin-bottom: 16px;">Log your HRV, sleep, energy and soreness to see your real readiness score.</p>
+        <button class="btn primary full" onclick="openLogModal('checkin')">Do morning check-in</button>
+      </div>
+    `;
+    document.getElementById('tiers-title').style.display = 'none';
+    document.getElementById('tier-row').style.display = 'none';
   }
 
   function renderSnapshot(s) {
     const r = s.readiness;
-    const card = document.getElementById('readiness-card');
-    card.classList.remove('green', 'yellow', 'red');
-    card.classList.add(r.color.toLowerCase());
-
-    document.getElementById('readiness-score').textContent = Math.round(r.overall);
+    const colorClass = r.color.toLowerCase();
     const statusText = {
       GREEN: '🟢 Green day — go for it',
-      YELLOW: '🟡 Yellow day — pull back',
-      RED: '🔴 Red day — active recovery',
+      YELLOW: '🟡 Yellow day — pull back a little',
+      RED: '🔴 Red day — active recovery only',
     }[r.color] || r.color;
-    document.getElementById('readiness-status').textContent = statusText;
-
     const comps = [
-      ['HRV', r.components.hrv],
-      ['RHR', r.components.rhr],
-      ['Sleep', r.components.sleep],
-      ['Wellness', r.components.wellness],
-      ['Load', r.components.load],
-      ['Trend', r.components.trend],
+      ['HRV', r.components.hrv], ['RHR', r.components.rhr],
+      ['Sleep', r.components.sleep], ['Wellness', r.components.wellness],
+      ['Load', r.components.load], ['Trend', r.components.trend],
     ];
-    document.getElementById('readiness-components').innerHTML =
-      comps.map(([k, v]) => `<div class="readiness-component">
-        <div class="label">${k}</div><div class="value">${Math.round(v)}</div>
-      </div>`).join('');
-
-    // Mock tier chips (the snapshot doesn't include medical tiers — would be added when surveillance is enabled)
-    // For now, set them based on simple heuristics or show 'OFF'
-    document.getElementById('chip-glucose').innerHTML = `<span class="tier-dot LOW"></span>Glucose LOW*`;
-    document.getElementById('chip-bp').innerHTML = `<span class="tier-dot LOW"></span>BP LOW*`;
-    document.getElementById('chip-cvd').innerHTML = `<span class="tier-dot LOW"></span>CVD LOW*`;
+    const compColor = v => v >= 75 ? 'var(--green)' : v >= 50 ? 'var(--yellow)' : 'var(--red)';
+    document.getElementById('readiness-card-wrap').innerHTML = `
+      <div class="readiness-card ${colorClass}" id="readiness-card">
+        <div class="readiness-label">Readiness</div>
+        <div class="readiness-score" style="color:${colorClass === 'green' ? 'var(--green)' : colorClass === 'yellow' ? 'var(--yellow)' : 'var(--red)'}">${Math.round(r.overall)}</div>
+        <div class="readiness-status">${statusText}</div>
+        <div class="readiness-components">
+          ${comps.map(([k, v]) => `<div class="readiness-component">
+            <div class="label">${k}</div><div class="value" style="color:${compColor(v)}">${Math.round(v)}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+    `;
+    document.getElementById('chip-glucose').innerHTML = `<span class="tier-dot LOW"></span>Glucose LOW`;
+    document.getElementById('chip-bp').innerHTML = `<span class="tier-dot LOW"></span>BP LOW`;
+    document.getElementById('chip-cvd').innerHTML = `<span class="tier-dot LOW"></span>CVD LOW`;
   }
 
-  function renderWorkout(w) {
-    const exs = w.exercises.map(ex => `&nbsp;&nbsp;• ${ex.id}: ${ex.sets}×${ex.reps} (${ex.intensity})`).join('<br>');
+  function renderWorkout(w, isDefault = false) {
+    const exs = w.exercises.map(ex => `&nbsp;&nbsp;• ${ex.id.replace(/_/g,' ')}: ${ex.sets}×${ex.reps} <span style="color:var(--text-mute)">(${ex.intensity})</span>`).join('<br>');
+    const defaultNote = isDefault ? `<div style="background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.2); border-radius:8px; padding:8px 12px; font-size:12px; color:var(--yellow); margin-bottom:12px;">⚠ Do your morning check-in to get a personalised decision (GREEN / YELLOW / RED)</div>` : '';
     document.getElementById('workout-card').innerHTML = `
       <h3>🏋️ ${w.day_name} day</h3>
-      <p class="meta">${w.program} · Week ${w.week} · ${w.block} block</p>
+      <p class="meta" style="margin-bottom:12px;">${w.program} · Week ${w.week} · ${w.block} block</p>
+      ${defaultNote}
       <div class="card-row"><span class="lbl">Decision</span><span class="val" style="color:${decisionColor(w.decision)}">${w.decision}</span></div>
       <div class="card-row"><span class="lbl">Exercises</span><span class="val">${w.exercises.length}</span></div>
       <div class="card-row"><span class="lbl">Total sets</span><span class="val">${w.exercises.reduce((s, e) => s + (e.sets || 0), 0)}</span></div>
-      <p class="meta" style="margin-top: 12px;">${exs}</p>
-      <div class="btn-row">
+      <p class="meta" style="margin-top: 12px; line-height:1.8;">${exs}</p>
+      <div class="btn-row" style="margin-top:12px;">
         <button class="btn primary" onclick="openTab('log')">Start workout</button>
       </div>
     `;
@@ -911,14 +1014,28 @@
     return 'var(--accent-3)';
   }
 
-  function renderDiet(d) {
+  function renderDiet(d, consumed = 0) {
+    const pct = Math.min(100, Math.round((consumed / d.target_kcal) * 100));
+    const remaining = Math.max(0, d.target_kcal - consumed);
+    const barColor = pct > 100 ? 'var(--red)' : pct > 85 ? 'var(--yellow)' : 'var(--accent)';
     document.getElementById('diet-card').innerHTML = `
       <h3>🍽️ Today's nutrition</h3>
+      <div style="margin: 12px 0;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); margin-bottom:4px;">
+          <span>${Math.round(consumed)} eaten</span>
+          <span>${remaining} remaining</span>
+        </div>
+        <div style="background:var(--bg); border-radius:6px; height:8px; overflow:hidden;">
+          <div style="background:${barColor}; height:100%; width:${pct}%; border-radius:6px; transition:width 0.3s;"></div>
+        </div>
+        <div style="text-align:center; font-size:11px; color:var(--text-mute); margin-top:4px;">${pct}% of ${d.target_kcal} kcal target</div>
+      </div>
       <div class="card-row"><span class="lbl">TDEE</span><span class="val">${d.tdee} kcal</span></div>
       <div class="card-row"><span class="lbl">Target</span><span class="val">${d.target_kcal} kcal</span></div>
       <div class="card-row"><span class="lbl">Protein</span><span class="val">${d.protein_g} g</span></div>
       <div class="card-row"><span class="lbl">Fat</span><span class="val">${d.fat_g} g</span></div>
       <div class="card-row"><span class="lbl">Carbs</span><span class="val">${d.carbs_g} g</span></div>
+      <button class="btn ghost full" style="margin-top:10px;" onclick="openLogModal('meal')">+ Log a meal</button>
     `;
   }
 
@@ -987,23 +1104,13 @@
   function mealModal() {
     return `
       <h3>🍽️ Log a meal</h3>
-      <p class="meta" style="margin-bottom: 16px;">Search the food DB; macros auto-computed</p>
-      <input type="text" id="m-search" placeholder="Search foods (try 'chicken', 'roti', 'paneer')" style="width: 100%; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
+      <p class="meta" style="margin-bottom: 16px;">Search, tap to select, set portions, log</p>
+      <input type="text" id="m-search" placeholder="Search foods (try 'chicken', 'roti', 'paneer')" style="width: 100%; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px;"
+        oninput="clearTimeout(window._mealTimer); window._mealTimer = setTimeout(() => searchFoods(this.value), 250)">
       <div id="m-results" style="margin-top: 12px;"></div>
+      <div id="m-result" style="margin-top: 12px;"></div>
     `;
   }
-
-  // Hook the meal modal search
-  setTimeout(() => {
-    const search = document.getElementById('m-search');
-    if (search) {
-      let timer = null;
-      search.addEventListener('input', () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => searchFoods(search.value), 250);
-      });
-    }
-  }, 100);
 
   async function searchFoods(q) {
     const out = document.getElementById('m-results');
@@ -1011,14 +1118,73 @@
     try {
       const r = await api(`/v1/foods/search?q=${encodeURIComponent(q)}&limit=10`);
       out.innerHTML = r.results.map(f => `
-        <div class="card" style="margin-bottom: 8px;">
-          <h3 style="font-size: 14px;">${f.name}</h3>
-          <div class="card-row"><span class="lbl">Per ${f.id.includes('pc') ? 'piece' : '100g'}</span><span class="val">${f.kcal} kcal · P${f.p} C${f.c} F${f.f}</span></div>
-          <div class="card-row"><span class="lbl">Category</span><span class="val">${f.category}</span></div>
+        <div class="card" style="margin-bottom: 8px; cursor:pointer;" onclick="selectFood('${f.id}', '${f.name.replace(/'/g,"\\'")}', ${f.kcal}, ${f.p}, ${f.c}, ${f.f})">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h3 style="font-size: 14px;">${f.name}</h3>
+              <span class="meta">${f.kcal} kcal · P${f.p} C${f.c} F${f.f}</span>
+            </div>
+            <span style="color:var(--accent); font-size:20px;">+</span>
+          </div>
         </div>
       `).join('');
     } catch (e) {
       out.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  function selectFood(id, name, kcal, p, c, f) {
+    document.getElementById('m-results').innerHTML = '';
+    document.getElementById('m-search').value = '';
+    document.getElementById('m-results').innerHTML = `
+      <div class="card" style="border-color: var(--accent);">
+        <h3 style="font-size: 14px;">${name}</h3>
+        <span class="meta">Per portion: ${kcal} kcal · P${p} C${c} F${f}</span>
+        <div class="form-row" style="margin-top: 8px;">
+          <label>Portions</label>
+          <input type="number" id="m-portions" value="1" min="0.25" step="0.25" style="width:80px;">
+        </div>
+        <div class="form-row">
+          <label>Context</label>
+          <select id="m-context" style="width:130px;">
+            <option value="breakfast">Breakfast</option>
+            <option value="lunch" selected>Lunch</option>
+            <option value="snack">Snack</option>
+            <option value="dinner">Dinner</option>
+          </select>
+        </div>
+        <button class="btn primary full" style="margin-top: 12px;" onclick="submitMeal('${id}')">Log this meal</button>
+      </div>
+    `;
+  }
+
+  async function submitMeal(foodId) {
+    const result = document.getElementById('m-result');
+    result.innerHTML = '<div class="loading">Logging…</div>';
+    try {
+      const r = await api('/v1/logs/meals', {
+        method: 'POST',
+        body: {
+          food_id: foodId,
+          portions: parseFloat(document.getElementById('m-portions').value),
+          context: document.getElementById('m-context').value,
+        },
+      });
+      result.innerHTML = `
+        <div class="card" style="background: var(--bg-elev); border-color: var(--green);">
+          <h3 style="color:var(--green);">Logged</h3>
+          <div class="card-row"><span class="lbl">Calories</span><span class="val">${r.kcal} kcal</span></div>
+          <div class="card-row"><span class="lbl">Macros</span><span class="val">P${r.p} C${r.c} F${r.f}</span></div>
+          <div class="card-row"><span class="lbl">Day total</span><span class="val" style="color:var(--accent);">${r.day_kcal_total} kcal</span></div>
+        </div>
+      `;
+      document.getElementById('m-results').innerHTML = `
+        <p class="meta" style="text-align:center; margin: 12px 0;">Log another?</p>
+        <input type="text" id="m-search" placeholder="Search more foods…" style="width: 100%; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px;"
+          oninput="clearTimeout(window._mealTimer); window._mealTimer = setTimeout(() => searchFoods(this.value), 250)">
+      `;
+    } catch (e) {
+      result.innerHTML = `<div class="error">${e.message}</div>`;
     }
   }
 
@@ -1260,40 +1426,72 @@
   }
 
   async function handleCoachCommand(text) {
-    if (text.includes('briefing') || text.includes('how am i')) {
-      await loadToday();
-      const r = cachedSnapshot?.readiness;
-      if (r) {
-        addChat('bot', 'VarunOS · now',
-          `Readiness ${Math.round(r.overall)} (${r.color}). Diet: ${cachedSnapshot.diet.target_kcal} kcal · P${cachedSnapshot.diet.protein_g} F${cachedSnapshot.diet.fat_g} C${cachedSnapshot.diet.carbs_g}.`);
+    try {
+      if (text.includes('briefing') || text.includes('how am i') || text.includes('status')) {
+        await loadToday();
+        const r = cachedSnapshot?.readiness;
+        if (r) {
+          const d = cachedSnapshot.diet;
+          addChat('bot', 'VarunOS', `<strong>${r.color} day</strong> — readiness ${Math.round(r.overall)}/100.<br>HRV ${Math.round(r.components.hrv)} · Sleep ${Math.round(r.components.sleep)} · Load ${Math.round(r.components.load)}<br><br>Target: ${d.target_kcal} kcal · P${d.protein_g}g F${d.fat_g}g C${d.carbs_g}g`);
+        } else {
+          addChat('bot', 'VarunOS', 'Could not reach API. Check Settings → connection.');
+        }
+      } else if (text.includes('workout') || text.includes('train') || text.includes('exercise')) {
+        if (!cachedWorkout) await loadToday();
+        if (cachedWorkout) {
+          const exList = cachedWorkout.exercises.map(e => `${e.id.replace(/_/g,' ')}: ${e.sets}×${e.reps}`).join('<br>');
+          addChat('bot', 'VarunOS', `<strong>${cachedWorkout.day_name}</strong> · ${cachedWorkout.program} · ${cachedWorkout.decision}<br><br>${exList}`);
+        }
+      } else if (text.includes('macro') || text.includes('diet') || text.includes('calorie') || text.includes('eat') || text.includes('nutrition')) {
+        if (!cachedSnapshot) await loadToday();
+        if (cachedSnapshot?.diet) {
+          const d = cachedSnapshot.diet;
+          let meals;
+          try { meals = await api('/v1/logs/meals?limit=50'); } catch(_) { meals = {meals:[]}; }
+          const today = new Date().toISOString().slice(0,10);
+          const todayMeals = (meals.meals||[]).filter(m => m.ts?.startsWith(today));
+          const eaten = todayMeals.reduce((s,m) => s + (m.kcal||0), 0);
+          const items = todayMeals.map(m => `${m.food_id.replace(/_/g,' ')} — ${Math.round(m.kcal)} kcal`).join('<br>');
+          addChat('bot', 'VarunOS', `Target: <strong>${d.target_kcal} kcal</strong> · P${d.protein_g}g F${d.fat_g}g C${d.carbs_g}g<br><br>Eaten today: <strong>${Math.round(eaten)} kcal</strong> (${Math.round(eaten/d.target_kcal*100)}%)<br>${items || '<em>Nothing logged yet</em>'}<br><br>Remaining: ${Math.max(0, d.target_kcal - Math.round(eaten))} kcal`);
+        }
+      } else if (text.includes('history') || text.includes('recent') || text.includes('log')) {
+        const meals = await api('/v1/logs/meals?limit=10');
+        const wk = await api('/v1/logs/workouts?limit=5');
+        let out = '<strong>Recent meals:</strong><br>';
+        out += (meals.meals||[]).slice(0,5).map(m => `${m.ts?.slice(0,10)} · ${m.food_id.replace(/_/g,' ')} · ${Math.round(m.kcal)} kcal`).join('<br>') || '<em>None</em>';
+        out += '<br><br><strong>Recent workouts:</strong><br>';
+        out += (wk.workouts||[]).slice(0,3).map(w => `${w.ts?.slice(0,10)} · ${w.day_name} (${w.program}) · ${w.decision}`).join('<br>') || '<em>None</em>';
+        addChat('bot', 'VarunOS', out);
+      } else if (text.match(/search\s+(.+)/)) {
+        const q = text.match(/search\s+(.+)/)[1];
+        const r = await api(`/v1/foods/search?q=${encodeURIComponent(q)}&limit=8`);
+        if (r.results.length === 0) {
+          addChat('bot', 'VarunOS', `No foods found for "${q}". Try: chicken, paneer, roti, rice, dal, egg.`);
+        } else {
+          const items = r.results.map(f => `<strong>${f.name}</strong> — ${f.kcal} kcal · P${f.p} C${f.c} F${f.f}`).join('<br>');
+          addChat('bot', 'VarunOS', items);
+        }
+      } else if (text.includes('meal plan') || text.includes('plan')) {
+        const r = await api('/v1/diet/plan', { method: 'POST', body: { template: 'indian_nonveg_4meal', n_days: 1 } });
+        const meals = r.days[0].map(m => `<strong>${m.meal}:</strong> ${m.items.map(i => i.food_id.replace(/_/g,' ')).join(', ')}`).join('<br>');
+        addChat('bot', 'VarunOS', `Today's meal plan (Indian Non-Veg):<br><br>${meals}`);
+      } else if (text.includes('programs') || text.includes('program')) {
+        const r = await api('/v1/programs');
+        addChat('bot', 'VarunOS', `Available programs:<br>${r.programs.map(p => `• ${p}`).join('<br>')}`);
       } else {
-        addChat('bot', 'VarunOS · now', 'Could not reach API. Check connection.');
+        addChat('bot', 'VarunOS', `Try:<br>• <em>briefing</em> — full status<br>• <em>workout</em> — today's session<br>• <em>macros</em> — diet + what you ate<br>• <em>history</em> — recent meals & workouts<br>• <em>search chicken</em> — food lookup<br>• <em>meal plan</em> — generate a plan<br>• <em>programs</em> — list workout programs`);
       }
-    } else if (text.includes('workout') || text.includes('train')) {
-      if (cachedWorkout) {
-        addChat('bot', 'VarunOS · now',
-          `${cachedWorkout.day_name} day, ${cachedWorkout.decision} decision. ${cachedWorkout.exercises.length} exercises. Top set: ${cachedWorkout.exercises[0].id} ${cachedWorkout.exercises[0].sets}×${cachedWorkout.exercises[0].reps}.`);
-      }
-    } else if (text.includes('macro') || text.includes('diet') || text.includes('eat')) {
-      if (cachedSnapshot?.diet) {
-        addChat('bot', 'VarunOS · now',
-          `TDEE ${cachedSnapshot.diet.tdee} kcal. Target ${cachedSnapshot.diet.target_kcal} kcal: P${cachedSnapshot.diet.protein_g}g, F${cachedSnapshot.diet.fat_g}g, C${cachedSnapshot.diet.carbs_g}g.`);
-      }
-    } else if (text.includes('pr')) {
-      addChat('bot', 'VarunOS · now', 'Log a set in the Log tab — PR detection runs on every entry.');
-    } else if (text.includes('risk') || text.includes('score')) {
-      addChat('bot', 'VarunOS · now', 'Open the Insights tab — IDRS, ASCVD, BP staging all live there.');
-    } else {
-      addChat('bot', 'VarunOS · now', 'Try: "show briefing", "what\'s my workout", "compute macros", "open insights".');
+    } catch (e) {
+      addChat('bot', 'VarunOS', `Error: ${e.message}`);
     }
   }
 
   function quickAction(action) {
-    if (action === 'briefing') { openTab('today'); return; }
-    if (action === 'workout') { handleCoachCommand('workout'); return; }
+    if (action === 'briefing') { addChat('user', 'You', 'Show briefing'); handleCoachCommand('briefing'); return; }
+    if (action === 'workout') { addChat('user', 'You', 'Show workout'); handleCoachCommand('workout'); return; }
     if (action === 'doctor_share') {
-      addChat('user', 'You · now', 'Generate doctor-share');
-      addChat('bot', 'VarunOS · now', 'Doctor-share PDF is generated via the CLI: <code>PYTHONPATH=. python3 scripts/doctor_share_pdf.py</code>. Browser-based PDF coming in v2.2.');
+      addChat('user', 'You', 'Generate doctor-share');
+      addChat('bot', 'VarunOS', 'Doctor-share data is available at <code>POST /v1/doctor/share</code>. CLI PDF: <code>PYTHONPATH=. python3 scripts/doctor_share_pdf.py</code>');
     }
   }
 
@@ -1363,11 +1561,24 @@
     localStorage.setItem('varunos_api', base);
     if (key) localStorage.setItem('varunos_key', key);
     else localStorage.removeItem('varunos_key');
-    // Re-read into globals and reload
-    document.getElementById('conn-test-result').innerHTML =
-      '<span style="color:var(--text-dim);">Testing…</span>';
-    // Force a full page reload so the new API_BASE/KEY are picked up
-    setTimeout(() => location.reload(), 300);
+    API_BASE = base;
+    API_KEY = key;
+    const el = document.getElementById('conn-test-result');
+    el.innerHTML = '<span style="color:var(--text-dim);">Testing…</span>';
+    try {
+      const r = await fetch(base + '/v1/auth/check', {
+        headers: key ? { 'Authorization': 'Bearer ' + key } : {},
+      });
+      if (r.ok) {
+        el.innerHTML = '<span style="color:var(--green);">Connected &amp; saved.</span>';
+        healthCheck();
+        loadToday();
+      } else {
+        el.innerHTML = `<span style="color:var(--red);">HTTP ${r.status} — check key.</span>`;
+      }
+    } catch (e) {
+      el.innerHTML = `<span style="color:var(--red);">${e.message}</span>`;
+    }
   }
   function clearConnection() {
     localStorage.removeItem('varunos_api');

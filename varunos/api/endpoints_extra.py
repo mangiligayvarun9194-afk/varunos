@@ -206,7 +206,10 @@ def log_meal(payload: MealIn):
     # If macros not provided, look them up in the deterministic food DB
     if payload.kcal is None or payload.p_g is None or payload.c_g is None or payload.f_g is None:
         from varunos.core.diet import food_macros
-        m = food_macros(payload.food_id, portions=payload.portions)
+        try:
+            m = food_macros(payload.food_id, portions=payload.portions)
+        except KeyError:
+            raise HTTPException(404, f"Food not found: {payload.food_id}. Use /v1/foods/search to find valid IDs.")
         kcal = m["kcal"]; p = m["p"]; c = m["c"]; f = m["f"]
     else:
         kcal, p, c, f = payload.kcal, payload.p_g, payload.c_g, payload.f_g
@@ -248,6 +251,15 @@ class CheckinIn(BaseModel):
     acute_load: Optional[float] = None
     chronic_load: Optional[float] = None
     notes: Optional[str] = None
+
+
+@router.get("/v1/logs/checkins")
+def get_checkin_today(date: Optional[str] = None):
+    """Get the check-in for a given date (default today). Returns null if none logged."""
+    uid = _user_id_from_default()
+    target = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    row = db.get_checkin(uid, target)
+    return {"date": target, "checkin": row}
 
 
 @router.post("/v1/logs/checkins")
@@ -550,3 +562,95 @@ def log_cgm(payload: CGMIn):
         )
         persisted = True
     return {"metrics": metrics, "assessment": assessment, "persisted": persisted}
+
+
+# ---- Weekly report / daily summary (powers email, Notion, CLI) -----------
+
+@router.get("/v1/report/daily")
+def daily_report(date: Optional[str] = None):
+    """Generate a structured daily summary. Powers email reports, Notion sync, CLI."""
+    uid = _user_id_from_default()
+    target_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Meals
+    all_meals = db.list_meals(uid)
+    day_meals = [m for m in all_meals if m.get("ts", "").startswith(target_date)]
+    total_kcal = sum(m.get("kcal", 0) for m in day_meals)
+    total_p = sum(m.get("p_g", 0) for m in day_meals)
+    total_c = sum(m.get("c_g", 0) for m in day_meals)
+    total_f = sum(m.get("f_g", 0) for m in day_meals)
+
+    # Workouts
+    all_workouts = db.list_workout_logs(uid, limit=50)
+    day_workouts = [w for w in all_workouts if w.get("ts", "").startswith(target_date)]
+
+    # Checkin
+    checkin = db.get_checkin(uid, target_date)
+
+    # Health readings (if consented)
+    health = []
+    if db.get_surveillance_consent(uid):
+        all_health = db.list_health_readings(uid, limit=50)
+        health = [h for h in all_health if h.get("ts", "").startswith(target_date)]
+
+    return {
+        "user_id": uid,
+        "date": target_date,
+        "meals": {
+            "count": len(day_meals),
+            "total_kcal": round(total_kcal, 1),
+            "total_protein_g": round(total_p, 1),
+            "total_carbs_g": round(total_c, 1),
+            "total_fat_g": round(total_f, 1),
+            "items": [{"food": m["food_id"], "kcal": m["kcal"],
+                       "context": m.get("context", "")} for m in day_meals],
+        },
+        "workouts": {
+            "count": len(day_workouts),
+            "sessions": [{"program": w["program"], "day": w["day_name"],
+                          "decision": w["decision"]} for w in day_workouts],
+        },
+        "checkin": checkin,
+        "health_readings": health,
+    }
+
+
+@router.get("/v1/report/weekly")
+def weekly_report():
+    """Generate a weekly summary. Powers email digest and Notion weekly page."""
+    uid = _user_id_from_default()
+    from datetime import timedelta
+    today = datetime.now(timezone.utc).date()
+    week_start = today - timedelta(days=6)
+
+    all_meals = db.list_meals(uid, since_iso=week_start.isoformat())
+    all_workouts = db.list_workout_logs(uid, limit=100)
+
+    days = []
+    total_kcal = 0
+    workout_count = 0
+    for i in range(7):
+        d = (week_start + timedelta(days=i)).isoformat()
+        day_meals = [m for m in all_meals if m.get("ts", "").startswith(d)]
+        day_wk = [w for w in all_workouts if w.get("ts", "").startswith(d)]
+        day_kcal = sum(m.get("kcal", 0) for m in day_meals)
+        total_kcal += day_kcal
+        workout_count += len(day_wk)
+        days.append({
+            "date": d,
+            "kcal": round(day_kcal, 1),
+            "meals": len(day_meals),
+            "workouts": len(day_wk),
+        })
+
+    return {
+        "user_id": uid,
+        "week_start": week_start.isoformat(),
+        "week_end": today.isoformat(),
+        "summary": {
+            "avg_daily_kcal": round(total_kcal / 7, 1),
+            "total_workouts": workout_count,
+            "total_meals_logged": len(all_meals),
+        },
+        "days": days,
+    }
