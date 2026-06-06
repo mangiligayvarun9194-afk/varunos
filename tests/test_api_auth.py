@@ -50,6 +50,64 @@ class TestPublicEndpoints:
         assert r.status_code == 200
 
 
+class TestReadinessSimple:
+    def test_good_day_is_green(self, client):
+        r = client.post("/v1/readiness/simple", headers=_auth(), json={
+            "sleep_hours": 8, "sleep_quality_1to5": 4, "energy_1to5": 4,
+            "soreness_1to5": 2, "mood_1to5": 4, "stress_1to5": 2})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["color"] == "GREEN"
+        # No wearable → only sleep + wellness reported, never fake HRV
+        assert set(body["components"]) == {"sleep", "wellness"}
+
+    def test_rough_day_is_red(self, client):
+        r = client.post("/v1/readiness/simple", headers=_auth(), json={
+            "sleep_hours": 4, "sleep_quality_1to5": 1, "energy_1to5": 1,
+            "soreness_1to5": 5, "mood_1to5": 2, "stress_1to5": 5})
+        assert r.json()["color"] == "RED"
+
+
+class TestWearableSync:
+    def test_sync_returns_readiness(self, client):
+        r = client.post("/v1/sync/wearable", headers=_auth(), json={
+            "source": "apple_health", "hrv_ms": 60, "rhr_bpm": 55,
+            "sleep_hours": 7.5, "steps": 8000})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["synced"] is True
+        assert body["readiness"]["overall"] > 0
+
+    def test_status_reflects_sync(self, client):
+        client.post("/v1/sync/wearable", headers=_auth(), json={
+            "source": "apple_health", "hrv_ms": 60, "rhr_bpm": 55, "sleep_hours": 7})
+        r = client.get("/v1/sync/status", headers=_auth())
+        assert r.json()["connected"] is True
+        assert r.json()["source"] == "apple_health"
+
+    def test_readiness_today_after_sync(self, client):
+        client.post("/v1/sync/wearable", headers=_auth(), json={
+            "source": "apple_health", "hrv_ms": 60, "sleep_hours": 8})
+        r = client.get("/v1/readiness/today", headers=_auth())
+        assert r.json()["has_data"] is True
+        assert r.json()["source"] == "apple_health"
+
+    def test_readiness_today_empty_when_nothing(self, client):
+        r = client.get("/v1/readiness/today", headers=_auth())
+        assert r.json()["has_data"] is False
+
+    def test_manual_checkin_does_not_wipe_wearable(self, client):
+        # Watch syncs HRV, then a manual mood check-in should keep the HRV
+        client.post("/v1/sync/wearable", headers=_auth(), json={
+            "source": "apple_health", "hrv_ms": 60, "rhr_bpm": 55, "sleep_hours": 8})
+        client.post("/v1/logs/checkins", headers=_auth(), json={
+            "energy_1to5": 4, "soreness_1to5": 2, "mood_1to5": 4, "stress_1to5": 2})
+        r = client.get("/v1/readiness/today", headers=_auth()).json()
+        # Both objective (hrv) and subjective (wellness) survive the merge
+        assert "hrv" in r["components"]
+        assert "wellness" in r["components"]
+
+
 # ---- Auth enforcement -----------------------------------------------------
 
 class TestAuthRequired:

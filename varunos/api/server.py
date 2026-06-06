@@ -323,7 +323,12 @@ def diet_calc(req: DietCalcRequest):
 @app.post("/v1/diet/log", dependencies=[Depends(require_auth)])
 def diet_log(req: MealLogRequest):
     portions = req.portions or [1.0] * len(req.food_ids)
-    items = [food_macros(fid, portions=p) for fid, p in zip(req.food_ids, portions)]
+    items = []
+    for fid, p in zip(req.food_ids, portions):
+        try:
+            items.append(food_macros(fid, portions=p))
+        except KeyError:
+            raise HTTPException(404, f"Food not found: {fid}. Use /v1/foods/search to find valid IDs.")
     totals = day_totals(items)
     return {"items": items, "totals": totals}
 

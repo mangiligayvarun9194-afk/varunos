@@ -295,12 +295,187 @@ def get_checkin_today(date: Optional[str] = None):
     return {"date": target, "checkin": row}
 
 
+# ---- Wearable sync (Apple Health Shortcut / Fitbit / Oura / Whoop / Garmin) ----
+
+class WearableSyncIn(BaseModel):
+    """Normalized payload from ANY wearable source.
+
+    Apple Health Shortcut, Fitbit, Oura, Whoop and Garmin all map onto this.
+    Every field is optional — send whatever the source provides.
+    """
+    date: Optional[str] = None
+    source: str = "apple_health"
+    hrv_ms: Optional[float] = None              # overnight HRV (SDNN/rMSSD)
+    rhr_bpm: Optional[float] = None             # resting heart rate
+    sleep_hours: Optional[float] = None
+    sleep_minutes: Optional[int] = None
+    sleep_deep_pct: Optional[float] = None
+    sleep_rem_pct: Optional[float] = None
+    sleep_efficiency_pct: Optional[float] = None
+    steps: Optional[int] = None
+    active_kcal: Optional[float] = None
+    spo2: Optional[float] = None
+    weight_kg: Optional[float] = None
+
+
+@router.post("/v1/sync/wearable")
+def sync_wearable(payload: WearableSyncIn):
+    """Ingest one day of wearable metrics, compute rolling baselines, and
+    return today's readiness — fully automatic, no taps required."""
+    from varunos.core.readiness import (
+        compute_readiness, wellness_score,
+        sleep_score_from_components, sleep_score_from_hours_quality,
+    )
+    uid = _user_id_from_default()
+    date = payload.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    sleep_min = payload.sleep_minutes
+    if sleep_min is None and payload.sleep_hours is not None:
+        sleep_min = int(round(payload.sleep_hours * 60))
+
+    # Rolling baselines from history (excluding today)
+    hrv_base = db.hrv_baseline(uid, date) if payload.hrv_ms else None
+    rhr_base = db.rhr_baseline(uid, date) if payload.rhr_bpm else None
+    # First reading ever? Seed baseline with today's value so it isn't penalized.
+    if payload.hrv_ms and not hrv_base:
+        hrv_base = payload.hrv_ms
+    if payload.rhr_bpm and not rhr_base:
+        rhr_base = payload.rhr_bpm
+
+    db.merge_checkin(uid, date, {
+        "hrv_today_ms": payload.hrv_ms,
+        "hrv_7d_baseline_ms": hrv_base,
+        "rhr_today_bpm": payload.rhr_bpm,
+        "rhr_30d_baseline_bpm": rhr_base,
+        "sleep_min": sleep_min,
+        "sleep_deep_pct": payload.sleep_deep_pct,
+        "sleep_rem_pct": payload.sleep_rem_pct,
+        "sleep_eff_pct": payload.sleep_efficiency_pct,
+        "steps": payload.steps,
+        "active_kcal": payload.active_kcal,
+        "spo2": payload.spo2,
+        "wearable_source": payload.source,
+        "synced_at": _now(),
+    })
+    if payload.weight_kg:
+        db.upsert_profile(uid, {"weight_kg": payload.weight_kg})
+
+    db.log_event(uid, "wearable_synced", channel=payload.source, payload={
+        "hrv": payload.hrv_ms, "rhr": payload.rhr_bpm, "sleep_min": sleep_min,
+        "steps": payload.steps,
+    })
+
+    # Sleep sub-score from whatever sleep data we have
+    sleep = None
+    if sleep_min:
+        sleep = sleep_score_from_components(
+            duration_min=sleep_min,
+            deep_pct=payload.sleep_deep_pct if payload.sleep_deep_pct is not None else -1,
+            rem_pct=payload.sleep_rem_pct if payload.sleep_rem_pct is not None else -1,
+            efficiency_pct=payload.sleep_efficiency_pct if payload.sleep_efficiency_pct is not None else 85,
+        )
+
+    # Fold in subjective wellness if the user already did a manual check-in today
+    ci = db.get_checkin(uid, date) or {}
+    wellness = None
+    if ci.get("energy_1to5") is not None:
+        wellness = wellness_score(
+            energy_1to5=ci["energy_1to5"], soreness_1to5=ci.get("soreness_1to5", 3),
+            mood_1to5=ci.get("mood_1to5", 3), stress_1to5=ci.get("stress_1to5", 3),
+        )
+
+    readiness = compute_readiness(
+        sleep=sleep, wellness=wellness,
+        hrv_today_ms=payload.hrv_ms, hrv_baseline_ms=hrv_base,
+        rhr_today_bpm=payload.rhr_bpm, rhr_baseline_bpm=rhr_base,
+    )
+    return {
+        "synced": True, "date": date, "source": payload.source,
+        "baselines": {"hrv_7d": hrv_base, "rhr_30d": rhr_base},
+        "readiness": readiness,
+        "disclaimer": DISCLAIMER,
+    }
+
+
+@router.get("/v1/sync/status")
+def sync_status():
+    """When did we last sync, from what, and what's the latest snapshot."""
+    uid = _user_id_from_default()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ci = db.get_checkin(uid, today)
+    if not ci or not ci.get("synced_at"):
+        return {"connected": False, "last_sync": None, "source": None}
+    return {
+        "connected": True,
+        "last_sync": ci.get("synced_at"),
+        "source": ci.get("wearable_source"),
+        "today": {
+            "hrv_ms": ci.get("hrv_today_ms"),
+            "rhr_bpm": ci.get("rhr_today_bpm"),
+            "sleep_min": ci.get("sleep_min"),
+            "steps": ci.get("steps"),
+            "active_kcal": ci.get("active_kcal"),
+            "spo2": ci.get("spo2"),
+        },
+    }
+
+
+@router.get("/v1/readiness/today")
+def readiness_today(date: Optional[str] = None):
+    """Server-computed readiness for today from whatever is stored (manual taps,
+    wearable sync, or both). Single source of truth for the Today screen."""
+    from varunos.core.readiness import (
+        compute_readiness, wellness_score,
+        sleep_score_from_components, sleep_score_from_hours_quality,
+    )
+    uid = _user_id_from_default()
+    d = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ci = db.get_checkin(uid, d)
+    has_subjective = bool(ci and ci.get("energy_1to5") is not None)
+    has_wearable = bool(ci and (ci.get("hrv_today_ms") or ci.get("sleep_min")))
+    if not ci or (not has_subjective and not has_wearable):
+        return {"has_data": False}
+
+    # Sleep sub-score
+    sleep = None
+    if ci.get("sleep_min"):
+        if ci.get("wearable_source"):
+            sleep = sleep_score_from_components(
+                duration_min=ci["sleep_min"],
+                deep_pct=ci.get("sleep_deep_pct") if ci.get("sleep_deep_pct") is not None else -1,
+                rem_pct=ci.get("sleep_rem_pct") if ci.get("sleep_rem_pct") is not None else -1,
+                efficiency_pct=ci.get("sleep_eff_pct") if ci.get("sleep_eff_pct") is not None else 85,
+            )
+        else:
+            hours = ci["sleep_min"] / 60
+            quality = max(1, min(5, round(((ci.get("sleep_eff_pct") or 82) - 55) / 9)))
+            sleep = sleep_score_from_hours_quality(hours, quality)
+
+    wellness = None
+    if has_subjective:
+        wellness = wellness_score(
+            energy_1to5=ci["energy_1to5"], soreness_1to5=ci.get("soreness_1to5", 3),
+            mood_1to5=ci.get("mood_1to5", 3), stress_1to5=ci.get("stress_1to5", 3),
+        )
+
+    r = compute_readiness(
+        sleep=sleep, wellness=wellness,
+        hrv_today_ms=ci.get("hrv_today_ms"), hrv_baseline_ms=ci.get("hrv_7d_baseline_ms"),
+        rhr_today_bpm=ci.get("rhr_today_bpm"), rhr_baseline_bpm=ci.get("rhr_30d_baseline_bpm"),
+    )
+    r["has_data"] = True
+    r["source"] = ci.get("wearable_source") or "manual"
+    r["synced_at"] = ci.get("synced_at")
+    return r
+
+
 @router.post("/v1/logs/checkins")
 def log_checkin(payload: CheckinIn):
     uid = _user_id_from_default()
     date = payload.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     data = payload.model_dump(exclude={"date"}, exclude_none=True)
-    row = db.upsert_checkin(uid, date, data)
+    # merge so a manual mood check-in never wipes wearable HRV/sleep (and vice-versa)
+    row = db.merge_checkin(uid, date, data)
     db.log_event(uid, "checkin_logged", channel="api",
                  payload={"date": date, "energy": data.get("energy_1to5")})
     return {"date": date, "checkin": row}

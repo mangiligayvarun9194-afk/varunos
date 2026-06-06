@@ -1,0 +1,360 @@
+#!/usr/bin/env python3
+"""
+vos — VarunOS command-line interface.
+
+Your body's API, from your terminal.
+
+Usage:
+  vos status                     Full morning briefing
+  vos ate <food> [portions]      Log a meal (e.g., "vos ate chicken_breast_100g 2")
+  vos eat <search term>          Search food database
+  vos lift <exercise> <kg> <reps> [rpe]   Log a set
+  vos bp <sbp> <dbp>             Log blood pressure
+  vos glucose <mgdl>             Log glucose
+  vos macros                     Show today's macro targets + progress
+  vos workout                    Show today's workout plan
+  vos history                    Recent meals + workouts
+  vos programs                   List available programs
+  vos plan [template]            Generate a meal plan
+  vos risk                       Run IDRS + ASCVD risk screen
+  vos checkin <energy> <soreness> <mood> <stress>   Quick daily check-in (1-5 each)
+
+Config:
+  Set VARUNOS_API=http://localhost:8000 and VARUNOS_KEY=<your-key>
+  or create ~/.varunos with those values.
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+from datetime import datetime
+
+# ── Config ──────────────────────────────────────────────────────────────
+
+def _load_config():
+    api = os.environ.get("VARUNOS_API", "")
+    key = os.environ.get("VARUNOS_KEY", "")
+    cfg = Path.home() / ".varunos"
+    if cfg.exists() and (not api or not key):
+        for line in cfg.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip()
+            if k == "VARUNOS_API" and not api:
+                api = v
+            elif k == "VARUNOS_KEY" and not key:
+                key = v
+    return api or "http://localhost:8000", key
+
+API_BASE, API_KEY = _load_config()
+
+# ── HTTP helper ─────────────────────────────────────────────────────────
+
+def api(path, method="GET", body=None):
+    import urllib.request, urllib.error
+    url = API_BASE.rstrip("/") + path
+    headers = {"Content-Type": "application/json"}
+    if API_KEY:
+        headers["Authorization"] = f"Bearer {API_KEY}"
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode()[:300]
+        print(f"\033[31mError: HTTP {e.code}\033[0m {body_text}", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"\033[31mCannot reach {API_BASE}\033[0m — is the server running?", file=sys.stderr)
+        sys.exit(1)
+
+# ── Color helpers ───────────────────────────────────────────────────────
+
+G = "\033[32m"  # green
+Y = "\033[33m"  # yellow
+R = "\033[31m"  # red
+B = "\033[1m"   # bold
+D = "\033[2m"   # dim
+C = "\033[36m"  # cyan
+M = "\033[35m"  # magenta
+W = "\033[0m"   # reset
+
+def color_score(v):
+    if v >= 75: return f"{G}{v:.0f}{W}"
+    if v >= 50: return f"{Y}{v:.0f}{W}"
+    return f"{R}{v:.0f}{W}"
+
+def color_tier(t):
+    colors = {"LOW": G, "ELEVATED": Y, "HIGH": R, "CRITICAL": R, "MODERATE": Y, "INTERMEDIATE": Y}
+    return f"{colors.get(t, '')}{t}{W}"
+
+def bar(pct, width=20):
+    filled = int(pct / 100 * width)
+    return f"{G}{'█' * filled}{D}{'░' * (width - filled)}{W}"
+
+# ── Commands ────────────────────────────────────────────────────────────
+
+def cmd_status(args):
+    profile = {"user_id": "varun", "sex": "M", "age": 30, "height_cm": 178,
+               "weight_kg": 78, "activity": "moderate", "goal": "recomp"}
+    checkin = {"hrv_today_ms": 58, "hrv_7d_baseline_ms": 50, "rhr_today_bpm": 58,
+               "rhr_30d_baseline_bpm": 60, "sleep_min": 445, "sleep_deep_pct": 17,
+               "sleep_rem_pct": 22, "sleep_eff_pct": 92, "sleep_continuity_min": 3,
+               "energy_1to5": 4, "soreness_1to5": 2, "mood_1to5": 4, "stress_1to5": 2,
+               "acute_load": 85, "chronic_load": 100}
+
+    snap = api("/v1/state/snapshot", "POST", {"profile": profile, "checkin": checkin})
+    r = snap["readiness"]
+    d = snap["diet"]
+    color = {"GREEN": G, "YELLOW": Y, "RED": R}.get(r["color"], "")
+
+    # Get today's meals
+    meals = api("/v1/logs/meals?limit=100")
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_meals = [m for m in (meals.get("meals") or []) if m.get("ts", "").startswith(today)]
+    eaten = sum(m.get("kcal", 0) for m in today_meals)
+    pct = min(100, round(eaten / d["target_kcal"] * 100)) if d["target_kcal"] else 0
+
+    # Workout
+    try:
+        wk = api("/v1/workouts/today", "POST", {
+            "program": "ppl_power", "week": 3, "day_index": 0,
+            "readiness": r["overall"], "subjective_energy": 4, "soreness": 2,
+            "acute_chronic_ratio": 0.85})
+    except SystemExit:
+        wk = None
+
+    now = datetime.now().strftime("%A, %b %d")
+    print()
+    print(f"  {B}VarunOS{W} {D}· {now}{W}")
+    print()
+    print(f"  {D}READINESS{W}  {color}{B}{r['overall']:.0f}{W}  {color}{r['color']}{W}")
+    c = r["components"]
+    print(f"  {D}HRV{W} {color_score(c['hrv'])}  {D}RHR{W} {color_score(c['rhr'])}  {D}Sleep{W} {color_score(c['sleep'])}  {D}Wellness{W} {color_score(c['wellness'])}  {D}Load{W} {color_score(c['load'])}")
+    print()
+    print(f"  {D}NUTRITION{W}  {bar(pct)} {B}{round(eaten)}{W}/{d['target_kcal']} kcal ({pct}%)")
+    print(f"  {D}Target{W}  P{B}{d['protein_g']}{W}g  F{B}{d['fat_g']}{W}g  C{B}{d['carbs_g']}{W}g")
+    if today_meals:
+        print(f"  {D}Logged{W}  {', '.join(m['food_id'].replace('_',' ') for m in today_meals[:5])}")
+    print()
+    if wk:
+        print(f"  {D}WORKOUT{W}  {B}{wk['day_name']}{W} · {wk['program']} · {wk['decision']}")
+        for ex in wk["exercises"][:4]:
+            print(f"    {C}{ex['id'].replace('_',' ')}{W}: {ex['sets']}x{ex['reps']} ({ex['intensity']})")
+        if len(wk["exercises"]) > 4:
+            print(f"    {D}+{len(wk['exercises'])-4} more{W}")
+    print()
+
+def cmd_ate(args):
+    if not args:
+        print(f"Usage: vos ate <food_id> [portions]", file=sys.stderr)
+        print(f"  Find food IDs with: vos eat <search>")
+        sys.exit(1)
+    food_id = args[0]
+    portions = float(args[1]) if len(args) > 1 else 1.0
+    context = args[2] if len(args) > 2 else ""
+    r = api("/v1/logs/meals", "POST", {"food_id": food_id, "portions": portions, "context": context})
+    print(f"  {G}✓{W} Logged {B}{food_id.replace('_',' ')}{W} × {portions}")
+    print(f"    {r['kcal']} kcal · P{r['p']}g C{r['c']}g F{r['f']}g")
+    print(f"    {D}Day total:{W} {B}{r['day_kcal_total']}{W} kcal")
+
+def cmd_eat(args):
+    q = " ".join(args) if args else ""
+    if not q:
+        print("Usage: vos eat <search term>", file=sys.stderr)
+        sys.exit(1)
+    import urllib.parse
+    r = api(f"/v1/foods/search?q={urllib.parse.quote(q)}&limit=12")
+    if not r["results"]:
+        print(f"  No foods found for '{q}'")
+        return
+    print(f"  {B}{r['n']} results{W} for '{q}':\n")
+    for f in r["results"]:
+        print(f"  {C}{f['id']:<30}{W} {f['kcal']:>6} kcal  P{f['p']:>4}  C{f['c']:>4}  F{f['f']:>4}  {D}{f['name']}{W}")
+    print(f"\n  {D}Log with: vos ate <id> [portions]{W}")
+
+def cmd_lift(args):
+    if len(args) < 3:
+        print("Usage: vos lift <exercise> <kg> <reps> [rpe]", file=sys.stderr)
+        sys.exit(1)
+    exercise, kg, reps = args[0], float(args[1]), int(args[2])
+    rpe = float(args[3]) if len(args) > 3 else None
+    body = {"exercise_id": exercise, "weight_kg": kg, "reps": reps, "history": []}
+    if rpe:
+        body["rpe"] = rpe
+    r = api("/v1/workouts/log", "POST", body)
+    pr = r["pr"]
+    if pr["is_pr"]:
+        print(f"  {G}✓{W} {B}{exercise}{W} {kg}kg × {reps}" + (f" RPE {rpe}" if rpe else ""))
+        print(f"  {G}{B}🎉 {pr['pr_type'].upper()} PR!{W} {pr['current']:.1f}kg" +
+              (f" (was {pr['previous']:.1f}kg)" if pr['previous'] else ""))
+    else:
+        print(f"  {G}✓{W} {B}{exercise}{W} {kg}kg × {reps}" + (f" RPE {rpe}" if rpe else ""))
+        if pr['current']:
+            print(f"  {D}e1RM: {pr['current']:.1f}kg (best: {pr['previous']:.1f}kg){W}")
+
+def cmd_bp(args):
+    if len(args) < 2:
+        print("Usage: vos bp <sbp> <dbp>", file=sys.stderr)
+        sys.exit(1)
+    r = api("/v1/surveillance/bp", "POST", {"sbp": int(args[0]), "dbp": int(args[1])})
+    tier = r.get("tier", "LOW")
+    print(f"  {B}{args[0]}/{args[1]}{W} mmHg · Stage: {r['stage']} · Tier: {color_tier(tier)}")
+    print(f"  {D}{r.get('action', '')}{W}")
+    if r.get("escalation", {}).get("level") in ("CRITICAL", "URGENT"):
+        esc = r["escalation"]
+        print(f"\n  {R}{B}🚨 {esc['level']}{W}")
+        print(f"  {R}{esc['message']}{W}")
+
+def cmd_glucose(args):
+    if not args:
+        print("Usage: vos glucose <mg/dL>", file=sys.stderr)
+        sys.exit(1)
+    r = api("/v1/surveillance/escalate/glucose", "POST", {"value_mgdl": float(args[0])})
+    level_color = R if r["level"] == "CRITICAL" else Y if r["level"] != "INFO" else G
+    print(f"  {B}{args[0]}{W} mg/dL · Level: {level_color}{r['level']}{W}")
+    print(f"  {D}{r['message']}{W}")
+
+def cmd_macros(args):
+    snap = api("/v1/state/snapshot", "POST", {
+        "profile": {"user_id": "varun", "sex": "M", "age": 30, "height_cm": 178,
+                     "weight_kg": 78, "activity": "moderate", "goal": "recomp"},
+        "checkin": {"hrv_today_ms": 58, "hrv_7d_baseline_ms": 50, "rhr_today_bpm": 58,
+                    "rhr_30d_baseline_bpm": 60, "sleep_min": 445, "sleep_deep_pct": 17,
+                    "sleep_rem_pct": 22, "sleep_eff_pct": 92, "energy_1to5": 4,
+                    "soreness_1to5": 2, "mood_1to5": 4, "stress_1to5": 2,
+                    "acute_load": 85, "chronic_load": 100}})
+    d = snap["diet"]
+    meals = api("/v1/logs/meals?limit=100")
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_meals = [m for m in (meals.get("meals") or []) if m.get("ts", "").startswith(today)]
+    eaten = sum(m.get("kcal", 0) for m in today_meals)
+    p_eaten = sum(m.get("p_g", 0) for m in today_meals)
+    c_eaten = sum(m.get("c_g", 0) for m in today_meals)
+    f_eaten = sum(m.get("f_g", 0) for m in today_meals)
+    pct = min(100, round(eaten / d["target_kcal"] * 100)) if d["target_kcal"] else 0
+
+    print()
+    print(f"  {B}Macros{W} · {datetime.now().strftime('%b %d')}")
+    print(f"  {bar(pct, 30)} {B}{round(eaten)}{W}/{d['target_kcal']} kcal ({pct}%)")
+    print()
+    print(f"  {'':>10} {'Eaten':>8} {'Target':>8} {'Left':>8}")
+    print(f"  {D}{'─'*38}{W}")
+    print(f"  {'Protein':>10} {B}{round(p_eaten):>7}{W}g {d['protein_g']:>7}g {G}{max(0,d['protein_g']-round(p_eaten)):>7}{W}g")
+    print(f"  {'Fat':>10} {B}{round(f_eaten):>7}{W}g {d['fat_g']:>7}g {G}{max(0,d['fat_g']-round(f_eaten)):>7}{W}g")
+    print(f"  {'Carbs':>10} {B}{round(c_eaten):>7}{W}g {d['carbs_g']:>7}g {G}{max(0,d['carbs_g']-round(c_eaten)):>7}{W}g")
+    print()
+    if today_meals:
+        print(f"  {D}Today's meals:{W}")
+        for m in today_meals:
+            print(f"    {m['food_id'].replace('_',' '):<25} {round(m['kcal']):>5} kcal  {m.get('context','')}")
+    print()
+
+def cmd_workout(args):
+    r = api("/v1/workouts/today", "POST", {
+        "program": args[0] if args else "ppl_power", "week": 3, "day_index": 0,
+        "readiness": 80, "subjective_energy": 4, "soreness": 2, "acute_chronic_ratio": 0.85})
+    print()
+    print(f"  {B}{r['day_name']}{W} · {r['program']} · Week {r['week']} · {r['block']}")
+    print(f"  Decision: {G if r['decision']=='GREEN' else Y if r['decision']=='YELLOW' else R}{B}{r['decision']}{W}")
+    print()
+    for i, ex in enumerate(r["exercises"], 1):
+        print(f"  {C}{i}.{W} {B}{ex['id'].replace('_',' '):<24}{W} {ex['sets']}×{ex['reps']:>5}  {D}{ex['intensity']}{W}  {D}rest {ex.get('rest_s','')}s{W}")
+    print()
+
+def cmd_history(args):
+    meals = api("/v1/logs/meals?limit=10")
+    wk = api("/v1/logs/workouts?limit=5")
+    print(f"\n  {B}Recent meals{W}")
+    for m in (meals.get("meals") or [])[:8]:
+        print(f"  {D}{m['ts'][:10]}{W}  {m['food_id'].replace('_',' '):<25}  {round(m['kcal']):>5} kcal  {m.get('context','')}")
+    print(f"\n  {B}Recent workouts{W}")
+    for w in (wk.get("workouts") or [])[:5]:
+        print(f"  {D}{w['ts'][:10]}{W}  {w['day_name']:<12}  {w['program']:<16}  {w['decision']}")
+    print()
+
+def cmd_programs(args):
+    r = api("/v1/programs")
+    print(f"\n  {B}Available programs:{W}")
+    for p in r["programs"]:
+        print(f"    {C}•{W} {p}")
+    print()
+
+def cmd_plan(args):
+    template = args[0] if args else "indian_nonveg_4meal"
+    r = api("/v1/diet/plan", "POST", {"template": template, "n_days": 1})
+    print(f"\n  {B}Meal plan{W} · {template.replace('_',' ')}\n")
+    icons = {"Breakfast": "🌅", "Lunch": "🍛", "Snack": "🍎", "Dinner": "🌙"}
+    for meal in r["days"][0]:
+        icon = icons.get(meal["meal"], "🍽️")
+        items = ", ".join(i["food_id"].replace("_", " ") for i in meal["items"])
+        print(f"  {icon} {B}{meal['meal']}{W}: {items}")
+    print()
+
+def cmd_risk(args):
+    idrs = api("/v1/surveillance/idrs", "POST", {
+        "age_years": 30, "bmi": 24.6, "waist_cm": 86, "sex": "M",
+        "family_history_dm": False, "activity": "mild"})
+    print(f"\n  {B}Risk screening{W} {D}(educational, not diagnostic){W}\n")
+    print(f"  {D}IDRS{W}   Score: {B}{idrs['score']}{W}  Tier: {color_tier(idrs['tier'])}")
+    print(f"         {D}{idrs['screening_recommendation']}{W}")
+    try:
+        ascvd = api("/v1/surveillance/ascvd", "POST", {
+            "age": 50, "sex": "M", "total_chol": 200, "hdl_c": 50, "sbp": 125,
+            "bp_treated": False, "diabetes": False, "smoker": False,
+            "south_asian_adjustment": True})
+        print(f"  {D}ASCVD{W}  10-yr: {B}{ascvd['risk_10yr_pct']:.1f}%{W}  Tier: {color_tier(ascvd['tier'])}")
+        print(f"         {D}{ascvd['action_label']}{W}")
+    except SystemExit:
+        pass
+    print()
+
+def cmd_checkin(args):
+    if len(args) < 4:
+        print("Usage: vos checkin <energy 1-5> <soreness 1-5> <mood 1-5> <stress 1-5>", file=sys.stderr)
+        sys.exit(1)
+    r = api("/v1/logs/checkins", "POST", {
+        "energy_1to5": int(args[0]), "soreness_1to5": int(args[1]),
+        "mood_1to5": int(args[2]), "stress_1to5": int(args[3])})
+    print(f"  {G}✓{W} Check-in saved for {r['date']}")
+
+# ── Main ────────────────────────────────────────────────────────────────
+
+def main():
+    args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help", "help"):
+        print(__doc__)
+        sys.exit(0)
+
+    cmd = args[0]
+    rest = args[1:]
+
+    commands = {
+        "status": cmd_status, "s": cmd_status,
+        "ate": cmd_ate, "a": cmd_ate,
+        "eat": cmd_eat, "search": cmd_eat, "food": cmd_eat,
+        "lift": cmd_lift, "l": cmd_lift,
+        "bp": cmd_bp,
+        "glucose": cmd_glucose, "glu": cmd_glucose,
+        "macros": cmd_macros, "m": cmd_macros,
+        "workout": cmd_workout, "w": cmd_workout,
+        "history": cmd_history, "h": cmd_history,
+        "programs": cmd_programs,
+        "plan": cmd_plan,
+        "risk": cmd_risk,
+        "checkin": cmd_checkin, "ci": cmd_checkin,
+    }
+
+    if cmd in commands:
+        commands[cmd](rest)
+    else:
+        print(f"Unknown command: {cmd}")
+        print(f"Run 'vos help' for usage.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

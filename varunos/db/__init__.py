@@ -209,6 +209,23 @@ def _migrate(c: sqlite3.Connection) -> None:
     );
     CREATE INDEX IF NOT EXISTS ix_ack_event ON alert_ack(event_id);
     """)
+    # Additive migrations for wearable sync (idempotent; ALTER only if missing)
+    _ensure_columns(c, "daily_checkin", {
+        "steps": "INTEGER",
+        "active_kcal": "REAL",
+        "spo2": "REAL",
+        "resting_hr": "REAL",
+        "wearable_source": "TEXT",
+        "synced_at": "TEXT",
+    })
+
+
+def _ensure_columns(c: sqlite3.Connection, table: str, cols: dict[str, str]) -> None:
+    """Add columns to an existing table if they don't already exist."""
+    existing = {row["name"] for row in c.execute(f"PRAGMA table_info({table})").fetchall()}
+    for name, decl in cols.items():
+        if name not in existing:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 # ========== PROFILE ==========
@@ -221,17 +238,19 @@ def get_profile(user_id: str) -> dict | None:
 
 
 def upsert_profile(user_id: str, data: dict) -> dict:
-    """Insert or update the user profile. Returns the new state."""
+    """Insert or update the user profile. Partial updates merge with existing data."""
     fields = ["name", "sex", "age", "height_cm", "weight_kg", "activity", "goal"]
     with transaction() as c:
-        existing = c.execute("SELECT 1 FROM user_profile WHERE user_id=?", (user_id,)).fetchone()
+        existing = c.execute("SELECT * FROM user_profile WHERE user_id=?", (user_id,)).fetchone()
         if existing:
-            sets = ", ".join(f"{f}=?" for f in fields)
-            vals = [data.get(f) for f in fields]
-            c.execute(
-                f"UPDATE user_profile SET {sets}, updated_at=? WHERE user_id=?",
-                (*vals, _now(), user_id),
-            )
+            provided = {f: data[f] for f in fields if f in data and data[f] is not None}
+            if provided:
+                sets = ", ".join(f"{f}=?" for f in provided)
+                vals = list(provided.values())
+                c.execute(
+                    f"UPDATE user_profile SET {sets}, updated_at=? WHERE user_id=?",
+                    (*vals, _now(), user_id),
+                )
         else:
             cols = ", ".join(["user_id", *fields, "updated_at"])
             placeholders = ", ".join("?" for _ in range(len(fields) + 2))
@@ -323,6 +342,60 @@ def get_checkin(user_id: str, date: str) -> dict | None:
         "SELECT * FROM daily_checkin WHERE user_id=? AND date=?", (user_id, date)
     ).fetchone()
     return dict(row) if row else None
+
+
+def hrv_baseline(user_id: str, before_date: str, days: int = 7) -> float | None:
+    """Rolling average of HRV over the last `days` check-ins before `before_date`."""
+    rows = conn().execute(
+        "SELECT hrv_today_ms FROM daily_checkin "
+        "WHERE user_id=? AND date < ? AND hrv_today_ms IS NOT NULL "
+        "ORDER BY date DESC LIMIT ?",
+        (user_id, before_date, days),
+    ).fetchall()
+    vals = [r["hrv_today_ms"] for r in rows if r["hrv_today_ms"]]
+    return round(sum(vals) / len(vals), 1) if vals else None
+
+
+def rhr_baseline(user_id: str, before_date: str, days: int = 30) -> float | None:
+    """Rolling average of resting HR over the last `days` check-ins before `before_date`."""
+    rows = conn().execute(
+        "SELECT rhr_today_bpm FROM daily_checkin "
+        "WHERE user_id=? AND date < ? AND rhr_today_bpm IS NOT NULL "
+        "ORDER BY date DESC LIMIT ?",
+        (user_id, before_date, days),
+    ).fetchall()
+    vals = [r["rhr_today_bpm"] for r in rows if r["rhr_today_bpm"]]
+    return round(sum(vals) / len(vals), 1) if vals else None
+
+
+def merge_checkin(user_id: str, date: str, data: dict) -> dict:
+    """Upsert that MERGES — only overwrites the fields provided (non-None).
+
+    Lets a wearable sync add HRV/sleep without wiping a manual mood check-in,
+    and vice-versa. Returns the full merged row.
+    """
+    allowed = {
+        "hrv_today_ms", "hrv_7d_baseline_ms", "rhr_today_bpm", "rhr_30d_baseline_bpm",
+        "sleep_min", "sleep_deep_pct", "sleep_rem_pct", "sleep_eff_pct", "sleep_continuity_min",
+        "energy_1to5", "soreness_1to5", "mood_1to5", "stress_1to5", "hunger_1to5",
+        "acute_load", "chronic_load", "notes",
+        "steps", "active_kcal", "spo2", "resting_hr", "wearable_source", "synced_at",
+    }
+    provided = {k: v for k, v in data.items() if k in allowed and v is not None}
+    with transaction() as c:
+        exists = c.execute("SELECT 1 FROM daily_checkin WHERE user_id=? AND date=?",
+                           (user_id, date)).fetchone()
+        if exists:
+            if provided:
+                sets = ", ".join(f"{k}=?" for k in provided)
+                c.execute(f"UPDATE daily_checkin SET {sets}, updated_at=? WHERE user_id=? AND date=?",
+                          (*provided.values(), _now(), user_id, date))
+        else:
+            cols = ", ".join(["user_id", "date", *provided.keys(), "updated_at"])
+            ph = ", ".join("?" for _ in range(len(provided) + 3))
+            c.execute(f"INSERT INTO daily_checkin ({cols}) VALUES ({ph})",
+                      (user_id, date, *provided.values(), _now()))
+    return get_checkin(user_id, date) or {}
 
 
 # ========== WORKOUT LOG ==========

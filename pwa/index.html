@@ -706,6 +706,22 @@
     </div>
 
     <div class="card">
+      <h3>⌚ Connect your smartwatch</h3>
+      <p class="meta" style="margin-bottom:12px;">
+        Auto-sync HRV, resting HR, sleep and steps every morning — readiness computes
+        itself, no taps needed. Works with Apple Watch, Fitbit, Oura, Whoop & Garmin
+        (anything that writes to Apple Health).
+      </p>
+      <div class="card-row"><span class="lbl">Status</span><span class="val" id="sync-state">checking…</span></div>
+      <div id="sync-metrics"></div>
+      <div style="display:flex; gap:8px; margin-top: 12px; flex-wrap:wrap;">
+        <button class="btn primary" onclick="showWatchSetup()">Set up auto-sync</button>
+        <button class="btn ghost" onclick="openManualSync()">Enter manually</button>
+      </div>
+      <div id="watch-setup" style="margin-top: 12px;"></div>
+    </div>
+
+    <div class="card">
       <h3>System</h3>
       <div class="card-row"><span class="lbl">API endpoint</span><span class="val" id="api-endpoint">—</span></div>
       <div class="card-row"><span class="lbl">Connection</span><span class="val" id="connection-state">checking…</span></div>
@@ -934,53 +950,27 @@
     document.getElementById('user-first-name').textContent = profile.user_id.charAt(0).toUpperCase() + profile.user_id.slice(1);
     document.getElementById('avatar').textContent = profile.user_id.charAt(0).toUpperCase();
 
-    // Check if user has done a real check-in today
-    let todayCheckin = null;
+    // Server computes today's readiness from whatever exists (taps, watch, or both)
+    let readiness = null;
     try {
-      const report = await api(`/v1/report/daily?date=${today}`);
-      if (report.checkin && report.checkin.energy_1to5 !== null && report.checkin.energy_1to5 !== undefined) {
-        todayCheckin = report.checkin;
-      }
+      const r = await api('/v1/readiness/today');
+      if (r.has_data) readiness = r;
     } catch(_) {}
 
-    if (todayCheckin) {
-      // Reconstruct the simple inputs from the stored check-in
-      const sleepHours = (todayCheckin.sleep_min || 420) / 60;
-      const sleepQuality = Math.max(1, Math.min(5, Math.round(((todayCheckin.sleep_eff_pct || 82) - 55) / 9)));
-      let readinessOverall = 75;
-      try {
-        const r = await api('/v1/readiness/simple', { method: 'POST', body: {
-          sleep_hours: sleepHours,
-          sleep_quality_1to5: sleepQuality,
-          energy_1to5: todayCheckin.energy_1to5,
-          soreness_1to5: todayCheckin.soreness_1to5,
-          mood_1to5: todayCheckin.mood_1to5,
-          stress_1to5: todayCheckin.stress_1to5,
-          hrv_today_ms: todayCheckin.hrv_today_ms || null,
-          hrv_baseline_ms: todayCheckin.hrv_7d_baseline_ms || null,
-          rhr_today_bpm: todayCheckin.rhr_today_bpm || null,
-          rhr_baseline_bpm: todayCheckin.rhr_30d_baseline_bpm || null,
-        }});
-        readinessOverall = r.overall;
-        cachedSnapshot = { readiness: r };
-        renderSnapshot({ readiness: r });
-        document.getElementById('tiers-title').style.display = '';
-        document.getElementById('tier-row').style.display = '';
-      } catch(e) {
-        renderReadinessEmpty();
-      }
+    if (readiness) {
+      cachedSnapshot = { readiness };
+      renderSnapshot({ readiness });
+      document.getElementById('tiers-title').style.display = '';
+      document.getElementById('tier-row').style.display = '';
       try {
         cachedWorkout = await api('/v1/workouts/today', { method: 'POST', body: {
-          program: 'ppl_power', week: 3, day_index: 0, readiness: readinessOverall,
-          subjective_energy: todayCheckin.energy_1to5,
-          soreness: todayCheckin.soreness_1to5, acute_chronic_ratio: 1.0,
+          program: 'ppl_power', week: 3, day_index: 0, readiness: readiness.overall,
+          subjective_energy: 3, soreness: 3, acute_chronic_ratio: 1.0,
         }});
         renderWorkout(cachedWorkout);
       } catch(e) { showError('workout-card', e.message); }
     } else {
-      // No check-in yet — show empty state, prompt user
       renderReadinessEmpty();
-      // Still show workout plan (not dependent on biometrics)
       try {
         cachedWorkout = await api('/v1/workouts/today', { method: 'POST', body: {
           program: 'ppl_power', week: 3, day_index: 0,
@@ -1031,8 +1021,12 @@
     const niceName = { sleep: 'Sleep', wellness: 'Wellness', hrv: 'HRV', rhr: 'RHR', load: 'Load', trend: 'Trend' };
     const comps = Object.entries(r.components).map(([k, v]) => [niceName[k] || k, v]);
     const compColor = v => v >= 75 ? 'var(--green)' : v >= 50 ? 'var(--yellow)' : 'var(--red)';
+    const srcLabels = { apple_health: '⌚ Apple Health', fitbit: '⌚ Fitbit', oura: '💍 Oura', whoop: '🔴 Whoop', garmin: '⌚ Garmin', manual: '' };
+    const srcBadge = (r.source && r.source !== 'manual')
+      ? `<div style="position:absolute; top:16px; right:16px; font-size:11px; color:var(--text-mute);">${srcLabels[r.source] || '⌚ Synced'}</div>` : '';
     document.getElementById('readiness-card-wrap').innerHTML = `
-      <div class="readiness-card ${colorClass}" id="readiness-card">
+      <div class="readiness-card ${colorClass}" id="readiness-card" style="position:relative;">
+        ${srcBadge}
         <div class="readiness-label">Readiness</div>
         <div class="readiness-score" style="color:${colorClass === 'green' ? 'var(--green)' : colorClass === 'yellow' ? 'var(--yellow)' : 'var(--red)'}">${Math.round(r.overall)}</div>
         <div class="readiness-status">${statusText}</div>
@@ -1833,6 +1827,99 @@
   }
 
   // ========== SURVEILLANCE CONSENT ==========
+  // ========== WEARABLE SYNC ==========
+  async function refreshSyncStatus() {
+    const el = document.getElementById('sync-state');
+    const metrics = document.getElementById('sync-metrics');
+    if (!el) return;
+    try {
+      const r = await api('/v1/sync/status');
+      if (r.connected) {
+        const t = new Date(r.last_sync);
+        const ago = t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        const src = { apple_health: 'Apple Health', fitbit: 'Fitbit', oura: 'Oura', whoop: 'Whoop', garmin: 'Garmin' }[r.source] || r.source;
+        el.innerHTML = `<span style="color:var(--green);">● ${src} · ${ago}</span>`;
+        const m = r.today || {};
+        const cells = [];
+        if (m.hrv_ms) cells.push(['HRV', Math.round(m.hrv_ms) + ' ms']);
+        if (m.rhr_bpm) cells.push(['Resting HR', Math.round(m.rhr_bpm) + ' bpm']);
+        if (m.sleep_min) cells.push(['Sleep', (m.sleep_min/60).toFixed(1) + ' h']);
+        if (m.steps) cells.push(['Steps', m.steps.toLocaleString()]);
+        if (m.spo2) cells.push(['SpO₂', Math.round(m.spo2) + '%']);
+        metrics.innerHTML = cells.map(([k,v]) =>
+          `<div class="card-row"><span class="lbl">${k}</span><span class="val">${v}</span></div>`).join('');
+      } else {
+        el.innerHTML = '<span style="color:var(--text-mute);">● Not connected</span>';
+        metrics.innerHTML = '';
+      }
+    } catch(e) {
+      el.innerHTML = '<span style="color:var(--red);">— API unreachable</span>';
+    }
+  }
+
+  function showWatchSetup() {
+    const base = API_BASE;
+    document.getElementById('watch-setup').innerHTML = `
+      <div class="card" style="background:var(--bg-elev); margin-top:4px;">
+        <h3 style="font-size:14px;">📲 iPhone / Apple Watch (2 min, one time)</h3>
+        <p class="meta" style="margin:8px 0;">The free <b>Shortcuts</b> app reads Apple Health and posts to VarunOS automatically each morning.</p>
+        <ol class="meta" style="margin:0 0 8px 18px; line-height:1.9;">
+          <li>Open <b>Shortcuts</b> → <b>Automation</b> → <b>+</b> → <b>Time of Day</b> → 7:00 AM</li>
+          <li>Add action <b>Get Health Sample</b> → Heart Rate Variability (most recent)</li>
+          <li>Repeat for Resting Heart Rate, Sleep, Steps</li>
+          <li>Add <b>Get Contents of URL</b>:<br>
+            &nbsp;&nbsp;URL: <code>${base}/v1/sync/wearable</code><br>
+            &nbsp;&nbsp;Method: <b>POST</b> · Headers: <code>Authorization: Bearer YOUR_KEY</code><br>
+            &nbsp;&nbsp;Body (JSON): <code>{"source":"apple_health","hrv_ms":[HRV],"rhr_bpm":[RHR],"sleep_hours":[Sleep],"steps":[Steps]}</code>
+          </li>
+          <li>Turn off "Ask Before Running" → Done</li>
+        </ol>
+        <p class="meta">Full copy-paste recipe is in the repo at <code>shortcuts/README.md</code>.</p>
+      </div>`;
+  }
+
+  function openManualSync() {
+    const c = document.getElementById('modal-content');
+    c.innerHTML = `
+      <h3>⌚ Enter today's watch data</h3>
+      <p class="meta" style="margin-bottom:16px;">Read these off your watch/app. Leave any blank.</p>
+      <div class="form-grid">
+        <div class="form-row"><label>HRV (ms)</label><input type="number" id="ws-hrv" placeholder="e.g. 62"></div>
+        <div class="form-row"><label>Resting HR (bpm)</label><input type="number" id="ws-rhr" placeholder="e.g. 54"></div>
+        <div class="form-row"><label>Sleep (hours)</label><input type="number" id="ws-sleep" step="0.1" placeholder="e.g. 7.5"></div>
+        <div class="form-row"><label>Steps</label><input type="number" id="ws-steps" placeholder="e.g. 8000"></div>
+      </div>
+      <button class="btn primary full" style="margin-top:16px;" onclick="submitManualSync()">Sync & compute readiness</button>
+      <div id="ws-result" style="margin-top:12px;"></div>
+    `;
+    document.getElementById('modal-bg').classList.add('active');
+  }
+
+  async function submitManualSync() {
+    const body = { source: 'apple_health' };
+    const hrv = document.getElementById('ws-hrv').value;
+    const rhr = document.getElementById('ws-rhr').value;
+    const sleep = document.getElementById('ws-sleep').value;
+    const steps = document.getElementById('ws-steps').value;
+    if (hrv) body.hrv_ms = parseFloat(hrv);
+    if (rhr) body.rhr_bpm = parseFloat(rhr);
+    if (sleep) body.sleep_hours = parseFloat(sleep);
+    if (steps) body.steps = parseInt(steps);
+    const res = document.getElementById('ws-result');
+    res.innerHTML = '<div class="loading">Syncing…</div>';
+    try {
+      const r = await api('/v1/sync/wearable', { method: 'POST', body });
+      const rd = r.readiness;
+      const col = rd.color === 'GREEN' ? 'var(--green)' : rd.color === 'YELLOW' ? 'var(--yellow)' : 'var(--red)';
+      res.innerHTML = `<div class="card" style="border-color:${col};">
+        <h3 style="color:${col};">Readiness ${Math.round(rd.overall)} · ${rd.color}</h3>
+        <p class="meta">Synced ✓ Components: ${Object.keys(rd.components).join(', ')}</p>
+        <button class="btn primary full" style="margin-top:10px;" onclick="closeModal(); openTab('today');">Done</button>
+      </div>`;
+      refreshSyncStatus();
+    } catch(e) { res.innerHTML = `<div class="error">${e.message}</div>`; }
+  }
+
   async function refreshConsent() {
     const el = document.getElementById('surveillance-state');
     if (!el) return;
@@ -1978,6 +2065,7 @@
   loadProfileForm();
   loadToday();
   refreshConsent();
+  refreshSyncStatus();
 
   // Re-check connection every 10s
   setInterval(healthCheck, 10000);

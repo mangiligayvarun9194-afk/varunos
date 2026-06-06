@@ -216,6 +216,74 @@ def decision_color(overall: float) -> str:
     return "RED"
 
 
+def sleep_score_from_hours_quality(sleep_hours: float, sleep_quality_1to5: int) -> float:
+    """Sleep sub-score from felt inputs: half duration (target 7.5h), half quality."""
+    dur_score = max(0.0, min(100.0, (sleep_hours / 7.5) * 100))
+    qual_score = max(0.0, min(100.0, (sleep_quality_1to5 - 1) * 25))
+    return round(0.5 * dur_score + 0.5 * qual_score, 1)
+
+
+def compute_readiness(
+    *,
+    sleep: float | None = None,
+    wellness: float | None = None,
+    hrv_today_ms: float | None = None,
+    hrv_baseline_ms: float | None = None,
+    rhr_today_bpm: float | None = None,
+    rhr_baseline_bpm: float | None = None,
+) -> dict:
+    """The unified readiness engine. Weights adapt to whatever signals exist.
+
+    Reports ONLY the components actually measured — never a fake number.
+
+    Priority of signals (most → least objective):
+      HRV + RHR (from a wearable) > sleep > subjective wellness.
+
+    Weighting cases:
+      watch + subjective : 0.25 HRV  0.15 RHR  0.30 sleep  0.30 wellness
+      watch only         : 0.40 HRV  0.25 RHR  0.35 sleep
+      HRV + sleep + well : 0.30 HRV  0.35 sleep  0.35 wellness
+      sleep + wellness   : 0.45 sleep  0.55 wellness
+      wellness only      : 1.00 wellness
+      sleep only         : 1.00 sleep
+    """
+    components: dict[str, float] = {}
+    has_hrv = bool(hrv_today_ms and hrv_baseline_ms)
+    has_rhr = bool(rhr_today_bpm and rhr_baseline_bpm)
+    has_sleep = sleep is not None
+    has_well = wellness is not None
+
+    h = r = None
+    if has_hrv:
+        h = hrv_score(hrv_today_ms=hrv_today_ms, hrv_7d_baseline_ms=hrv_baseline_ms)
+        components["hrv"] = round(h, 1)
+    if has_rhr:
+        r = rhr_score(rhr_today_bpm=rhr_today_bpm, rhr_30d_baseline_bpm=rhr_baseline_bpm)
+        components["rhr"] = round(r, 1)
+    if has_sleep:
+        components["sleep"] = round(sleep, 1)
+    if has_well:
+        components["wellness"] = round(wellness, 1)
+
+    if has_hrv and has_rhr and has_sleep and has_well:
+        overall = 0.25 * h + 0.15 * r + 0.30 * sleep + 0.30 * wellness
+    elif has_hrv and has_rhr and has_sleep:
+        overall = 0.40 * h + 0.25 * r + 0.35 * sleep
+    elif has_hrv and has_sleep and has_well:
+        overall = 0.30 * h + 0.35 * sleep + 0.35 * wellness
+    elif has_sleep and has_well:
+        overall = 0.45 * sleep + 0.55 * wellness
+    elif has_well and has_sleep is False:
+        overall = wellness
+    elif has_sleep:
+        overall = sleep
+    else:
+        overall = wellness if has_well else 50.0
+
+    overall = round(max(0.0, min(100.0, overall)), 1)
+    return {"overall": overall, "color": decision_color(overall), "components": components}
+
+
 def readiness_simple(
     *,
     sleep_hours: float,
@@ -229,43 +297,14 @@ def readiness_simple(
     rhr_today_bpm: float | None = None,
     rhr_baseline_bpm: float | None = None,
 ) -> dict:
-    """Human-first readiness. Works from answers a person knows on waking.
-
-    No wearable required. If the user DOES have HRV/RHR from a watch, those
-    are folded in and the weighting shifts to include them. Otherwise the
-    score is computed honestly from sleep + subjective wellness only, and
-    only those components are reported (no fake HRV numbers shown).
-    """
-    # Sleep sub-score: half duration (target 7.5h), half felt quality
-    dur_score = max(0.0, min(100.0, (sleep_hours / 7.5) * 100))
-    qual_score = max(0.0, min(100.0, (sleep_quality_1to5 - 1) * 25))
-    sleep = round(0.5 * dur_score + 0.5 * qual_score, 1)
-
+    """Human-first readiness from a tap-based morning check-in. No wearable needed."""
+    sleep = sleep_score_from_hours_quality(sleep_hours, sleep_quality_1to5)
     well = wellness_score(
         energy_1to5=energy_1to5, soreness_1to5=soreness_1to5,
         mood_1to5=mood_1to5, stress_1to5=stress_1to5,
     )
-
-    has_hrv = bool(hrv_today_ms and hrv_baseline_ms)
-    has_rhr = bool(rhr_today_bpm and rhr_baseline_bpm)
-
-    components: dict[str, float] = {"sleep": sleep, "wellness": well}
-
-    if has_hrv and has_rhr:
-        h = hrv_score(hrv_today_ms=hrv_today_ms, hrv_7d_baseline_ms=hrv_baseline_ms)
-        r = rhr_score(rhr_today_bpm=rhr_today_bpm, rhr_30d_baseline_bpm=rhr_baseline_bpm)
-        components["hrv"] = round(h, 1)
-        components["rhr"] = round(r, 1)
-        overall = round(0.25 * h + 0.15 * r + 0.30 * sleep + 0.30 * well, 1)
-    elif has_hrv:
-        h = hrv_score(hrv_today_ms=hrv_today_ms, hrv_7d_baseline_ms=hrv_baseline_ms)
-        components["hrv"] = round(h, 1)
-        overall = round(0.30 * h + 0.35 * sleep + 0.35 * well, 1)
-    else:
-        overall = round(0.45 * sleep + 0.55 * well, 1)
-
-    return {
-        "overall": overall,
-        "color": decision_color(overall),
-        "components": components,
-    }
+    return compute_readiness(
+        sleep=sleep, wellness=well,
+        hrv_today_ms=hrv_today_ms, hrv_baseline_ms=hrv_baseline_ms,
+        rhr_today_bpm=rhr_today_bpm, rhr_baseline_bpm=rhr_baseline_bpm,
+    )
