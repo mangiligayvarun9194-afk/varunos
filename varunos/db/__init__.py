@@ -208,6 +208,22 @@ def _migrate(c: sqlite3.Connection) -> None:
         acked_via     TEXT
     );
     CREATE INDEX IF NOT EXISTS ix_ack_event ON alert_ack(event_id);
+
+    -- The spine: append-only canonical health event log (all sources)
+    CREATE TABLE IF NOT EXISTS health_event (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     TEXT,
+        ts          TEXT,
+        ingested_at TEXT,
+        source      TEXT,
+        device      TEXT,
+        kind        TEXT,
+        value_json  TEXT,
+        unit        TEXT,
+        confidence  REAL,
+        dedup_key   TEXT UNIQUE
+    );
+    CREATE INDEX IF NOT EXISTS ix_hevent_user_kind_ts ON health_event(user_id, kind, ts);
     """)
     # Additive migrations for wearable sync (idempotent; ALTER only if missing)
     _ensure_columns(c, "daily_checkin", {
@@ -342,6 +358,58 @@ def get_checkin(user_id: str, date: str) -> dict | None:
         "SELECT * FROM daily_checkin WHERE user_id=? AND date=?", (user_id, date)
     ).fetchone()
     return dict(row) if row else None
+
+
+def add_health_event(user_id: str, kind: str, value: dict, *, source: str,
+                     ts: str | None = None, device: str | None = None,
+                     unit: str = "", confidence: float = 1.0) -> int | None:
+    """Append a canonical health event. Idempotent via dedup_key.
+
+    Returns the row id, or None if it was a duplicate (already ingested).
+    """
+    ts = ts or _now()
+    dedup = f"{source}:{kind}:{ts}"
+    try:
+        with transaction() as c:
+            cur = c.execute(
+                "INSERT INTO health_event (user_id, ts, ingested_at, source, device, "
+                "kind, value_json, unit, confidence, dedup_key) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (user_id, ts, _now(), source, device, kind,
+                 json.dumps(value), unit, confidence, dedup),
+            )
+            return cur.lastrowid
+    except sqlite3.IntegrityError:
+        return None  # duplicate — already have this exact reading
+
+
+def list_health_events(user_id: str, kind: str | None = None, limit: int = 200) -> list[dict]:
+    if kind:
+        rows = conn().execute(
+            "SELECT * FROM health_event WHERE user_id=? AND kind=? ORDER BY ts DESC LIMIT ?",
+            (user_id, kind, limit)).fetchall()
+    else:
+        rows = conn().execute(
+            "SELECT * FROM health_event WHERE user_id=? ORDER BY ts DESC LIMIT ?",
+            (user_id, limit)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["value"] = json.loads(d.pop("value_json"))
+        except Exception:
+            d["value"] = None
+        out.append(d)
+    return out
+
+
+def list_checkins(user_id: str, days: int = 60) -> list[dict]:
+    """Recent daily check-ins, oldest→newest, for the insight engine."""
+    rows = conn().execute(
+        "SELECT * FROM daily_checkin WHERE user_id=? ORDER BY date DESC LIMIT ?",
+        (user_id, days),
+    ).fetchall()
+    return [dict(r) for r in reversed(rows)]
 
 
 def hrv_baseline(user_id: str, before_date: str, days: int = 7) -> float | None:

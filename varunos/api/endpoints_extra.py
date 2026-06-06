@@ -295,6 +295,99 @@ def get_checkin_today(date: Optional[str] = None):
     return {"date": target, "checkin": row}
 
 
+# ---- Insight engine: personal correlations + early warnings ----------------
+
+def _build_daily_features(uid: str, days: int = 60) -> list[dict]:
+    """Assemble one feature row per day from check-ins, meals and workouts."""
+    from varunos.core.readiness import (
+        compute_readiness, wellness_score,
+        sleep_score_from_components, sleep_score_from_hours_quality,
+    )
+    checkins = db.list_checkins(uid, days)
+    by_date: dict[str, dict] = {}
+
+    for ci in checkins:
+        d = ci["date"]
+        feat: dict = {"date": d}
+        if ci.get("hrv_today_ms"):
+            feat["hrv"] = ci["hrv_today_ms"]
+        if ci.get("rhr_today_bpm"):
+            feat["rhr"] = ci["rhr_today_bpm"]
+        if ci.get("sleep_min"):
+            feat["sleep_hours"] = round(ci["sleep_min"] / 60, 2)
+        if ci.get("steps"):
+            feat["steps"] = ci["steps"]
+        if ci.get("stress_1to5") is not None:
+            feat["stress"] = ci["stress_1to5"]
+        # Per-day readiness (recomputed deterministically)
+        sleep = None
+        if ci.get("sleep_min"):
+            if ci.get("wearable_source"):
+                sleep = sleep_score_from_components(
+                    duration_min=ci["sleep_min"],
+                    deep_pct=ci.get("sleep_deep_pct") if ci.get("sleep_deep_pct") is not None else -1,
+                    rem_pct=ci.get("sleep_rem_pct") if ci.get("sleep_rem_pct") is not None else -1,
+                    efficiency_pct=ci.get("sleep_eff_pct") if ci.get("sleep_eff_pct") is not None else 85,
+                )
+            else:
+                hrs = ci["sleep_min"] / 60
+                q = max(1, min(5, round(((ci.get("sleep_eff_pct") or 82) - 55) / 9)))
+                sleep = sleep_score_from_hours_quality(hrs, q)
+        well = None
+        if ci.get("energy_1to5") is not None:
+            well = wellness_score(
+                energy_1to5=ci["energy_1to5"], soreness_1to5=ci.get("soreness_1to5", 3),
+                mood_1to5=ci.get("mood_1to5", 3), stress_1to5=ci.get("stress_1to5", 3))
+        if sleep is not None or well is not None:
+            rd = compute_readiness(
+                sleep=sleep, wellness=well,
+                hrv_today_ms=ci.get("hrv_today_ms"), hrv_baseline_ms=ci.get("hrv_7d_baseline_ms"),
+                rhr_today_bpm=ci.get("rhr_today_bpm"), rhr_baseline_bpm=ci.get("rhr_30d_baseline_bpm"))
+            feat["readiness"] = rd["overall"]
+        by_date[d] = feat
+
+    # Meals → daily kcal + "late meal" flag (any item after 21:00 local-ish/UTC)
+    for m in db.list_meals(uid):
+        ts = m.get("ts", "")
+        d = ts[:10]
+        if not d:
+            continue
+        f = by_date.setdefault(d, {"date": d})
+        f["kcal"] = f.get("kcal", 0) + (m.get("kcal") or 0)
+        try:
+            hour = int(ts[11:13])
+            if hour >= 21:
+                f["late_meal"] = 1
+        except Exception:
+            pass
+    # default late_meal=0 for days that had any meal logged
+    for f in by_date.values():
+        if "kcal" in f and "late_meal" not in f:
+            f["late_meal"] = 0
+
+    # Workouts → training load (set count proxy)
+    for w in db.list_workout_logs(uid, limit=200):
+        d = (w.get("ts") or "")[:10]
+        if not d:
+            continue
+        f = by_date.setdefault(d, {"date": d})
+        f["training_load"] = f.get("training_load", 0) + 1
+
+    return [by_date[k] for k in sorted(by_date)]
+
+
+@router.get("/v1/insights")
+def get_insights():
+    """Personal patterns: correlations + early-warning anomalies, computed
+    deterministically from the user's own history."""
+    from varunos.core.insights import build_insights
+    uid = _user_id_from_default()
+    daily = _build_daily_features(uid)
+    result = build_insights(daily)
+    result["disclaimer"] = DISCLAIMER
+    return result
+
+
 # ---- Wearable sync (Apple Health Shortcut / Fitbit / Oura / Whoop / Garmin) ----
 
 class WearableSyncIn(BaseModel):
@@ -364,6 +457,18 @@ def sync_wearable(payload: WearableSyncIn):
         "hrv": payload.hrv_ms, "rhr": payload.rhr_bpm, "sleep_min": sleep_min,
         "steps": payload.steps,
     })
+
+    # Also append to the canonical event spine (idempotent per source+kind+day)
+    _ev_ts = f"{date}T00:00:00+00:00"
+    for kind, val, unit in [
+        ("hrv", payload.hrv_ms, "ms"), ("rhr", payload.rhr_bpm, "bpm"),
+        ("sleep", sleep_min, "min"), ("steps", payload.steps, "count"),
+        ("active_kcal", payload.active_kcal, "kcal"), ("spo2", payload.spo2, "%"),
+        ("weight", payload.weight_kg, "kg"),
+    ]:
+        if val is not None:
+            db.add_health_event(uid, kind, {"v": val}, source=payload.source,
+                                ts=_ev_ts, unit=unit)
 
     # Sleep sub-score from whatever sleep data we have
     sleep = None

@@ -578,6 +578,9 @@
       <p>Your data, your trends</p>
     </div>
 
+    <div class="section-title">🔎 Your patterns</div>
+    <div id="patterns-box"><div class="loading">Analysing your history…</div></div>
+
     <div class="section-title">Compute a real risk score</div>
     <div class="card">
       <h3>IDRS (Indian Diabetes Risk)</h3>
@@ -892,6 +895,52 @@
     document.querySelector(`nav.bottom button[data-tab="${name}"]`).classList.add('active');
     if (name === 'today') loadToday();
     if (name === 'log') loadLogHistory();
+    if (name === 'insights') loadPatterns();
+  }
+
+  async function loadPatterns() {
+    const box = document.getElementById('patterns-box');
+    if (!box) return;
+    box.innerHTML = '<div class="loading">Analysing your history…</div>';
+    try {
+      const r = await api('/v1/insights');
+      const sevColor = { good: 'var(--green)', watch: 'var(--yellow)', warn: 'var(--red)', info: 'var(--accent-2)' };
+      const sevIcon = { good: '✅', watch: '⚠️', warn: '🚨', info: 'ℹ️' };
+      let html = '';
+      const anoms = r.anomalies || [];
+      const corrs = r.correlations || [];
+      if (!r.enough_data && anoms.length === 0 && corrs.length === 0) {
+        box.innerHTML = `
+          <div class="card" style="border:2px dashed var(--border); text-align:center; padding:24px;">
+            <div style="font-size:28px;">📈</div>
+            <h3 style="font-size:15px; margin:8px 0;">Patterns appear after ~7 days</h3>
+            <p class="meta">Keep doing your check-ins or syncing your watch. VarunOS will start
+            spotting what raises your HRV, what hurts your sleep, and early warning signs —
+            all from your own data.</p>
+          </div>`;
+        return;
+      }
+      // Anomalies first (most urgent)
+      for (const a of anoms) {
+        html += `<div class="card" style="border-left:4px solid ${sevColor[a.severity] || 'var(--accent-2)'};">
+          <h3 style="font-size:14px;">${sevIcon[a.severity] || 'ℹ️'} ${a.title}</h3>
+          <p class="meta" style="margin-top:4px;">${a.detail}</p>
+        </div>`;
+      }
+      for (const c of corrs) {
+        html += `<div class="card" style="border-left:4px solid ${sevColor[c.severity] || 'var(--accent-2)'};">
+          <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
+            <h3 style="font-size:14px;">${sevIcon[c.severity] || 'ℹ️'} ${c.title}</h3>
+            <span class="meta" style="white-space:nowrap;">${c.strength}</span>
+          </div>
+          <p class="meta" style="margin-top:4px;">${c.detail}</p>
+        </div>`;
+      }
+      html += `<p class="meta" style="text-align:center; margin:8px 0;">Based on ${r.days_analyzed} days of your data · updates automatically</p>`;
+      box.innerHTML = html;
+    } catch(e) {
+      box.innerHTML = `<div class="error">${e.message}</div>`;
+    }
   }
 
   async function loadLogHistory() {
