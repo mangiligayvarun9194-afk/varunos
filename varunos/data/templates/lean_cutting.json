@@ -1,0 +1,30 @@
+{
+  "name": "Lean Cutting",
+  "goal": "cut_high_volume",
+  "meals": [
+    {
+      "name": "Breakfast",
+      "time": "08:00",
+      "items": ["egg_white_1pc", "egg_white_1pc", "egg_white_1pc", "egg_white_1pc", "egg_whole_1pc", "oats_rolled_50g"],
+      "portions": 1
+    },
+    {
+      "name": "Lunch",
+      "time": "13:00",
+      "items": ["chicken_breast_100g", "salad_greens", "bhindi_1cup", "gobhi_1cup"],
+      "portions": 1
+    },
+    {
+      "name": "Snack",
+      "time": "17:00",
+      "items": ["whey_isolate_30g", "apple_1pc", "green_tea_1cup"],
+      "portions": 1
+    },
+    {
+      "name": "Dinner",
+      "time": "20:00",
+      "items": ["fish_rohu_100g", "broccoli_1cup", "cabbage_1cup", "dal_moong_1cup"],
+      "portions": 1
+    }
+  ]
+}

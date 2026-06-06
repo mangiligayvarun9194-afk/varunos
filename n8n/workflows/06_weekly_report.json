@@ -1,0 +1,86 @@
+{
+  "name": "VarunOS — 06 Weekly Report",
+  "description": "Sunday 8pm: gather week's workouts, meals, checkins, surveillance tiers, and return a JSON summary for the brain to format.",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {"interval": [{"hours": 20, "minutes": 0}]},
+        "tz": "={{$env.VARUNOS_TZ || 'UTC'}}"
+      },
+      "id": "cron-1",
+      "name": "Cron Sun 8pm",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/logs/workouts?limit=50",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-1",
+      "name": "GET /v1/logs/workouts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/logs/meals?limit=100",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-2",
+      "name": "GET /v1/logs/meals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/observability/log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "kind", "value": "weekly_report_generated"},
+            {"name": "channel", "value": "n8n"},
+            {"name": "payload", "value": "={{JSON.stringify({n_workouts: $json.workouts.length, n_meals: $json.meals.length})}}"}
+          ]
+        },
+        "options": {"timeout": 5000}
+      },
+      "id": "http-3",
+      "name": "POST /v1/observability/log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Cron Sun 8pm": {"main": [[{"node": "GET /v1/logs/workouts", "type": "main", "index": 0}, {"node": "GET /v1/logs/meals", "type": "main", "index": 0}]]},
+    "GET /v1/logs/workouts": {"main": [[{"node": "POST /v1/observability/log", "type": "main", "index": 0}]]},
+    "GET /v1/logs/meals": {"main": [[{"node": "POST /v1/observability/log", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

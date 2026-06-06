@@ -1,0 +1,64 @@
+# VarunOS — local docker-compose for development and single-host deployment.
+#
+# Run from the PROJECT ROOT (one level up from this file):
+#     docker compose -f deploy/docker/docker-compose.yml up --build
+#
+# Production variant: docker-compose.prod.yml (in the same directory).
+# This file is also valid for a small VPS (Hetzner, DigitalOcean, OCI ARM).
+#
+# All data lives in named volumes. The SQLite database persists across restarts.
+
+services:
+  core:
+    build:
+      context: ../..            # project root, not deploy/docker/
+      dockerfile: deploy/docker/Dockerfile
+    image: varunos:2.2.0
+    container_name: varunos-core
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../../.env             # your .env file (NEVER commit this)
+    environment:
+      # Fall back to defaults if .env is missing values
+      VARUNOS_DB_PATH: /data/varunos.db
+      VARUNOS_ENV: dev
+      VARUNOS_USER_ID: default
+    volumes:
+      - varunos-data:/data      # persistent SQLite file
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # The PWA is served by this same container (set VARUNOS_SERVE_PWA=1 to keep it on)
+
+  n8n:
+    image: n8nio/n8n:1.94.1
+    container_name: varunos-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=${VARUNOS_TZ:-UTC}
+      - N8N_BASIC_AUTH_ACTIVE=false
+      # Wire n8n to the core API. The n8n HTTP nodes use
+      # {{$env.VARUNOS_API_BASE}} which resolves to this URL.
+      - VARUNOS_API_BASE=http://core:8000
+      - VARUNOS_API_KEY=${VARUNOS_API_KEY:?set VARUNOS_API_KEY in .env}
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ../../n8n/workflows:/workflows:ro
+    depends_on:
+      core:
+        condition: service_healthy
+
+volumes:
+  varunos-data:
+  n8n-data:

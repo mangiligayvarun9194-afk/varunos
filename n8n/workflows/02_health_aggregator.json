@@ -1,0 +1,254 @@
+{
+  "name": "VarunOS \u2014 02 Health Data Aggregator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wh/any",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-1",
+      "name": "Webhook /wh/any",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalize incoming payload to internal schema\nconst item = $input.first().json;\nconst source = item.source || 'unknown';\nconst ts = item.ts || new Date().toISOString();\n\nlet normalized = { source, ts, readings: [] };\n\nif (source === 'apple-health') {\n  normalized.readings = (item.data || []).map(r => ({\n    type: r.type,\n    value: r.value,\n    unit: r.unit,\n    ts: r.startDate || ts\n  }));\n} else if (source === 'cgm' || source === 'dexcom' || source === 'libre') {\n  normalized.readings.push({ type: 'glucose', value: item.value, unit: 'mg/dL', context: item.context || 'random', ts });\n} else if (source === 'bp') {\n  normalized.readings.push({ type: 'bp', sbp: item.sbp, dbp: item.dbp, pulse: item.pulse, ts });\n} else if (source === 'manual') {\n  normalized.readings.push({ type: item.kind, value: item.value, unit: item.unit, ts });\n}\n\nreturn { json: normalized };"
+      },
+      "id": "fn-normalize-1",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Dedupe + validate ranges\nconst readings = $input.first().json.readings || [];\nconst dedup = [];\nfor (const r of readings) {\n  // Dedupe CGM same value+timestamp\n  if (r.type === 'glucose' && r.value < 20 || r.value > 600) continue;  // invalid\n  if (r.type === 'bp' && (r.sbp < 50 || r.sbp > 260 || r.dbp < 30 || r.dbp > 160)) continue;\n  if (r.type === 'heart_rate' && (r.value < 20 || r.value > 240)) continue;\n  dedup.push(r);\n}\nreturn { json: { ...$input.first().json, readings: dedup } };"
+      },
+      "id": "fn-dedupe-1",
+      "name": "Validate + dedupe",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=={{$env.VARUNOS_API_BASE}}/v1/core/recompute_tiers",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{$env[\"USER_ID\"]}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "readings",
+              "value": "={{$json.readings}}"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "values": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "http-recompute-1",
+      "name": "Recompute tiers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.tier_changed}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-tier-1",
+      "name": "Tier changed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=={{$env.VARUNOS_API_BASE}}/v1/surveillance/escalate/glucose",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "value_mgdl",
+              "value": "={{$json.readings[0].value}}"
+            },
+            {
+              "name": "symptomatic",
+              "value": false
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "values": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "esc-glucose-1",
+      "name": "Escalate if critical",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=={{$env.VARUNOS_API_BASE}}/v1/surveillance/escalate/bp",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "sbp",
+              "value": "={{$json.readings[0].sbp}}"
+            },
+            {
+              "name": "dbp",
+              "value": "={{$json.readings[0].dbp}}"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "values": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "esc-bp-1",
+      "name": "Escalate BP if crisis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook /wh/any": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "Validate + dedupe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + dedupe": {
+      "main": [
+        [
+          {
+            "node": "Recompute tiers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recompute tiers": {
+      "main": [
+        [
+          {
+            "node": "Tier changed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier changed?": {
+      "main": [
+        [
+          {
+            "node": "Escalate if critical",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Escalate BP if crisis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "versionId": "1.0.0"
+}

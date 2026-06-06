@@ -1,0 +1,17 @@
+{
+  "category": "snacks_beverages",
+  "items": [
+    {"id": "dark_choc_85_30g", "name": "Dark Chocolate 85% (30g)", "kcal": 170, "p": 2.5, "c": 11, "f": 13, "category": "snack", "tags": ["veg"], "portion_g": 30, "portion_label": "30g"},
+    {"id": "makhana_30g", "name": "Makhana / Fox Nuts (30g)", "kcal": 110, "p": 4, "c": 20, "f": 0.5, "category": "snack", "tags": ["veg", "indian"], "portion_g": 30, "portion_label": "30g"},
+    {"id": "roasted_chana_30g", "name": "Roasted Chana (30g)", "kcal": 120, "p": 7, "c": 18, "f": 2, "category": "snack", "tags": ["veg", "indian"], "portion_g": 30, "portion_label": "30g"},
+    {"id": "murmura_30g", "name": "Murmura / Puffed Rice (30g)", "kcal": 100, "p": 2, "c": 22, "f": 0.3, "category": "snack", "tags": ["veg", "indian"], "portion_g": 30, "portion_label": "30g"},
+    {"id": "popcorn_30g", "name": "Popcorn Plain (30g popped)", "kcal": 110, "p": 3, "c": 22, "f": 1.5, "category": "snack", "tags": ["veg"], "portion_g": 30, "portion_label": "30g"},
+    {"id": "protein_bar_1pc", "name": "Protein Bar (1 pc, ~60g)", "kcal": 220, "p": 20, "c": 22, "f": 8, "category": "snack", "tags": ["veg"], "portion_g": 60, "portion_label": "1 bar"},
+    {"id": "chai_no_sugar_1cup", "name": "Chai No Sugar (1 cup, 200ml)", "kcal": 50, "p": 3, "c": 7, "f": 2, "category": "beverage", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "chai_with_jaggery_1cup", "name": "Chai with Jaggery (1 cup, 200ml)", "kcal": 90, "p": 3, "c": 15, "f": 2, "category": "beverage", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "green_tea_1cup", "name": "Green Tea Unsweetened (1 cup, 240ml)", "kcal": 2, "p": 0, "c": 0, "f": 0, "category": "beverage", "tags": ["vegan"], "portion_g": 240, "portion_label": "1 cup"},
+    {"id": "black_coffee_1cup", "name": "Black Coffee (1 cup, 240ml)", "kcal": 5, "p": 0.3, "c": 0, "f": 0, "category": "beverage", "tags": ["vegan"], "portion_g": 240, "portion_label": "1 cup"},
+    {"id": "coconut_water_1cup", "name": "Coconut Water (1 cup, 240ml)", "kcal": 60, "p": 2, "c": 15, "f": 0.5, "category": "beverage", "tags": ["vegan", "indian"], "portion_g": 240, "portion_label": "1 cup"},
+    {"id": "nimbu_pani_1cup", "name": "Nimbu Pani No Sugar (1 cup, 240ml)", "kcal": 10, "p": 0, "c": 3, "f": 0, "category": "beverage", "tags": ["vegan", "indian"], "portion_g": 240, "portion_label": "1 cup"}
+  ]
+}

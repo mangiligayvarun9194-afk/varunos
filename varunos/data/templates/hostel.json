@@ -1,0 +1,30 @@
+{
+  "name": "Minimal-Prep Hostel",
+  "goal": "minimal_prep_budget",
+  "meals": [
+    {
+      "name": "Breakfast",
+      "time": "08:00",
+      "items": ["oats_rolled_50g", "milk_toned_1cup", "banana_1pc", "peanut_butter_1tbsp"],
+      "portions": 1
+    },
+    {
+      "name": "Lunch",
+      "time": "13:00",
+      "items": ["roti_wheat_1pc", "roti_wheat_1pc", "roti_wheat_1pc", "dal_toor_1cup", "egg_whole_1pc", "egg_whole_1pc"],
+      "portions": 1
+    },
+    {
+      "name": "Snack",
+      "time": "17:00",
+      "items": ["roasted_chana_30g", "banana_1pc"],
+      "portions": 1
+    },
+    {
+      "name": "Dinner",
+      "time": "20:00",
+      "items": ["rice_basmati_100g", "rajma_1cup", "dahi_1cup", "almonds_28g"],
+      "portions": 1
+    }
+  ]
+}

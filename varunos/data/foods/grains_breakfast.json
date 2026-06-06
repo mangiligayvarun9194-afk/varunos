@@ -1,0 +1,12 @@
+{
+  "category": "grains_breakfast",
+  "items": [
+    {"id": "oats_rolled_50g", "name": "Oats Rolled (50g dry)", "kcal": 190, "p": 7, "c": 33, "f": 3.5, "category": "carb", "tags": ["veg", "fiber"], "portion_g": 50, "portion_label": "50g dry"},
+    {"id": "oats_instant_50g", "name": "Oats Instant (50g dry)", "kcal": 190, "p": 7, "c": 33, "f": 3, "category": "carb", "tags": ["veg"], "portion_g": 50, "portion_label": "50g dry"},
+    {"id": "muesli_50g", "name": "Muesli (50g)", "kcal": 185, "p": 5, "c": 33, "f": 3, "category": "carb", "tags": ["veg"], "portion_g": 50, "portion_label": "50g"},
+    {"id": "dalia_50g", "name": "Dalia / Broken Wheat (50g dry)", "kcal": 165, "p": 5, "c": 35, "f": 0.7, "category": "carb", "tags": ["veg", "indian"], "portion_g": 50, "portion_label": "50g dry"},
+    {"id": "bread_brown_1slice", "name": "Bread Brown (1 slice, ~30g)", "kcal": 70, "p": 3, "c": 13, "f": 1, "category": "carb", "tags": ["veg"], "portion_g": 30, "portion_label": "1 slice"},
+    {"id": "bread_white_1slice", "name": "Bread White (1 slice, ~30g)", "kcal": 75, "p": 2.5, "c": 14, "f": 1, "category": "carb", "tags": ["veg"], "portion_g": 30, "portion_label": "1 slice"},
+    {"id": "bread_multigrain_1slice", "name": "Bread Multigrain (1 slice, ~30g)", "kcal": 70, "p": 3.5, "c": 12, "f": 1.2, "category": "carb", "tags": ["veg", "fiber"], "portion_g": 30, "portion_label": "1 slice"}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "category": "vegetables",
+  "items": [
+    {"id": "palak_1cup", "name": "Palak / Spinach (1 cup cooked, ~180g)", "kcal": 41, "p": 5, "c": 7, "f": 0.5, "category": "veg", "tags": ["veg", "indian", "iron"], "portion_g": 180, "portion_label": "1 cup"},
+    {"id": "bhindi_1cup", "name": "Bhindi / Okra (1 cup, ~150g)", "kcal": 65, "p": 3, "c": 12, "f": 1, "category": "veg", "tags": ["veg", "indian"], "portion_g": 150, "portion_label": "1 cup"},
+    {"id": "baingan_1cup", "name": "Baingan / Eggplant (1 cup, ~150g)", "kcal": 50, "p": 2, "c": 12, "f": 0.4, "category": "veg", "tags": ["veg", "indian"], "portion_g": 150, "portion_label": "1 cup"},
+    {"id": "gobhi_1cup", "name": "Gobhi / Cauliflower (1 cup, ~150g)", "kcal": 45, "p": 3, "c": 9, "f": 0.5, "category": "veg", "tags": ["veg", "indian"], "portion_g": 150, "portion_label": "1 cup"},
+    {"id": "aloo_1cup", "name": "Aloo / Potato (1 cup boiled, ~150g)", "kcal": 130, "p": 3, "c": 30, "f": 0.2, "category": "veg", "tags": ["veg", "indian"], "portion_g": 150, "portion_label": "1 cup"},
+    {"id": "methi_1cup", "name": "Methi / Fenugreek (1 cup, ~150g)", "kcal": 50, "p": 4, "c": 8, "f": 0.5, "category": "veg", "tags": ["veg", "indian"], "portion_g": 150, "portion_label": "1 cup"},
+    {"id": "lauki_1cup", "name": "Lauki / Bottle Gourd (1 cup, ~150g)", "kcal": 25, "p": 1, "c": 5, "f": 0.2, "category": "veg", "tags": ["veg", "indian"], "portion_g": 150, "portion_label": "1 cup"},
+    {"id": "tinda_1cup", "name": "Tinda / Apple Gourd (1 cup, ~150g)", "kcal": 30, "p": 1.5, "c": 6, "f": 0.3, "category": "veg", "tags": ["veg", "indian"], "portion_g": 150, "portion_label": "1 cup"},
+    {"id": "cabbage_1cup", "name": "Cabbage (1 cup, ~90g)", "kcal": 22, "p": 1, "c": 5, "f": 0.1, "category": "veg", "tags": ["veg"], "portion_g": 90, "portion_label": "1 cup"},
+    {"id": "broccoli_1cup", "name": "Broccoli (1 cup, ~90g)", "kcal": 31, "p": 2.5, "c": 6, "f": 0.3, "category": "veg", "tags": ["veg"], "portion_g": 90, "portion_label": "1 cup"},
+    {"id": "carrot_1cup", "name": "Carrot (1 cup, ~120g)", "kcal": 50, "p": 1, "c": 12, "f": 0.3, "category": "veg", "tags": ["veg"], "portion_g": 120, "portion_label": "1 cup"},
+    {"id": "tomato_1cup", "name": "Tomato (1 cup, ~150g)", "kcal": 32, "p": 1.6, "c": 7, "f": 0.4, "category": "veg", "tags": ["veg"], "portion_g": 150, "portion_label": "1 cup"}
+  ]
+}

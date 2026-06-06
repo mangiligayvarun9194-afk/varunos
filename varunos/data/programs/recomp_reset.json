@@ -1,0 +1,43 @@
+{
+  "name": "Recomp Reset",
+  "goal": "recomposition",
+  "split": ["Full Body"],
+  "days_per_week": 3,
+  "weeks": 6,
+  "deload_week": 5,
+  "progression_rule": "rpe",
+  "days": [
+    {
+      "name": "Full Body A",
+      "exercises": [
+        {"id": "squat", "sets": 3, "reps": "8-10", "intensity": "RPE 7-8", "rest_s": 150},
+        {"id": "bench_press", "sets": 3, "reps": "8-10", "intensity": "RPE 7-8", "rest_s": 150},
+        {"id": "barbell_row", "sets": 3, "reps": "8-10", "intensity": "RPE 7-8", "rest_s": 120},
+        {"id": "lateral_raise", "sets": 3, "reps": "12-15", "intensity": "RPE 9", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Full Body B",
+      "exercises": [
+        {"id": "romanian_deadlift", "sets": 3, "reps": "8-10", "intensity": "RPE 7-8", "rest_s": 150},
+        {"id": "ohp", "sets": 3, "reps": "8-10", "intensity": "RPE 7-8", "rest_s": 120},
+        {"id": "pullup", "sets": 3, "reps": "6-10", "intensity": "RPE 8", "rest_s": 120},
+        {"id": "tricep_pushdown", "sets": 3, "reps": "12-15", "intensity": "RPE 8", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Full Body C",
+      "exercises": [
+        {"id": "leg_press", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 120},
+        {"id": "incline_db_press", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "seated_row", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "barbell_curl", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 60}
+      ]
+    }
+  ],
+  "substitutions": {
+    "squat": ["goblet_squat", "leg_press", "bulgarian_split_squat"],
+    "bench_press": ["db_bench_press", "smith_bench", "pushup"],
+    "pullup": ["lat_pulldown", "inverted_row"]
+  }
+}

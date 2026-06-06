@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: varunos
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn varunos.api.server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: VARUNOS_ENV
+        value: production
+      - key: VARUNOS_DB_PATH
+        value: /var/data/varunos.db
+      - key: VARUNOS_SERVE_PWA
+        value: "1"
+      - key: VARUNOS_USER_ID
+        value: default
+      - key: VARUNOS_API_KEY
+        generateValue: true
+      - key: VARUNOS_ALLOWED_ORIGINS
+        sync: false
+      - key: PYTHONPATH
+        value: .
+    disk:
+      name: varunos-data
+      mountPath: /var/data
+      sizeGB: 1

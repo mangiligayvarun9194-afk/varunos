@@ -1,0 +1,14 @@
+{
+  "category": "dairy",
+  "items": [
+    {"id": "paneer_100g", "name": "Paneer (100g)", "kcal": 265, "p": 18, "c": 1.2, "f": 21, "category": "protein", "tags": ["veg", "indian"], "portion_g": 100, "portion_label": "100g"},
+    {"id": "paneer_50g", "name": "Paneer (50g)", "kcal": 132, "p": 9, "c": 0.6, "f": 10.5, "category": "protein", "tags": ["veg", "indian"], "portion_g": 50, "portion_label": "50g"},
+    {"id": "dahi_1cup", "name": "Dahi / Curd (1 cup, ~200g)", "kcal": 100, "p": 7, "c": 9, "f": 4, "category": "dairy", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "milk_toned_1cup", "name": "Milk Toned (1 cup, ~200ml)", "kcal": 116, "p": 6, "c": 10, "f": 6, "category": "dairy", "tags": ["veg"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "milk_full_1cup", "name": "Milk Full-Fat (1 cup, ~200ml)", "kcal": 150, "p": 6.4, "c": 9.6, "f": 10, "category": "dairy", "tags": ["veg"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "milk_skim_1cup", "name": "Milk Skim (1 cup, ~200ml)", "kcal": 70, "p": 7, "c": 10, "f": 0.4, "category": "dairy", "tags": ["veg"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "chaas_1cup", "name": "Chaas / Buttermilk (1 cup, ~200ml)", "kcal": 50, "p": 3, "c": 6, "f": 2, "category": "dairy", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "lassi_sweet_1cup", "name": "Lassi Sweet (1 cup, ~250ml)", "kcal": 250, "p": 6, "c": 30, "f": 11, "category": "dairy", "tags": ["veg", "indian"], "portion_g": 250, "portion_label": "1 cup"},
+    {"id": "ghee_1tbsp", "name": "Ghee (1 tbsp, ~15g)", "kcal": 130, "p": 0, "c": 0, "f": 14, "category": "fat", "tags": ["veg", "indian"], "portion_g": 15, "portion_label": "1 tbsp"}
+  ]
+}

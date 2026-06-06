@@ -1,0 +1,42 @@
+{
+  "name": "Bodybuilder Classic",
+  "goal": "lean_bulk_high_protein",
+  "meals": [
+    {
+      "name": "Meal 1",
+      "time": "07:00",
+      "items": ["oats_rolled_50g", "whey_isolate_30g", "banana_1pc", "almonds_28g"],
+      "portions": 1
+    },
+    {
+      "name": "Meal 2",
+      "time": "10:00",
+      "items": ["rice_brown_100g", "chicken_breast_100g", "broccoli_1cup"],
+      "portions": 1
+    },
+    {
+      "name": "Meal 3",
+      "time": "13:00",
+      "items": ["rice_basmati_100g", "fish_salmon_100g", "palak_1cup", "olive_oil_1tbsp"],
+      "portions": 1
+    },
+    {
+      "name": "Meal 4",
+      "time": "16:30",
+      "items": ["whey_isolate_30g", "peanut_butter_1tbsp", "apple_1pc"],
+      "portions": 1
+    },
+    {
+      "name": "Meal 5",
+      "time": "19:00",
+      "items": ["sweet_potato_150g", "chicken_breast_100g", "lauki_1cup"],
+      "portions": 1
+    },
+    {
+      "name": "Meal 6",
+      "time": "21:30",
+      "items": ["casein_30g", "walnuts_28g"],
+      "portions": 1
+    }
+  ]
+}

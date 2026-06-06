@@ -1,0 +1,15 @@
+{
+  "category": "indian_staples",
+  "items": [
+    {"id": "rice_basmati_100g", "name": "Basmati Rice (cooked)", "kcal": 130, "p": 2.7, "c": 28, "f": 0.3, "category": "carb", "tags": ["veg", "indian"], "portion_g": 100, "portion_label": "100g cooked"},
+    {"id": "rice_brown_100g", "name": "Brown Rice (cooked)", "kcal": 112, "p": 2.6, "c": 23, "f": 0.9, "category": "carb", "tags": ["veg", "indian"], "portion_g": 100, "portion_label": "100g cooked"},
+    {"id": "roti_wheat_1pc", "name": "Roti / Chapati (1 medium, ~40g)", "kcal": 120, "p": 3.5, "c": 22, "f": 2.5, "category": "carb", "tags": ["veg", "indian"], "portion_g": 40, "portion_label": "1 roti"},
+    {"id": "paratha_1pc", "name": "Paratha (1 medium, ~60g, plain)", "kcal": 200, "p": 4.5, "c": 28, "f": 8, "category": "carb", "tags": ["veg", "indian"], "portion_g": 60, "portion_label": "1 paratha"},
+    {"id": "naan_1pc", "name": "Naan (1 pc, ~90g)", "kcal": 262, "p": 9, "c": 45, "f": 5, "category": "carb", "tags": ["veg", "indian"], "portion_g": 90, "portion_label": "1 naan"},
+    {"id": "idli_1pc", "name": "Idli (1 pc, ~50g)", "kcal": 58, "p": 2, "c": 12, "f": 0.4, "category": "carb", "tags": ["veg", "indian"], "portion_g": 50, "portion_label": "1 idli"},
+    {"id": "dosa_plain_1pc", "name": "Dosa Plain (1 pc, ~80g)", "kcal": 168, "p": 4, "c": 29, "f": 3.7, "category": "carb", "tags": ["veg", "indian"], "portion_g": 80, "portion_label": "1 dosa"},
+    {"id": "upma_1cup", "name": "Upma (1 cup, ~200g)", "kcal": 220, "p": 5, "c": 35, "f": 7, "category": "carb", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "poha_1cup", "name": "Poha (1 cup, ~200g cooked)", "kcal": 180, "p": 3, "c": 33, "f": 4, "category": "carb", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "khichdi_1cup", "name": "Khichdi (1 cup, ~250g)", "kcal": 250, "p": 9, "c": 42, "f": 5, "category": "carb", "tags": ["veg", "indian"], "portion_g": 250, "portion_label": "1 cup"}
+  ]
+}

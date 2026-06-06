@@ -1,0 +1,117 @@
+{
+  "category": "bodyweight",
+  "exercises": [
+    {
+      "id": "pushup",
+      "name": "Push-Up",
+      "primary_muscles": ["chest", "triceps", "shoulders"],
+      "equipment": [],
+      "difficulty": "beginner",
+      "substitutions": ["db_bench_press", "bench_press", "smith_bench"]
+    },
+    {
+      "id": "pullup",
+      "name": "Pull-Up",
+      "primary_muscles": ["back", "biceps"],
+      "equipment": ["pullup_bar"],
+      "difficulty": "intermediate",
+      "substitutions": ["lat_pulldown", "band_assisted_pullup", "inverted_row"]
+    },
+    {
+      "id": "band_assisted_pullup",
+      "name": "Band-Assisted Pull-Up",
+      "primary_muscles": ["back", "biceps"],
+      "equipment": ["pullup_bar", "band"],
+      "difficulty": "beginner",
+      "substitutions": ["pullup", "lat_pulldown"]
+    },
+    {
+      "id": "inverted_row",
+      "name": "Inverted Row",
+      "primary_muscles": ["back", "biceps"],
+      "equipment": ["barbell"],
+      "difficulty": "beginner",
+      "substitutions": ["seated_row", "lat_pulldown"]
+    },
+    {
+      "id": "dip",
+      "name": "Dip",
+      "primary_muscles": ["chest", "triceps"],
+      "equipment": ["dip_bars"],
+      "difficulty": "intermediate",
+      "substitutions": ["pushup", "tricep_pushdown"]
+    },
+    {
+      "id": "pistol_squat",
+      "name": "Pistol Squat",
+      "primary_muscles": ["quads", "glutes"],
+      "equipment": [],
+      "difficulty": "advanced",
+      "substitutions": ["bulgarian_split_squat", "lunge"]
+    },
+    {
+      "id": "nordic_curl",
+      "name": "Nordic Hamstring Curl",
+      "primary_muscles": ["hamstrings"],
+      "equipment": [],
+      "difficulty": "advanced",
+      "substitutions": ["leg_curl", "romanian_deadlift"]
+    },
+    {
+      "id": "hanging_leg_raise",
+      "name": "Hanging Leg Raise",
+      "primary_muscles": ["abs"],
+      "equipment": ["pullup_bar"],
+      "difficulty": "intermediate",
+      "substitutions": ["reverse_crunch", "plank"]
+    },
+    {
+      "id": "plank",
+      "name": "Plank",
+      "primary_muscles": ["core"],
+      "equipment": [],
+      "difficulty": "beginner",
+      "substitutions": ["side_plank", "dead_bug"]
+    },
+    {
+      "id": "ab_wheel",
+      "name": "Ab Wheel Rollout",
+      "primary_muscles": ["abs"],
+      "equipment": ["ab_wheel"],
+      "difficulty": "intermediate",
+      "substitutions": ["plank", "hanging_leg_raise"]
+    },
+    {
+      "id": "farmer_walk",
+      "name": "Farmer's Walk",
+      "primary_muscles": ["forearms", "core", "traps"],
+      "equipment": ["dumbbell"],
+      "difficulty": "beginner",
+      "substitutions": ["suitcase_carry", "plank"]
+    },
+    {
+      "id": "pallof_press",
+      "name": "Pallof Press",
+      "primary_muscles": ["core"],
+      "equipment": ["cable", "band"],
+      "difficulty": "beginner",
+      "substitutions": ["plank", "side_plank"]
+    },
+    {
+      "id": "walk_zone2",
+      "name": "Zone 2 Walk",
+      "primary_muscles": ["full_body"],
+      "equipment": [],
+      "difficulty": "beginner",
+      "substitutions": ["bike_zone2", "jog_easy"]
+    },
+    {
+      "id": "mobility_flow",
+      "name": "Mobility Flow",
+      "primary_muscles": ["full_body"],
+      "equipment": [],
+      "difficulty": "beginner",
+      "substitutions": ["stretch", "yoga"]
+    }
+  ]
+}

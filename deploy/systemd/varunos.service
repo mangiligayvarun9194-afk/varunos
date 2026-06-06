@@ -1,0 +1,29 @@
+[Unit]
+Description=VarunOS Deterministic Core API
+After=network.target
+
+[Service]
+Type=simple
+User=varunos
+Group=varunos
+WorkingDirectory=/opt/varunos
+Environment="PATH=/opt/varunos/.venv/bin"
+Environment="USER_ID=varun"
+Environment="USER_NAME=Varun"
+Environment="USER_TZ=America/New_York"
+Environment="BRAIN_API=http://localhost:8000"
+ExecStart=/opt/varunos/.venv/bin/uvicorn varunos.api.server:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/varunos/vault /opt/varunos/logs
+
+[Install]
+WantedBy=multi-user.target

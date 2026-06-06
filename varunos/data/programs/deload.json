@@ -1,0 +1,40 @@
+{
+  "name": "Deload",
+  "goal": "recovery",
+  "split": ["Full Body"],
+  "days_per_week": 3,
+  "weeks": 1,
+  "deload_week": 1,
+  "progression_rule": "none",
+  "days": [
+    {
+      "name": "Full Body A",
+      "exercises": [
+        {"id": "squat", "sets": 2, "reps": "8", "intensity": "RPE 5", "rest_s": 120},
+        {"id": "bench_press", "sets": 2, "reps": "8", "intensity": "RPE 5", "rest_s": 120},
+        {"id": "lat_pulldown", "sets": 2, "reps": "10", "intensity": "RPE 5", "rest_s": 90}
+      ]
+    },
+    {
+      "name": "Full Body B",
+      "exercises": [
+        {"id": "romanian_deadlift", "sets": 2, "reps": "8", "intensity": "RPE 5", "rest_s": 120},
+        {"id": "ohp", "sets": 2, "reps": "8", "intensity": "RPE 5", "rest_s": 120},
+        {"id": "seated_row", "sets": 2, "reps": "10", "intensity": "RPE 5", "rest_s": 90}
+      ]
+    },
+    {
+      "name": "Full Body C",
+      "exercises": [
+        {"id": "leg_press", "sets": 2, "reps": "10", "intensity": "RPE 5", "rest_s": 90},
+        {"id": "incline_db_press", "sets": 2, "reps": "10", "intensity": "RPE 5", "rest_s": 90},
+        {"id": "face_pull", "sets": 2, "reps": "15", "intensity": "RPE 5", "rest_s": 60}
+      ]
+    }
+  ],
+  "substitutions": {
+    "squat": ["leg_press", "goblet_squat"],
+    "bench_press": ["db_bench_press", "pushup"],
+    "romanian_deadlift": ["leg_curl", "back_extension"]
+  }
+}

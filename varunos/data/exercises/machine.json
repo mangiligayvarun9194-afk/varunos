@@ -1,0 +1,141 @@
+{
+  "category": "machine",
+  "exercises": [
+    {
+      "id": "leg_press",
+      "name": "Leg Press",
+      "primary_muscles": ["quads", "glutes"],
+      "equipment": ["leg_press_machine"],
+      "difficulty": "beginner",
+      "substitutions": ["squat", "hack_squat", "bulgarian_split_squat"]
+    },
+    {
+      "id": "hack_squat",
+      "name": "Hack Squat Machine",
+      "primary_muscles": ["quads", "glutes"],
+      "equipment": ["hack_squat"],
+      "difficulty": "intermediate",
+      "substitutions": ["squat", "leg_press"]
+    },
+    {
+      "id": "leg_curl",
+      "name": "Lying Leg Curl",
+      "primary_muscles": ["hamstrings"],
+      "equipment": ["leg_curl_machine"],
+      "difficulty": "beginner",
+      "substitutions": ["romanian_deadlift", "stiff_leg_dl", "good_morning"]
+    },
+    {
+      "id": "leg_extension",
+      "name": "Leg Extension",
+      "primary_muscles": ["quads"],
+      "equipment": ["leg_extension_machine"],
+      "difficulty": "beginner",
+      "substitutions": ["sissy_squat", "bulgarian_split_squat"]
+    },
+    {
+      "id": "leg_extension_fst7",
+      "name": "Leg Extension (FST-7)",
+      "primary_muscles": ["quads"],
+      "equipment": ["leg_extension_machine"],
+      "difficulty": "beginner",
+      "substitutions": ["leg_press_close_stance", "sissy_squat"]
+    },
+    {
+      "id": "calf_raise",
+      "name": "Standing Calf Raise",
+      "primary_muscles": ["calves"],
+      "equipment": ["calf_machine"],
+      "difficulty": "beginner",
+      "substitutions": ["seated_calf_raise", "donkey_calf"]
+    },
+    {
+      "id": "lat_pulldown",
+      "name": "Lat Pulldown",
+      "primary_muscles": ["back", "biceps"],
+      "equipment": ["cable"],
+      "difficulty": "beginner",
+      "substitutions": ["pullup", "band_assisted_pullup"]
+    },
+    {
+      "id": "seated_row",
+      "name": "Seated Cable Row",
+      "primary_muscles": ["back", "biceps"],
+      "equipment": ["cable"],
+      "difficulty": "beginner",
+      "substitutions": ["barbell_row", "db_row", "chest_supported_row"]
+    },
+    {
+      "id": "seated_row_fst7",
+      "name": "Seated Row (FST-7)",
+      "primary_muscles": ["back"],
+      "equipment": ["cable"],
+      "difficulty": "beginner",
+      "substitutions": ["chest_supported_row", "tbar_row"]
+    },
+    {
+      "id": "chest_supported_row",
+      "name": "Chest-Supported Row",
+      "primary_muscles": ["back"],
+      "equipment": ["chest_supported_bench", "dumbbell"],
+      "difficulty": "beginner",
+      "substitutions": ["barbell_row", "seated_row"]
+    },
+    {
+      "id": "face_pull",
+      "name": "Face Pull",
+      "primary_muscles": ["rear_delts", "upper_back"],
+      "equipment": ["cable", "rope"],
+      "difficulty": "beginner",
+      "substitutions": ["band_pull_apart", "reverse_fly"]
+    },
+    {
+      "id": "tricep_pushdown",
+      "name": "Tricep Pushdown",
+      "primary_muscles": ["triceps"],
+      "equipment": ["cable"],
+      "difficulty": "beginner",
+      "substitutions": ["overhead_tricep_ext", "skull_crusher", "dip"]
+    },
+    {
+      "id": "overhead_tricep_ext",
+      "name": "Overhead Tricep Extension",
+      "primary_muscles": ["triceps"],
+      "equipment": ["dumbbell", "cable"],
+      "difficulty": "beginner",
+      "substitutions": ["tricep_pushdown", "skull_crusher"]
+    },
+    {
+      "id": "cable_fly",
+      "name": "Cable Fly",
+      "primary_muscles": ["chest"],
+      "equipment": ["cable"],
+      "difficulty": "beginner",
+      "substitutions": ["db_fly", "pec_deck"]
+    },
+    {
+      "id": "cable_fly_fst7",
+      "name": "Cable Fly (FST-7)",
+      "primary_muscles": ["chest"],
+      "equipment": ["cable"],
+      "difficulty": "beginner",
+      "substitutions": ["pec_deck", "db_fly"]
+    },
+    {
+      "id": "pec_deck",
+      "name": "Pec Deck",
+      "primary_muscles": ["chest"],
+      "equipment": ["pec_deck"],
+      "difficulty": "beginner",
+      "substitutions": ["cable_fly", "db_fly"]
+    },
+    {
+      "id": "smith_bench",
+      "name": "Smith Machine Bench",
+      "primary_muscles": ["chest", "triceps"],
+      "equipment": ["smith_machine"],
+      "difficulty": "beginner",
+      "substitutions": ["bench_press", "db_bench_press"]
+    }
+  ]
+}

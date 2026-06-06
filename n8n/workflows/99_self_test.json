@@ -1,0 +1,79 @@
+{
+  "name": "VarunOS — 99 Self Test",
+  "description": "Smoke-test: hits /healthz, then GET /v1/programs with the key, then POST /v1/observability/log. Reports pass/fail. Run on deploy.",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {"interval": [{"hours": 1}]}
+      },
+      "id": "cron-1",
+      "name": "Cron hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/healthz",
+        "options": {"timeout": 5000}
+      },
+      "id": "http-healthz",
+      "name": "GET /healthz",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/programs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-auth",
+      "name": "GET /v1/programs (auth)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/observability/log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "kind", "value": "self_test_ok"},
+            {"name": "channel", "value": "n8n"},
+            {"name": "payload", "value": "={{JSON.stringify({ok: true, ts: new Date().toISOString()})}}"}
+          ]
+        },
+        "options": {"timeout": 5000}
+      },
+      "id": "http-log",
+      "name": "POST /v1/observability/log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Cron hourly": {"main": [[{"node": "GET /healthz", "type": "main", "index": 0}, {"node": "GET /v1/programs (auth)", "type": "main", "index": 0}]]},
+    "GET /healthz": {"main": [[{"node": "POST /v1/observability/log", "type": "main", "index": 0}]]},
+    "GET /v1/programs (auth)": {"main": [[{"node": "POST /v1/observability/log", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

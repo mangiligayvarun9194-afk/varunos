@@ -1,0 +1,30 @@
+{
+  "name": "Indian Veg 4-Meal",
+  "goal": "high_protein_veg",
+  "meals": [
+    {
+      "name": "Breakfast",
+      "time": "08:00",
+      "items": ["oats_rolled_50g", "whey_isolate_30g", "banana_1pc", "almonds_28g"],
+      "portions": 1
+    },
+    {
+      "name": "Lunch",
+      "time": "13:00",
+      "items": ["roti_wheat_1pc", "roti_wheat_1pc", "dal_toor_1cup", "paneer_50g", "palak_1cup", "raita_dahi"],
+      "portions": 1
+    },
+    {
+      "name": "Snack",
+      "time": "17:00",
+      "items": ["dahi_1cup", "makhana_30g", "apple_1pc"],
+      "portions": 1
+    },
+    {
+      "name": "Dinner",
+      "time": "20:00",
+      "items": ["roti_wheat_1pc", "roti_wheat_1pc", "rajma_1cup", "lauki_1cup", "chaas_1cup"],
+      "portions": 1
+    }
+  ]
+}

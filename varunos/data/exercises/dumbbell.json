@@ -1,0 +1,85 @@
+{
+  "category": "dumbbell",
+  "exercises": [
+    {
+      "id": "db_bench_press",
+      "name": "Dumbbell Bench Press",
+      "primary_muscles": ["chest", "triceps"],
+      "equipment": ["dumbbell", "bench"],
+      "difficulty": "beginner",
+      "substitutions": ["bench_press", "pushup", "smith_bench"]
+    },
+    {
+      "id": "incline_db_press",
+      "name": "Incline Dumbbell Press",
+      "primary_muscles": ["upper_chest", "shoulders"],
+      "equipment": ["dumbbell", "bench"],
+      "difficulty": "beginner",
+      "substitutions": ["incline_bench", "db_ohp"]
+    },
+    {
+      "id": "db_ohp",
+      "name": "Dumbbell Shoulder Press",
+      "primary_muscles": ["shoulders", "triceps"],
+      "equipment": ["dumbbell"],
+      "difficulty": "beginner",
+      "substitutions": ["ohp", "arnold_press"]
+    },
+    {
+      "id": "arnold_press",
+      "name": "Arnold Press",
+      "primary_muscles": ["shoulders"],
+      "equipment": ["dumbbell"],
+      "difficulty": "intermediate",
+      "substitutions": ["ohp", "db_ohp"]
+    },
+    {
+      "id": "lateral_raise",
+      "name": "Dumbbell Lateral Raise",
+      "primary_muscles": ["side_delts"],
+      "equipment": ["dumbbell"],
+      "difficulty": "beginner",
+      "substitutions": ["cable_lateral_raise", "band_lateral_raise"]
+    },
+    {
+      "id": "db_row",
+      "name": "Dumbbell Row",
+      "primary_muscles": ["back", "biceps"],
+      "equipment": ["dumbbell", "bench"],
+      "difficulty": "beginner",
+      "substitutions": ["barbell_row", "chest_supported_row"]
+    },
+    {
+      "id": "db_curl",
+      "name": "Dumbbell Curl",
+      "primary_muscles": ["biceps"],
+      "equipment": ["dumbbell"],
+      "difficulty": "beginner",
+      "substitutions": ["barbell_curl", "hammer_curl"]
+    },
+    {
+      "id": "hammer_curl",
+      "name": "Hammer Curl",
+      "primary_muscles": ["biceps", "forearms"],
+      "equipment": ["dumbbell"],
+      "difficulty": "beginner",
+      "substitutions": ["db_curl", "cable_curl"]
+    },
+    {
+      "id": "db_fly",
+      "name": "Dumbbell Fly",
+      "primary_muscles": ["chest"],
+      "equipment": ["dumbbell", "bench"],
+      "difficulty": "beginner",
+      "substitutions": ["cable_fly", "pec_deck"]
+    },
+    {
+      "id": "db_rdl",
+      "name": "Dumbbell Romanian Deadlift",
+      "primary_muscles": ["hamstrings", "glutes"],
+      "equipment": ["dumbbell"],
+      "difficulty": "beginner",
+      "substitutions": ["romanian_deadlift", "good_morning"]
+    }
+  ]
+}

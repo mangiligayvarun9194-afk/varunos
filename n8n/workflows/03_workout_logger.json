@@ -1,0 +1,97 @@
+{
+  "name": "VarunOS — 03 Workout Logger",
+  "description": "Webhook: POST the workout JSON; persists to the DB and runs PR detection. Returns the persisted workout_id and PR flags.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "varunos-log-workout",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Webhook: log workout",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/logs/workouts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "program", "value": "={{$json.body.program}}"},
+            {"name": "day_name", "value": "={{$json.body.day_name}}"},
+            {"name": "week", "value": "={{$json.body.week}}"},
+            {"name": "day_index", "value": "={{$json.body.day_index}}"},
+            {"name": "decision", "value": "={{$json.body.decision}}"},
+            {"name": "duration_min", "value": "={{$json.body.duration_min}}"},
+            {"name": "avg_rpe", "value": "={{$json.body.avg_rpe}}"},
+            {"name": "total_volume_kg", "value": "={{$json.body.total_volume_kg}}"},
+            {"name": "notes", "value": "={{$json.body.notes}}"},
+            {"name": "sets", "value": "={{JSON.stringify($json.body.sets)}}"}
+          ]
+        },
+        "options": {"timeout": 15000}
+      },
+      "id": "http-1",
+      "name": "POST /v1/logs/workouts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/observability/log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "kind", "value": "workout_logged_via_n8n"},
+            {"name": "channel", "value": "n8n"},
+            {"name": "payload", "value": "={{JSON.stringify({workout_id: $json.workout_id, n_sets: $json.set_ids.length})}}"}
+          ]
+        },
+        "options": {"timeout": 5000}
+      },
+      "id": "http-2",
+      "name": "POST /v1/observability/log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}"
+      },
+      "id": "respond-1",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: log workout": {"main": [[{"node": "POST /v1/logs/workouts", "type": "main", "index": 0}]]},
+    "POST /v1/logs/workouts": {"main": [[{"node": "POST /v1/observability/log", "type": "main", "index": 0}]]},
+    "POST /v1/observability/log": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

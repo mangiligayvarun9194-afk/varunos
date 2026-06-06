@@ -1,0 +1,90 @@
+# VarunOS — production docker-compose.
+#
+# Differences from the dev compose:
+#   * Runs behind a reverse proxy (Caddy or Nginx) that handles TLS.
+#   * Exposes NO public ports from the core container directly.
+#   * Requires .env with VARUNOS_API_KEY, VARUNOS_ALLOWED_ORIGINS=https://your.domain
+#   * Persistent data volume is on a separate path (/srv/varunos).
+#
+# Deploy:
+#   1. Clone the repo
+#   2. cp .env.example .env, fill in values
+#   3. docker compose -f deploy/docker/docker-compose.prod.yml up -d --build
+#   4. Put a reverse proxy (Caddy recommended) in front of localhost:8000
+#
+# Reverse proxy snippet for Caddy (Caddyfile):
+#   your.domain.com {
+#       reverse_proxy localhost:8000
+#       encode gzip zstd
+#   }
+
+services:
+  core:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: varunos:2.2.0
+    container_name: varunos-core
+    restart: unless-stopped
+    # No `ports:` in production — the reverse proxy talks to the container
+    # via the internal docker network. Expose only what the proxy needs.
+    expose:
+      - "8000"
+    env_file:
+      - ../../.env
+    environment:
+      VARUNOS_DB_PATH: /data/varunos.db
+      VARUNOS_ENV: production
+      VARUNOS_USER_ID: ${VARUNOS_USER_ID:-default}
+      VARUNOS_ALLOWED_ORIGINS: ${VARUNOS_ALLOWED_ORIGINS:?set in .env}
+    volumes:
+      - /srv/varunos/data:/data        # bind-mount to host for easy backup
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Hardening
+    read_only: false                    # /data needs write
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    # Optional: cap the process to 1 CPU / 512MB RAM
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  n8n:
+    image: n8nio/n8n:1.94.1
+    container_name: varunos-n8n
+    restart: unless-stopped
+    expose:
+      - "5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=https://${VARUNOS_DOMAIN:?set in .env}/
+      - GENERIC_TIMEZONE=${VARUNOS_TZ:-UTC}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:?set in .env}
+      - VARUNOS_API_BASE=http://core:8000
+      - VARUNOS_API_KEY=${VARUNOS_API_KEY:?set VARUNOS_API_KEY in .env}
+    volumes:
+      - /srv/varunos/n8n:/home/node/.n8n
+      - ../../n8n/workflows:/workflows:ro
+    depends_on:
+      core:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true

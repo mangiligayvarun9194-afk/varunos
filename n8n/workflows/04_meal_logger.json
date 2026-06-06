@@ -1,0 +1,66 @@
+{
+  "name": "VarunOS — 04 Meal Logger",
+  "description": "Webhook to log a single meal. The backend looks up macros from the deterministic food DB if not provided.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "varunos-log-meal",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Webhook: log meal",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/logs/meals",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "food_id", "value": "={{$json.body.food_id}}"},
+            {"name": "portions", "value": "={{$json.body.portions}}"},
+            {"name": "context", "value": "={{$json.body.context}}"},
+            {"name": "kcal", "value": "={{$json.body.kcal}}"},
+            {"name": "p_g", "value": "={{$json.body.p_g}}"},
+            {"name": "c_g", "value": "={{$json.body.c_g}}"},
+            {"name": "f_g", "value": "={{$json.body.f_g}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-1",
+      "name": "POST /v1/logs/meals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}"
+      },
+      "id": "respond-1",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: log meal": {"main": [[{"node": "POST /v1/logs/meals", "type": "main", "index": 0}]]},
+    "POST /v1/logs/meals": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

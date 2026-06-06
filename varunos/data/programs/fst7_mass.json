@@ -1,0 +1,53 @@
+{
+  "name": "FST-7 Mass",
+  "goal": "hypertrophy_plateau_break",
+  "split": ["Push", "Pull", "Legs"],
+  "days_per_week": 6,
+  "weeks": 6,
+  "deload_week": 5,
+  "progression_rule": "rpe",
+  "days": [
+    {
+      "name": "Push (Chest-Focused FST-7)",
+      "exercises": [
+        {"id": "bench_press", "sets": 4, "reps": "6-8", "intensity": "RPE 8", "rest_s": 180},
+        {"id": "incline_db_press", "sets": 3, "reps": "8-10", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "db_fly", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 60},
+        {"id": "cable_fly_fst7", "sets": 7, "reps": "8-12", "intensity": "RPE 9-10", "rest_s": 30},
+        {"id": "ohp", "sets": 3, "reps": "8-10", "intensity": "RPE 7", "rest_s": 120},
+        {"id": "lateral_raise", "sets": 4, "reps": "12-15", "intensity": "RPE 9", "rest_s": 60},
+        {"id": "tricep_pushdown", "sets": 3, "reps": "12-15", "intensity": "RPE 8", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Pull (Back-Focused FST-7)",
+      "exercises": [
+        {"id": "deadlift", "sets": 3, "reps": "5-6", "intensity": "RPE 7", "rest_s": 240},
+        {"id": "pullup", "sets": 4, "reps": "6-10", "intensity": "RPE 8", "rest_s": 120},
+        {"id": "barbell_row", "sets": 3, "reps": "8-10", "intensity": "RPE 8", "rest_s": 120},
+        {"id": "seated_row_fst7", "sets": 7, "reps": "8-12", "intensity": "RPE 9-10", "rest_s": 30},
+        {"id": "face_pull", "sets": 4, "reps": "12-15", "intensity": "RPE 8", "rest_s": 60},
+        {"id": "barbell_curl", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Legs (Quads-Focused FST-7)",
+      "exercises": [
+        {"id": "squat", "sets": 4, "reps": "6-8", "intensity": "RPE 8", "rest_s": 180},
+        {"id": "leg_press", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 120},
+        {"id": "leg_extension_fst7", "sets": 7, "reps": "10-15", "intensity": "RPE 9-10", "rest_s": 30},
+        {"id": "romanian_deadlift", "sets": 3, "reps": "8-10", "intensity": "RPE 7", "rest_s": 150},
+        {"id": "leg_curl", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "calf_raise", "sets": 4, "reps": "10-15", "intensity": "RPE 9", "rest_s": 60}
+      ]
+    }
+  ],
+  "substitutions": {
+    "bench_press": ["db_bench_press", "smith_bench", "pushup"],
+    "cable_fly_fst7": ["pec_deck", "db_fly"],
+    "seated_row_fst7": ["chest_supported_row", "tbar_row"],
+    "leg_extension_fst7": ["sissy_squat", "leg_press_close_stance"],
+    "squat": ["front_squat", "goblet_squat", "leg_press"],
+    "deadlift": ["romanian_deadlift", "trap_bar_dl"]
+  }
+}

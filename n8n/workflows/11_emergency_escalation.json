@@ -1,0 +1,278 @@
+{
+  "name": "VarunOS \u2014 11 Emergency Escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evt/critical",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-1",
+      "name": "EVT_CRITICAL",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Multi-channel blast for CRITICAL\nconst evt = $input.first().json;\nreturn {\n  json: {\n    user_id: evt.user_id || $env.USER_ID,\n    channels: ['whatsapp', 'sms', 'voice_call', 'pwa_push', 'email'],\n    payload: evt\n  }\n};"
+      },
+      "id": "fn-build-1",
+      "name": "Build payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "whatsapp",
+        "text": "=\ud83d\udea8 CRITICAL\n{{$json.payload.message}}\nRecommendation: {{$json.payload.recommendation}}\nCall 911/108/112 if symptomatic. Tap SHARE for doctor PDF."
+      },
+      "id": "wa-1",
+      "name": "WhatsApp blast",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        680,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "sms",
+        "text": "=\ud83d\udea8 {{$json.payload.scope}} CRITICAL: {{$json.payload.message}}"
+      },
+      "id": "sms-1",
+      "name": "SMS blast",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        680,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{$env.TWILIO_SID}}/Calls.json",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "={{$env.USER_PHONE}}"
+            },
+            {
+              "name": "From",
+              "value": "={{$env.TWILIO_PHONE}}"
+            },
+            {
+              "name": "Twiml",
+              "value": "=<Response><Say voice='alice'>This is VarunOS, your coach. We detected a critical reading. {{$json.payload.message}}. {{$json.payload.recommendation}}. Please acknowledge by pressing 1.</Say></Response>"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "values": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "voice-1",
+      "name": "Voice call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "pwa_push",
+        "title": "\ud83d\udea8 Critical alert",
+        "body": "={{$json.payload.message}}",
+        "tag": "critical"
+      },
+      "id": "pwa-1",
+      "name": "PWA push",
+      "type": "n8n-nodes-base.webPush",
+      "typeVersion": 1,
+      "position": [
+        680,
+        550
+      ]
+    },
+    {
+      "parameters": {
+        "to": "={{$env.USER_EMAIL}}",
+        "subject": "\ud83d\udea8 VarunOS CRITICAL",
+        "text": "={{$json.payload.message}}\n\n{{$json.payload.recommendation}}\n\nTime: {{$now.toISO()}}"
+      },
+      "id": "email-1",
+      "name": "Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        680,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "wait-1",
+      "name": "Wait 60s for ack",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=={{$env.VARUNOS_API_BASE}}/v1/observability/ack_check",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "event_id",
+              "value": "={{$json.payload.event_id}}"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "values": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ack-check-1",
+      "name": "Check acknowledgment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=={{$env.VARUNOS_API_BASE}}/v1/observability/log",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "event",
+              "value": "emergency_escalation_no_ack"
+            },
+            {
+              "name": "user_id",
+              "value": "={{$json.user_id}}"
+            },
+            {
+              "name": "ts",
+              "value": "={{$now.toISO()}}"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "values": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "log-1",
+      "name": "Log no-ack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "EVT_CRITICAL": {
+      "main": [
+        [
+          {
+            "node": "Build payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build payload": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp blast",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp blast": {
+      "main": [
+        [
+          {
+            "node": "Wait 60s for ack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 60s for ack": {
+      "main": [
+        [
+          {
+            "node": "Check acknowledgment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check acknowledgment": {
+      "main": [
+        [
+          {
+            "node": "Log no-ack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "versionId": "1.0.0"
+}

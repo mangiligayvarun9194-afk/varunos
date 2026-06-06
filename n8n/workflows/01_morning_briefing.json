@@ -1,0 +1,238 @@
+{
+  "name": "VarunOS \u2014 01 Morning Briefing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "hours": 5,
+              "minutes": 30
+            }
+          ]
+        },
+        "tz": "={{$env[\"USER_TZ\"] || \"America/New_York\"}}"
+      },
+      "id": "cron-1",
+      "name": "Cron 5:30am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=={{$env.VARUNOS_API_BASE}}/v1/state/snapshot",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{$env[\"USER_ID\"]}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "profile",
+              "value": "={{JSON.parse($env[\"USER_PROFILE\"])}}"
+            },
+            {
+              "name": "checkin",
+              "value": "={{JSON.parse($env[\"YESTERDAY_CHECKIN\"])}}"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "values": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "http-core-1",
+      "name": "GET /v1/state/snapshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.readiness.color}}",
+              "rightValue": "GREEN",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "switch-1",
+      "name": "Switch: color",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "whatsapp",
+        "text": "=gm {{$env.USER_NAME}} \ud83e\udde0\nreadiness {{$json.readiness.overall}} (green)\n{{$json.diet.target_kcal}} kcal \u00b7 P{{$json.diet.protein_g}} F{{$json.diet.fat_g}} C{{$json.diet.carbs_g}}\nBP / glucose / CVD: all LOW\n\n{{$json.disclaimer}}"
+      },
+      "id": "wa-send-1",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "sms",
+        "text": "=gm {{$env.USER_NAME}} r{{$json.readiness.overall}}(g) {{$json.diet.target_kcal}}kcal BP/glu/CVD LOW"
+      },
+      "id": "sms-send-1",
+      "name": "Send SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=={{$env.VARUNOS_API_BASE}}/v1/observability/log",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "event",
+              "value": "briefing_sent"
+            },
+            {
+              "name": "channel",
+              "value": "={{$json.channel}}"
+            },
+            {
+              "name": "ts",
+              "value": "={{$now.toISO()}}"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "values": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "log-1",
+      "name": "Log send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Cron 5:30am": {
+      "main": [
+        [
+          {
+            "node": "GET /v1/state/snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /v1/state/snapshot": {
+      "main": [
+        [
+          {
+            "node": "Switch: color",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: color": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Log send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS": {
+      "main": [
+        [
+          {
+            "node": "Log send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0"
+}

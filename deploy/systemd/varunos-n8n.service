@@ -1,0 +1,28 @@
+[Unit]
+Description=VarunOS n8n Orchestration
+After=network.target varunos.service
+
+[Service]
+Type=simple
+User=varunos
+Group=varunos
+WorkingDirectory=/opt/varunos/n8n-data
+Environment="N8N_HOST=0.0.0.0"
+Environment="N8N_PORT=5678"
+Environment="N8N_PROTOCOL=http"
+Environment="WEBHOOK_URL=http://localhost:5678/"
+Environment="GENERIC_TIMEZONE=America/New_York"
+ExecStart=/usr/bin/n8n start
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/varunos/n8n-data
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,101 @@
+{
+  "category": "compound_barbell",
+  "exercises": [
+    {
+      "id": "squat",
+      "name": "Back Squat",
+      "primary_muscles": ["quads", "glutes", "hamstrings"],
+      "equipment": ["barbell", "rack"],
+      "difficulty": "intermediate",
+      "substitutions": ["front_squat", "goblet_squat", "leg_press", "bulgarian_split_squat"]
+    },
+    {
+      "id": "front_squat",
+      "name": "Front Squat",
+      "primary_muscles": ["quads", "core"],
+      "equipment": ["barbell", "rack"],
+      "difficulty": "advanced",
+      "substitutions": ["goblet_squat", "leg_press"]
+    },
+    {
+      "id": "goblet_squat",
+      "name": "Goblet Squat",
+      "primary_muscles": ["quads", "glutes"],
+      "equipment": ["dumbbell"],
+      "difficulty": "beginner",
+      "substitutions": ["bulgarian_split_squat", "leg_press"]
+    },
+    {
+      "id": "bulgarian_split_squat",
+      "name": "Bulgarian Split Squat",
+      "primary_muscles": ["quads", "glutes"],
+      "equipment": ["dumbbell", "bench"],
+      "difficulty": "intermediate",
+      "substitutions": ["lunge", "step_up"]
+    },
+    {
+      "id": "bench_press",
+      "name": "Barbell Bench Press",
+      "primary_muscles": ["chest", "triceps", "front_delts"],
+      "equipment": ["barbell", "bench"],
+      "difficulty": "intermediate",
+      "substitutions": ["db_bench_press", "smith_bench", "pushup", "floor_press"]
+    },
+    {
+      "id": "ohp",
+      "name": "Overhead Press",
+      "primary_muscles": ["shoulders", "triceps"],
+      "equipment": ["barbell"],
+      "difficulty": "intermediate",
+      "substitutions": ["db_ohp", "arnold_press", "landmine_press"]
+    },
+    {
+      "id": "deadlift",
+      "name": "Conventional Deadlift",
+      "primary_muscles": ["hamstrings", "glutes", "back", "traps"],
+      "equipment": ["barbell"],
+      "difficulty": "advanced",
+      "substitutions": ["trap_bar_dl", "sumo_dl", "romanian_deadlift"]
+    },
+    {
+      "id": "romanian_deadlift",
+      "name": "Romanian Deadlift",
+      "primary_muscles": ["hamstrings", "glutes"],
+      "equipment": ["barbell"],
+      "difficulty": "intermediate",
+      "substitutions": ["db_rdl", "good_morning", "leg_curl"]
+    },
+    {
+      "id": "sumo_dl",
+      "name": "Sumo Deadlift",
+      "primary_muscles": ["glutes", "hamstrings", "quads"],
+      "equipment": ["barbell"],
+      "difficulty": "advanced",
+      "substitutions": ["trap_bar_dl", "conventional_dl"]
+    },
+    {
+      "id": "trap_bar_dl",
+      "name": "Trap Bar Deadlift",
+      "primary_muscles": ["quads", "glutes", "back"],
+      "equipment": ["trap_bar"],
+      "difficulty": "intermediate",
+      "substitutions": ["conventional_dl", "sumo_dl"]
+    },
+    {
+      "id": "barbell_row",
+      "name": "Barbell Row",
+      "primary_muscles": ["back", "biceps"],
+      "equipment": ["barbell"],
+      "difficulty": "intermediate",
+      "substitutions": ["db_row", "chest_supported_row", "seated_row", "tbar_row"]
+    },
+    {
+      "id": "barbell_curl",
+      "name": "Barbell Curl",
+      "primary_muscles": ["biceps"],
+      "equipment": ["barbell"],
+      "difficulty": "beginner",
+      "substitutions": ["db_curl", "preacher_curl", "cable_curl"]
+    }
+  ]
+}

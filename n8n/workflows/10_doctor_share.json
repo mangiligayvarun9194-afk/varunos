@@ -1,0 +1,102 @@
+{
+  "name": "VarunOS — 10 Doctor Share",
+  "description": "Webhook: pull user profile + recent readings + last 90 days symptoms, return a structured share payload.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "varunos-doctor-share",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Webhook: doctor share",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/user/profile",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-profile",
+      "name": "GET /v1/user/profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/health/recent?limit=50",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-recent",
+      "name": "GET /v1/health/recent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/doctor/share",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "user_id", "value": "={{$env.VARUNOS_USER_ID || 'default'}}"},
+            {"name": "scope", "value": "={{$json.body.scope || 'full'}}"},
+            {"name": "biometrics", "value": "={{JSON.stringify($node['GET /v1/health/recent'].json.readings)}}"},
+            {"name": "lifestyle", "value": "={{JSON.stringify($node['GET /v1/user/profile'].json.profile)}}"},
+            {"name": "symptoms_recent", "value": "={{JSON.stringify($json.body.symptoms || [])}}"}
+          ]
+        },
+        "options": {"timeout": 15000}
+      },
+      "id": "http-share",
+      "name": "POST /v1/doctor/share",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}"
+      },
+      "id": "respond-1",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: doctor share": {"main": [[{"node": "GET /v1/user/profile", "type": "main", "index": 0}, {"node": "GET /v1/health/recent", "type": "main", "index": 0}]]},
+    "GET /v1/user/profile": {"main": [[{"node": "POST /v1/doctor/share", "type": "main", "index": 0}]]},
+    "GET /v1/health/recent": {"main": [[{"node": "POST /v1/doctor/share", "type": "main", "index": 0}]]},
+    "POST /v1/doctor/share": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

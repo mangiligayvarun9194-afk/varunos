@@ -1,0 +1,12 @@
+{
+  "category": "proteins_supplements",
+  "items": [
+    {"id": "whey_isolate_30g", "name": "Whey Isolate (1 scoop, 30g)", "kcal": 120, "p": 25, "c": 2, "f": 1, "category": "supplement", "tags": ["veg"], "portion_g": 30, "portion_label": "1 scoop"},
+    {"id": "whey_concentrate_30g", "name": "Whey Concentrate (1 scoop, 30g)", "kcal": 130, "p": 24, "c": 3.5, "f": 2, "category": "supplement", "tags": ["veg"], "portion_g": 30, "portion_label": "1 scoop"},
+    {"id": "casein_30g", "name": "Casein Protein (1 scoop, 30g)", "kcal": 120, "p": 24, "c": 3, "f": 1, "category": "supplement", "tags": ["veg"], "portion_g": 30, "portion_label": "1 scoop"},
+    {"id": "plant_protein_30g", "name": "Plant Protein (pea/soy, 1 scoop, 30g)", "kcal": 120, "p": 22, "c": 4, "f": 2, "category": "supplement", "tags": ["vegan"], "portion_g": 30, "portion_label": "1 scoop"},
+    {"id": "tofu_100g", "name": "Tofu (firm, 100g)", "kcal": 144, "p": 17, "c": 3, "f": 8, "category": "protein", "tags": ["vegan"], "portion_g": 100, "portion_label": "100g"},
+    {"id": "tempeh_100g", "name": "Tempeh (100g)", "kcal": 192, "p": 20, "c": 8, "f": 11, "category": "protein", "tags": ["vegan"], "portion_g": 100, "portion_label": "100g"},
+    {"id": "edamame_100g", "name": "Edamame (boiled, 100g)", "kcal": 122, "p": 11, "c": 10, "f": 5, "category": "protein", "tags": ["vegan"], "portion_g": 100, "portion_label": "100g"}
+  ]
+}

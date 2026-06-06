@@ -1,0 +1,57 @@
+{
+  "name": "5/3/1 BBB",
+  "goal": "strength",
+  "split": ["Squat/DL", "Bench", "Press", "Squat/DL"],
+  "days_per_week": 4,
+  "weeks": 4,
+  "deload_week": 4,
+  "progression_rule": "wave",
+  "days": [
+    {
+      "name": "Squat + BBB Squat",
+      "exercises": [
+        {"id": "squat", "sets": 1, "reps": "5", "intensity": "65% TM", "rest_s": 180},
+        {"id": "squat", "sets": 1, "reps": "5", "intensity": "75% TM", "rest_s": 180},
+        {"id": "squat", "sets": 1, "reps": "5+", "intensity": "85% TM", "rest_s": 180},
+        {"id": "squat", "sets": 5, "reps": "10", "intensity": "50% TM", "rest_s": 90},
+        {"id": "leg_curl", "sets": 5, "reps": "10", "intensity": "moderate", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Bench + BBB Bench",
+      "exercises": [
+        {"id": "bench_press", "sets": 1, "reps": "5", "intensity": "65% TM", "rest_s": 180},
+        {"id": "bench_press", "sets": 1, "reps": "5", "intensity": "75% TM", "rest_s": 180},
+        {"id": "bench_press", "sets": 1, "reps": "5+", "intensity": "85% TM", "rest_s": 180},
+        {"id": "bench_press", "sets": 5, "reps": "10", "intensity": "50% TM", "rest_s": 90},
+        {"id": "barbell_row", "sets": 5, "reps": "10", "intensity": "moderate", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Press + BBB Press",
+      "exercises": [
+        {"id": "ohp", "sets": 1, "reps": "5", "intensity": "65% TM", "rest_s": 180},
+        {"id": "ohp", "sets": 1, "reps": "5", "intensity": "75% TM", "rest_s": 180},
+        {"id": "ohp", "sets": 1, "reps": "5+", "intensity": "85% TM", "rest_s": 180},
+        {"id": "ohp", "sets": 5, "reps": "10", "intensity": "50% TM", "rest_s": 90},
+        {"id": "pullup", "sets": 5, "reps": "10", "intensity": "bodyweight", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Deadlift + BBB DL",
+      "exercises": [
+        {"id": "deadlift", "sets": 1, "reps": "5", "intensity": "65% TM", "rest_s": 240},
+        {"id": "deadlift", "sets": 1, "reps": "5", "intensity": "75% TM", "rest_s": 240},
+        {"id": "deadlift", "sets": 1, "reps": "5+", "intensity": "85% TM", "rest_s": 240},
+        {"id": "deadlift", "sets": 5, "reps": "10", "intensity": "50% TM", "rest_s": 120},
+        {"id": "hanging_leg_raise", "sets": 5, "reps": "10", "intensity": "bodyweight", "rest_s": 60}
+      ]
+    }
+  ],
+  "substitutions": {
+    "squat": ["front_squat", "leg_press", "goblet_squat"],
+    "deadlift": ["trap_bar_dl", "sumo_dl", "romanian_deadlift"],
+    "bench_press": ["db_bench_press", "smith_bench"],
+    "ohp": ["db_ohp", "arnold_press"]
+  }
+}

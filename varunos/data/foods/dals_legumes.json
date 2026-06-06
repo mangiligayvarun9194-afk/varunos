@@ -1,0 +1,13 @@
+{
+  "category": "dals_legumes",
+  "items": [
+    {"id": "dal_toor_1cup", "name": "Toor Dal (1 cup, ~200g cooked)", "kcal": 200, "p": 12, "c": 28, "f": 4, "category": "protein", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "dal_moong_1cup", "name": "Moong Dal (1 cup, ~200g cooked)", "kcal": 210, "p": 14, "c": 30, "f": 3, "category": "protein", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "dal_chana_1cup", "name": "Chana Dal (1 cup, ~200g cooked)", "kcal": 220, "p": 13, "c": 32, "f": 4, "category": "protein", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "dal_masoor_1cup", "name": "Masoor Dal (1 cup, ~200g cooked)", "kcal": 200, "p": 14, "c": 30, "f": 3, "category": "protein", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "rajma_1cup", "name": "Rajma (1 cup, ~200g cooked)", "kcal": 245, "p": 15, "c": 35, "f": 4, "category": "protein", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "chole_1cup", "name": "Chole (1 cup, ~200g cooked)", "kcal": 260, "p": 12, "c": 38, "f": 6, "category": "protein", "tags": ["veg", "indian"], "portion_g": 200, "portion_label": "1 cup"},
+    {"id": "sambhar_1cup", "name": "Sambhar (1 cup, ~250g)", "kcal": 140, "p": 6, "c": 22, "f": 3, "category": "protein", "tags": ["veg", "indian"], "portion_g": 250, "portion_label": "1 cup"},
+    {"id": "soya_chunks_50g", "name": "Soya Chunks (50g dry)", "kcal": 173, "p": 26, "c": 12, "f": 0.5, "category": "protein", "tags": ["veg", "indian"], "portion_g": 50, "portion_label": "50g dry"}
+  ]
+}

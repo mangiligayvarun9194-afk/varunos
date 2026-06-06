@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>VarunOS — Personal AI Coach</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-elev: #111728;
+    --bg-card: #161c2e;
+    --border: #1f2940;
+    --text: #e6ecff;
+    --text-dim: #8a96b8;
+    --text-mute: #5a6485;
+    --accent: #6ee7b7;
+    --accent-2: #60a5fa;
+    --accent-3: #f59e0b;
+    --accent-4: #a78bfa;
+    --accent-5: #f472b6;
+    --green: #10b981;
+    --yellow: #fbbf24;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+    line-height: 1.5;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+  body { padding-bottom: 80px; min-height: 100vh; }
+
+  /* Connection status */
+  .conn-status {
+    position: fixed; top: 8px; right: 12px; z-index: 200;
+    font-size: 11px; color: var(--text-mute);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-mute); }
+  .conn-dot.connected { background: var(--green); animation: pulse 2s infinite; }
+  .conn-dot.error { background: var(--red); }
+
+  /* Top bar */
+  header.topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10, 14, 26, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header.topbar h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  header.topbar h1 span { color: var(--accent); }
+  header.topbar .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--bg); font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+
+  main { padding: 16px 20px; max-width: 720px; margin: 0 auto; }
+  .tab { display: none; animation: fadeIn 0.2s; }
+  .tab.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .section-title {
+    font-size: 11px; font-weight: 600; color: var(--text-mute);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin: 24px 0 10px;
+  }
+  .greeting { margin: 20px 0 24px; }
+  .greeting h2 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .greeting p { color: var(--text-dim); font-size: 14px; }
+
+  .readiness-card {
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(110, 231, 183, 0.05) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .readiness-card.green { border-left: 4px solid var(--green); }
+  .readiness-card.yellow { border-left: 4px solid var(--yellow); }
+  .readiness-card.red { border-left: 4px solid var(--red); }
+  .readiness-score {
+    font-size: 56px; font-weight: 800;
+    line-height: 1; letter-spacing: -0.03em;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .readiness-card.green .readiness-score { color: var(--green); }
+  .readiness-card.yellow .readiness-score { color: var(--yellow); }
+  .readiness-card.red .readiness-score { color: var(--red); }
+  .readiness-label { font-size: 12px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .readiness-status { font-size: 18px; font-weight: 600; margin-top: 8px; }
+  .readiness-components {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-top: 16px;
+  }
+  .readiness-component {
+    background: var(--bg-elev); border-radius: 8px; padding: 8px 10px;
+  }
+  .readiness-component .label { font-size: 10px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.04em; }
+  .readiness-component .value { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 2px; font-family: "SF Mono", monospace; }
+
+  .tier-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .tier-chip {
+    background: var(--bg-elev); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px;
+    font-size: 12px; color: var(--text-dim);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tier-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .tier-dot.LOW { background: var(--green); }
+  .tier-dot.ELEVATED { background: var(--yellow); }
+  .tier-dot.HIGH { background: var(--accent-3); }
+  .tier-dot.CRITICAL { background: var(--red); }
+  .tier-chip.LOW { border-color: var(--green); color: var(--green); }
+  .tier-chip.ELEVATED { border-color: var(--yellow); color: var(--yellow); }
+  .tier-chip.HIGH { border-color: var(--accent-3); color: var(--accent-3); }
+  .tier-chip.CRITICAL { border-color: var(--red); color: var(--red); }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  .card .meta { color: var(--text-dim); font-size: 13px; }
+  .card-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .card-row:last-child { border-bottom: none; }
+  .card-row .lbl { color: var(--text-dim); font-size: 13px; }
+  .card-row .val { font-weight: 600; font-family: "SF Mono", monospace; font-size: 13px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 12px 18px; border-radius: 10px;
+    font-size: 14px; font-weight: 600;
+    border: none; cursor: pointer;
+    transition: transform 0.1s, opacity 0.1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: var(--accent); color: var(--bg); }
+  .btn.ghost { background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); }
+  .btn.full { width: 100%; }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  .btn-row .btn { flex: 1; }
+
+  nav.bottom {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(10, 14, 26, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-around;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    z-index: 100;
+  }
+  nav.bottom button {
+    background: none; border: none; color: var(--text-mute);
+    font-size: 11px; font-weight: 500; padding: 4px 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; transition: color 0.15s;
+  }
+  nav.bottom button.active { color: var(--accent); }
+  nav.bottom button .icon { font-size: 22px; line-height: 1; }
+  nav.bottom button .label { font-size: 10px; }
+
+  .log-tile {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 10px;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .log-tile:active { background: var(--bg-elev); }
+  .log-tile h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .log-tile p { color: var(--text-dim); font-size: 13px; }
+  .log-tile .arrow { float: right; color: var(--text-mute); }
+
+  .chart {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 12px;
+  }
+  .chart h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 100px; }
+  .bar {
+    flex: 1; background: var(--accent); border-radius: 3px 3px 0 0;
+    min-height: 4px; transition: opacity 0.2s;
+  }
+  .bar.yellow { background: var(--yellow); }
+  .bar.red { background: var(--red); }
+
+  .chat {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px; margin-bottom: 12px;
+  }
+  .chat.user { background: var(--bg-elev); border-color: var(--accent); }
+  .chat .role { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .chat p { font-size: 14px; white-space: pre-wrap; }
+  .chat code { background: var(--bg); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  .chat-input { display: flex; gap: 8px; margin-top: 12px; }
+  .chat-input input {
+    flex: 1; padding: 12px 14px; border-radius: 10px;
+    background: var(--bg-elev); border: 1px solid var(--border);
+    color: var(--text); font-size: 15px;
+  }
+  .chat-input input:focus { outline: none; border-color: var(--accent); }
+
+  .disclaimer {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px; padding: 10px 12px;
+    font-size: 11px; color: var(--text-dim);
+    line-height: 1.4; margin-top: 16px;
+  }
+
+  .loading { color: var(--text-mute); font-style: italic; padding: 12px 0; }
+  .error { color: var(--red); font-size: 12px; padding: 8px 0; }
+  .empty { color: var(--text-mute); font-size: 13px; text-align: center; padding: 24px 12px; }
+
+  .form-grid { display: grid; gap: 8px; }
+  .form-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .form-row:last-child { border-bottom: none; }
+  .form-row label { color: var(--text-dim); font-size: 13px; }
+  .form-row input, .form-row select {
+    background: var(--bg-elev); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 13px; width: 100px; text-align: right;
+  }
+  .form-row select { width: 130px; }
+
+  .set-log-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+  .set-log-row input {
+    flex: 1; background: var(--bg-elev); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px; font-size: 14px;
+  }
+  .set-log-row .label { width: 70px; font-size: 12px; color: var(--text-mute); }
+
+  .pulse {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 300; display: none; align-items: flex-end;
+  }
+  .modal-bg.active { display: flex; }
+  .modal {
+    background: var(--bg-elev); border-top-left-radius: 16px;
+    border-top-right-radius: 16px; width: 100%;
+    max-width: 720px; margin: 0 auto;
+    padding: 20px; max-height: 80vh; overflow-y: auto;
+  }
+  .modal h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+  .modal .close-btn {
+    background: var(--bg-card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; font-size: 13px; cursor: pointer;
+    float: right;
+  }
+
+  @media (max-width: 480px) {
+    main { padding: 12px 16px; }
+    .readiness-score { font-size: 44px; }
+    .readiness-components { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ONBOARDING OVERLAY (shown until localStorage.varunos_onboarded=true) -->
+<div id="onboard-overlay" style="display:none; position:fixed; inset:0; z-index:500; background: var(--bg); overflow-y:auto;">
+  <div style="max-width: 560px; margin: 0 auto; padding: 32px 20px 80px;">
+    <div id="onboard-step-1" class="onboard-step">
+      <h2 style="font-size:28px; margin-bottom: 12px;">Welcome to VarunOS</h2>
+      <p style="color:var(--text-dim); margin-bottom: 24px;">
+        Your personal AI coach operating system. Runs on YOUR server, stores data in
+        YOUR SQLite file. Nothing leaves the box unless you share it.
+      </p>
+      <p style="color:var(--text-dim); margin-bottom: 24px;">
+        This is an MVP for <b>personal use</b>. It is not a medical device. It computes
+        risk tiers using the same validated screening tools a doctor would use, but it
+        does not diagnose.
+      </p>
+      <button class="btn primary full" onclick="onboardNext(2)">Get started →</button>
+    </div>
+
+    <div id="onboard-step-2" class="onboard-step" style="display:none;">
+      <h2 style="font-size:24px; margin-bottom: 12px;">Connect to the API</h2>
+      <p style="color:var(--text-dim); margin-bottom: 16px;">
+        Where is your VarunOS server running?
+      </p>
+      <div class="form-row" style="margin-bottom: 12px;">
+        <label>API base URL</label>
+        <input type="text" id="onb-api-base" placeholder="http://127.0.0.1:8000">
+      </div>
+      <div class="form-row" style="margin-bottom: 12px;">
+        <label>API key (from your server's .env)</label>
+        <input type="password" id="onb-api-key" placeholder="paste VARUNOS_API_KEY">
+      </div>
+      <div id="onb-test" class="meta" style="margin-bottom: 12px;"></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn ghost" onclick="onboardBack(1)">← Back</button>
+        <button class="btn primary" onclick="onboardTestConn()">Test</button>
+        <button class="btn primary" onclick="onboardNext(3)" style="flex:1;">Continue →</button>
+      </div>
+    </div>
+
+    <div id="onboard-step-3" class="onboard-step" style="display:none;">
+      <h2 style="font-size:24px; margin-bottom: 12px;">Your basics</h2>
+      <p style="color:var(--text-dim); margin-bottom: 16px;">
+        These drive every computation. You can change them any time in Settings.
+      </p>
+      <div class="form-grid">
+        <div class="form-row"><label>Name</label><input type="text" id="onb-name" value="Varun"></div>
+        <div class="form-row"><label>Age</label><input type="number" id="onb-age" value="30"></div>
+        <div class="form-row"><label>Sex</label>
+          <select id="onb-sex"><option value="M" selected>Male</option><option value="F">Female</option></select>
+        </div>
+        <div class="form-row"><label>Height (cm)</label><input type="number" id="onb-h" value="178"></div>
+        <div class="form-row"><label>Weight (kg)</label><input type="number" id="onb-w" step="0.1" value="78"></div>
+        <div class="form-row"><label>Activity</label>
+          <select id="onb-act">
+            <option value="sedentary">Sedentary</option>
+            <option value="light">Light</option>
+            <option value="moderate" selected>Moderate</option>
+            <option value="very_active">Very Active</option>
+            <option value="athlete">Athlete</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Goal</label>
+          <select id="onb-goal">
+            <option value="cut">Cut</option>
+            <option value="recomp" selected>Recomp</option>
+            <option value="lean_bulk">Lean bulk</option>
+            <option value="bulk">Bulk</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top: 16px;">
+        <button class="btn ghost" onclick="onboardBack(2)">← Back</button>
+        <button class="btn primary" onclick="onboardNext(4)" style="flex:1;">Continue →</button>
+      </div>
+    </div>
+
+    <div id="onboard-step-4" class="onboard-step" style="display:none;">
+      <h2 style="font-size:24px; margin-bottom: 12px;">Safety</h2>
+      <p style="color:var(--text-dim); margin-bottom: 12px;">
+        VarunOS is a personal-use educational tool. It is not a medical device. Risk
+        tiers are screening estimates, not diagnoses.
+      </p>
+      <p style="color:var(--text-dim); margin-bottom: 12px;">
+        If you have symptoms — chest pain, sudden weakness on one side, slurred speech,
+        severe headache, sudden vision loss — call your local emergency number
+        (911 in the US, 108 in India, 112 in the EU) immediately. The app will not do
+        it for you.
+      </p>
+      <p style="color:var(--text-dim); margin-bottom: 16px;">
+        If a tier comes back elevated, the action label will be
+        <i>“discuss with your doctor”</i> — not a diagnosis.
+      </p>
+      <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer; margin-bottom: 16px;">
+        <input type="checkbox" id="onb-safety-ack" style="margin-top:4px;">
+        <span style="font-size:14px; color: var(--text-dim);">
+          I understand and accept these limits.
+        </span>
+      </label>
+      <div style="display:flex; gap:8px;">
+        <button class="btn ghost" onclick="onboardBack(3)">← Back</button>
+        <button class="btn primary" onclick="onboardNext(5)" style="flex:1;">Continue →</button>
+      </div>
+    </div>
+
+    <div id="onboard-step-5" class="onboard-step" style="display:none;">
+      <h2 style="font-size:24px; margin-bottom: 12px;">Health surveillance (optional)</h2>
+      <p style="color:var(--text-dim); margin-bottom: 12px;">
+        Surveillance is <b>OFF by default</b>. With it OFF, the app can still compute
+        a risk tier from your BP / glucose / CGM values, but the raw numbers are
+        not stored on the server.
+      </p>
+      <p style="color:var(--text-dim); margin-bottom: 16px;">
+        Turn it ON if you want trends, weekly reports, and the doctor-share export
+        to include your raw values.
+      </p>
+      <div class="card" style="background: var(--bg-elev); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+        <div class="card-row">
+          <span class="lbl">Default</span>
+          <span class="val">OFF</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn ghost" onclick="onboardBack(4)">← Back</button>
+        <button class="btn ghost" onclick="onboardFinish(false)">Skip (keep OFF)</button>
+        <button class="btn primary" onclick="onboardFinish(true)" style="flex:1;">Enable & finish →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="conn-status" id="conn-status">
+  <span class="conn-dot" id="conn-dot"></span>
+  <span id="conn-text">checking…</span>
+</div>
+
+<header class="topbar">
+  <h1>Varun<span>OS</span></h1>
+  <div class="avatar" id="avatar">V</div>
+</header>
+
+<main>
+  <!-- TODAY TAB -->
+  <section id="tab-today" class="tab active">
+    <div class="greeting">
+      <h2>gm, <span id="user-first-name">Varun</span> <span class="pulse"></span></h2>
+      <p id="today-date">—</p>
+    </div>
+
+    <div class="readiness-card green" id="readiness-card">
+      <div class="readiness-label">Readiness</div>
+      <div class="readiness-score" id="readiness-score">—</div>
+      <div class="readiness-status" id="readiness-status">—</div>
+      <div class="readiness-components" id="readiness-components"></div>
+    </div>
+
+    <div class="section-title">Risk tiers (today)</div>
+    <div class="tier-row" id="tier-row">
+      <span class="tier-chip LOW" id="chip-glucose"><span class="tier-dot LOW"></span>Glucose —</span>
+      <span class="tier-chip LOW" id="chip-bp"><span class="tier-dot LOW"></span>BP —</span>
+      <span class="tier-chip LOW" id="chip-cvd"><span class="tier-dot LOW"></span>CVD —</span>
+    </div>
+
+    <div class="section-title">Today's plan</div>
+    <div class="card" id="workout-card">
+      <div class="loading">Loading workout…</div>
+    </div>
+
+    <div class="card" id="diet-card">
+      <div class="loading">Loading diet…</div>
+    </div>
+
+    <div class="disclaimer" id="disclaimer-box">
+      <strong>VarunOS Health Surveillance is an educational risk-stratification tool, not a medical device.</strong> It does not diagnose, treat, cure, or prevent any disease. If you have symptoms, contact a licensed medical professional. In an emergency, call 911 / 108 / 112.
+    </div>
+  </section>
+
+  <!-- LOG TAB -->
+  <section id="tab-log" class="tab">
+    <div class="greeting">
+      <h2>Log</h2>
+      <p>Quick capture, anywhere</p>
+    </div>
+
+    <div class="log-tile" onclick="openLogModal('workout')">
+      <h3>🏋️ Log workout set</h3>
+      <p>Auto-detects PRs</p>
+      <span class="arrow">→</span>
+    </div>
+    <div class="log-tile" onclick="openLogModal('meal')">
+      <h3>🍽️ Log meal</h3>
+      <p>Search the food database; macros auto-computed</p>
+      <span class="arrow">→</span>
+    </div>
+    <div class="log-tile" onclick="openLogModal('bp')">
+      <h3>🩺 Log BP reading</h3>
+      <p>Triggers CRITICAL escalation if hypertensive crisis</p>
+      <span class="arrow">→</span>
+    </div>
+    <div class="log-tile" onclick="openLogModal('glucose')">
+      <h3>🩸 Log glucose</h3>
+      <p>Indian-context thresholds; auto-escalates if critical</p>
+      <span class="arrow">→</span>
+    </div>
+    <div class="log-tile" onclick="openLogModal('checkin')">
+      <h3>📋 Daily check-in</h3>
+      <p>Updates your readiness score</p>
+      <span class="arrow">→</span>
+    </div>
+  </section>
+
+  <!-- INSIGHTS TAB -->
+  <section id="tab-insights" class="tab">
+    <div class="greeting">
+      <h2>Insights</h2>
+      <p>Your data, your trends</p>
+    </div>
+
+    <div class="section-title">Compute a real risk score</div>
+    <div class="card">
+      <h3>IDRS (Indian Diabetes Risk)</h3>
+      <p class="meta">Validated for Indian populations</p>
+      <div class="form-grid">
+        <div class="form-row"><label>Age</label><input type="number" id="idrs-age" value="30"></div>
+        <div class="form-row"><label>BMI</label><input type="number" id="idrs-bmi" step="0.1" value="24.6"></div>
+        <div class="form-row"><label>Waist (cm)</label><input type="number" id="idrs-waist" value="86"></div>
+        <div class="form-row"><label>Sex</label>
+          <select id="idrs-sex"><option value="M">Male</option><option value="F">Female</option></select>
+        </div>
+        <div class="form-row"><label>Family DM?</label>
+          <select id="idrs-fam"><option value="false">No</option><option value="true">Yes</option></select>
+        </div>
+        <div class="form-row"><label>Activity</label>
+          <select id="idrs-act"><option value="vigorous">Vigorous</option><option value="mild" selected>Mild</option><option value="sedentary">Sedentary</option></select>
+        </div>
+      </div>
+      <button class="btn primary full" onclick="computeIDRS()" style="margin-top: 12px;">Compute IDRS</button>
+      <div id="idrs-result" style="margin-top: 12px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>ASCVD 10-yr (heart attack risk)</h3>
+      <p class="meta">Pooled Cohort Equations, 2018. Indian 1.3× adjustment included.</p>
+      <div class="form-grid">
+        <div class="form-row"><label>Age</label><input type="number" id="ascvd-age" value="50"></div>
+        <div class="form-row"><label>Sex</label>
+          <select id="ascvd-sex"><option value="M" selected>Male</option><option value="F">Female</option></select>
+        </div>
+        <div class="form-row"><label>Total chol</label><input type="number" id="ascvd-tc" value="200"></div>
+        <div class="form-row"><label>HDL</label><input type="number" id="ascvd-hdl" value="50"></div>
+        <div class="form-row"><label>SBP</label><input type="number" id="ascvd-sbp" value="130"></div>
+        <div class="form-row"><label>On BP meds?</label>
+          <select id="ascvd-bpmed"><option value="false" selected>No</option><option value="true">Yes</option></select>
+        </div>
+        <div class="form-row"><label>Diabetes?</label>
+          <select id="ascvd-dm"><option value="false" selected>No</option><option value="true">Yes</option></select>
+        </div>
+        <div class="form-row"><label>Smoker?</label>
+          <select id="ascvd-smk"><option value="false" selected>No</option><option value="true">Yes</option></select>
+        </div>
+        <div class="form-row"><label>SA 1.3× adj?</label>
+          <select id="ascvd-sa"><option value="true" selected>Yes (Indian)</option><option value="false">No</option></select>
+        </div>
+      </div>
+      <button class="btn primary full" onclick="computeASCVD()" style="margin-top: 12px;">Compute ASCVD</button>
+      <div id="ascvd-result" style="margin-top: 12px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>🩺 BP staging</h3>
+      <p class="meta">ACC/AHA 2017 guidelines. Try 200/130 to see the CRITICAL escalation.</p>
+      <div class="form-grid">
+        <div class="form-row"><label>Systolic</label><input type="number" id="bp-sys" value="125"></div>
+        <div class="form-row"><label>Diastolic</label><input type="number" id="bp-dia" value="80"></div>
+      </div>
+      <button class="btn primary full" onclick="computeBP()" style="margin-top: 12px;">Stage this reading</button>
+      <div id="bp-result" style="margin-top: 12px;"></div>
+    </div>
+  </section>
+
+  <!-- COACH TAB -->
+  <section id="tab-coach" class="tab">
+    <div class="greeting">
+      <h2>Coach</h2>
+      <p>Ask the deterministic core anything</p>
+    </div>
+
+    <div id="chat-history"></div>
+
+    <div class="chat-input">
+      <input type="text" placeholder="Try: 'compute my macros' or 'log: eggs + rice'" id="chat-input">
+      <button class="btn primary" onclick="sendChat()">Send</button>
+    </div>
+
+    <div class="section-title">Quick actions</div>
+    <button class="btn ghost full" onclick="quickAction('briefing')">📋 Show full briefing</button>
+    <button class="btn ghost full" style="margin-top: 8px;" onclick="quickAction('workout')">🏋️ Show today's workout</button>
+    <button class="btn ghost full" style="margin-top: 8px;" onclick="quickAction('doctor_share')">📄 Generate doctor-share PDF</button>
+  </section>
+
+  <!-- SETTINGS TAB -->
+  <section id="tab-settings" class="tab">
+    <div class="greeting">
+      <h2>Settings</h2>
+      <p>Your profile drives every computation</p>
+    </div>
+
+    <div class="card">
+      <h3>Profile</h3>
+      <div class="form-grid">
+        <div class="form-row"><label>Name</label><input type="text" id="p-name" value="Varun"></div>
+        <div class="form-row"><label>Age</label><input type="number" id="p-age" value="30"></div>
+        <div class="form-row"><label>Sex</label>
+          <select id="p-sex"><option value="M" selected>Male</option><option value="F">Female</option></select>
+        </div>
+        <div class="form-row"><label>Height (cm)</label><input type="number" id="p-h" value="178"></div>
+        <div class="form-row"><label>Weight (kg)</label><input type="number" id="p-w" step="0.1" value="78"></div>
+        <div class="form-row"><label>Activity</label>
+          <select id="p-act">
+            <option value="sedentary">Sedentary</option>
+            <option value="light">Light</option>
+            <option value="moderate" selected>Moderate</option>
+            <option value="very_active">Very Active</option>
+            <option value="athlete">Athlete</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Goal</label>
+          <select id="p-goal">
+            <option value="cut">Cut</option>
+            <option value="recomp" selected>Recomp</option>
+            <option value="lean_bulk">Lean bulk</option>
+            <option value="bulk">Bulk</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn primary full" onclick="saveProfile()" style="margin-top: 12px;">Save profile</button>
+      <div id="profile-status" class="meta" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>Today's check-in (mocks the morning inputs)</h3>
+      <p class="meta">Update these to recompute your readiness</p>
+      <div class="form-grid">
+        <div class="form-row"><label>HRV today (ms)</label><input type="number" id="c-hrv" value="58"></div>
+        <div class="form-row"><label>HRV baseline (ms)</label><input type="number" id="c-hrvb" value="50"></div>
+        <div class="form-row"><label>RHR today (bpm)</label><input type="number" id="c-rhr" value="58"></div>
+        <div class="form-row"><label>RHR baseline</label><input type="number" id="c-rhrb" value="60"></div>
+        <div class="form-row"><label>Sleep (min)</label><input type="number" id="c-sleep" value="445"></div>
+        <div class="form-row"><label>Energy (1-5)</label><input type="number" id="c-energy" min="1" max="5" value="4"></div>
+        <div class="form-row"><label>Soreness (1-5)</label><input type="number" id="c-soreness" min="1" max="5" value="2"></div>
+        <div class="form-row"><label>Mood (1-5)</label><input type="number" id="c-mood" min="1" max="5" value="4"></div>
+        <div class="form-row"><label>Stress (1-5)</label><input type="number" id="c-stress" min="1" max="5" value="2"></div>
+      </div>
+      <button class="btn primary full" onclick="saveCheckin()" style="margin-top: 12px;">Save check-in</button>
+      <div id="checkin-status" class="meta" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>System</h3>
+      <div class="card-row"><span class="lbl">API endpoint</span><span class="val" id="api-endpoint">—</span></div>
+      <div class="card-row"><span class="lbl">Connection</span><span class="val" id="connection-state">checking…</span></div>
+      <div class="card-row"><span class="lbl">Version</span><span class="val">v2.2.0</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Backend connection</h3>
+      <p class="meta">Where this app talks to the VarunOS API. Stored only in this browser.</p>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>API base URL</label>
+          <input type="text" id="s-api-base" placeholder="http://127.0.0.1:8000">
+        </div>
+        <div class="form-row">
+          <label>API key <span class="meta">(from your server's .env)</span></label>
+          <input type="password" id="s-api-key" placeholder="paste server-side VARUNOS_API_KEY">
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top: 12px;">
+        <button class="btn primary" onclick="saveConnection()">Save & test</button>
+        <button class="btn ghost" onclick="clearConnection()">Clear</button>
+      </div>
+      <div id="conn-test-result" class="meta" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>Health surveillance (opt-in)</h3>
+      <p class="meta">
+        Off by default. When OFF, your BP / glucose values are still used to compute a
+        risk tier, but the raw numbers are NOT stored on the server. When ON, raw
+        values are stored in the health_reading table and used for the weekly trend.
+      </p>
+      <div class="card-row">
+        <span class="lbl">Status</span>
+        <span class="val" id="surveillance-state">checking…</span>
+      </div>
+      <div style="margin-top:12px;">
+        <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
+          <input type="checkbox" id="s-consent-ack" style="margin-top:4px;">
+          <span style="font-size:13px; color: var(--text-dim);">
+            I understand that VarunOS is a personal-use educational tool, not a medical
+            device, and that risk tiers are screening estimates, not diagnoses.
+          </span>
+        </label>
+      </div>
+      <div style="display:flex; gap:8px; margin-top: 12px;">
+        <button class="btn primary" id="s-surveillance-on" onclick="setConsent(true)">Enable</button>
+        <button class="btn ghost" onclick="setConsent(false)">Disable</button>
+      </div>
+      <div id="consent-result" class="meta" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>Local data</h3>
+      <p class="meta">All VarunOS data is stored on your server's SQLite file. To remove
+        everything from this browser, use the button below. To wipe the server,
+        delete <code>varunos.db</code> on the server.</p>
+      <div style="display:flex; gap:8px; margin-top: 12px; flex-wrap: wrap;">
+        <button class="btn ghost" onclick="clearLocalCache()">Clear browser cache</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="close-btn" onclick="closeModal()">Close</button>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<nav class="bottom">
+  <button class="active" data-tab="today" onclick="openTab('today')">
+    <span class="icon">☀️</span><span class="label">Today</span>
+  </button>
+  <button data-tab="log" onclick="openTab('log')">
+    <span class="icon">➕</span><span class="label">Log</span>
+  </button>
+  <button data-tab="insights" onclick="openTab('insights')">
+    <span class="icon">📊</span><span class="label">Insights</span>
+  </button>
+  <button data-tab="coach" onclick="openTab('coach')">
+    <span class="icon">🧠</span><span class="label">Coach</span>
+  </button>
+  <button data-tab="settings" onclick="openTab('settings')">
+    <span class="icon">⚙️</span><span class="label">Settings</span>
+  </button>
+</nav>
+
+<script>
+  // ========== CONFIG ==========
+  const API_BASE = localStorage.getItem('varunos_api') || 'http://127.0.0.1:8000';
+  const API_KEY = localStorage.getItem('varunos_key') || '';
+
+  // ========== STATE ==========
+  let profile = JSON.parse(localStorage.getItem('varunos_profile') || JSON.stringify({
+    user_id: 'varun',
+    sex: 'M',
+    age: 30,
+    height_cm: 178,
+    weight_kg: 78,
+    activity: 'moderate',
+    goal: 'recomp',
+  }));
+
+  let checkin = JSON.parse(localStorage.getItem('varunos_checkin') || JSON.stringify({
+    hrv_today_ms: 58, hrv_7d_baseline_ms: 50,
+    rhr_today_bpm: 58, rhr_30d_baseline_bpm: 60,
+    sleep_min: 445, sleep_deep_pct: 17, sleep_rem_pct: 22,
+    sleep_eff_pct: 92, sleep_continuity_min: 3,
+    energy_1to5: 4, soreness_1to5: 2, mood_1to5: 4, stress_1to5: 2,
+    acute_load: 85, chronic_load: 100,
+  }));
+
+  let cachedSnapshot = null;
+  let cachedWorkout = null;
+  let cachedDiet = null;
+
+  // ========== API HELPERS ==========
+  async function api(path, opts = {}) {
+    const url = API_BASE + path;
+    const init = {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(API_KEY ? { 'Authorization': `Bearer ${API_KEY}` } : {}),
+        ...(opts.headers || {}),
+      },
+      ...opts,
+    };
+    if (init.body && typeof init.body !== 'string') init.body = JSON.stringify(init.body);
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+    }
+    return res.json();
+  }
+
+  async function healthCheck() {
+    const dot = document.getElementById('conn-dot');
+    const text = document.getElementById('conn-text');
+    const state = document.getElementById('connection-state');
+    try {
+      const r = await fetch(API_BASE + '/healthz');
+      if (r.ok) {
+        dot.className = 'conn-dot connected';
+        text.textContent = 'connected';
+        if (state) state.innerHTML = '<span style="color:var(--green);">● connected</span>';
+      } else {
+        throw new Error('not ok');
+      }
+    } catch (e) {
+      dot.className = 'conn-dot error';
+      text.textContent = 'API offline — start the server';
+      if (state) state.innerHTML = '<span style="color:var(--red);">● offline</span>';
+    }
+    document.getElementById('api-endpoint').textContent = API_BASE;
+  }
+
+  // ========== TAB SWITCHING ==========
+  function openTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('nav.bottom button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    document.querySelector(`nav.bottom button[data-tab="${name}"]`).classList.add('active');
+    if (name === 'today') loadToday();
+  }
+
+  // ========== TODAY TAB ==========
+  async function loadToday() {
+    const date = new Date();
+    document.getElementById('today-date').textContent =
+      date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+    document.getElementById('user-first-name').textContent = profile.user_id.charAt(0).toUpperCase() + profile.user_id.slice(1);
+    document.getElementById('avatar').textContent = profile.user_id.charAt(0).toUpperCase();
+
+    // Snapshot
+    try {
+      cachedSnapshot = await api('/v1/state/snapshot', {
+        method: 'POST',
+        body: { profile, checkin },
+      });
+      renderSnapshot(cachedSnapshot);
+    } catch (e) {
+      showError('workout-card', `Could not reach API at ${API_BASE}. ${e.message}`);
+    }
+
+    // Workout
+    try {
+      const readiness = cachedSnapshot?.readiness?.overall || 75;
+      cachedWorkout = await api('/v1/workouts/today', {
+        method: 'POST',
+        body: {
+          program: 'ppl_power',
+          week: 3,
+          day_index: 0,
+          readiness,
+          subjective_energy: checkin.energy_1to5,
+          soreness: checkin.soreness_1to5,
+          acute_chronic_ratio: checkin.acute_load / checkin.chronic_load,
+        },
+      });
+      renderWorkout(cachedWorkout);
+    } catch (e) {
+      showError('workout-card', e.message);
+    }
+
+    // Diet (from snapshot)
+    if (cachedSnapshot?.diet) renderDiet(cachedSnapshot.diet);
+  }
+
+  function renderSnapshot(s) {
+    const r = s.readiness;
+    const card = document.getElementById('readiness-card');
+    card.classList.remove('green', 'yellow', 'red');
+    card.classList.add(r.color.toLowerCase());
+
+    document.getElementById('readiness-score').textContent = Math.round(r.overall);
+    const statusText = {
+      GREEN: '🟢 Green day — go for it',
+      YELLOW: '🟡 Yellow day — pull back',
+      RED: '🔴 Red day — active recovery',
+    }[r.color] || r.color;
+    document.getElementById('readiness-status').textContent = statusText;
+
+    const comps = [
+      ['HRV', r.components.hrv],
+      ['RHR', r.components.rhr],
+      ['Sleep', r.components.sleep],
+      ['Wellness', r.components.wellness],
+      ['Load', r.components.load],
+      ['Trend', r.components.trend],
+    ];
+    document.getElementById('readiness-components').innerHTML =
+      comps.map(([k, v]) => `<div class="readiness-component">
+        <div class="label">${k}</div><div class="value">${Math.round(v)}</div>
+      </div>`).join('');
+
+    // Mock tier chips (the snapshot doesn't include medical tiers — would be added when surveillance is enabled)
+    // For now, set them based on simple heuristics or show 'OFF'
+    document.getElementById('chip-glucose').innerHTML = `<span class="tier-dot LOW"></span>Glucose LOW*`;
+    document.getElementById('chip-bp').innerHTML = `<span class="tier-dot LOW"></span>BP LOW*`;
+    document.getElementById('chip-cvd').innerHTML = `<span class="tier-dot LOW"></span>CVD LOW*`;
+  }
+
+  function renderWorkout(w) {
+    const exs = w.exercises.map(ex => `&nbsp;&nbsp;• ${ex.id}: ${ex.sets}×${ex.reps} (${ex.intensity})`).join('<br>');
+    document.getElementById('workout-card').innerHTML = `
+      <h3>🏋️ ${w.day_name} day</h3>
+      <p class="meta">${w.program} · Week ${w.week} · ${w.block} block</p>
+      <div class="card-row"><span class="lbl">Decision</span><span class="val" style="color:${decisionColor(w.decision)}">${w.decision}</span></div>
+      <div class="card-row"><span class="lbl">Exercises</span><span class="val">${w.exercises.length}</span></div>
+      <div class="card-row"><span class="lbl">Total sets</span><span class="val">${w.exercises.reduce((s, e) => s + (e.sets || 0), 0)}</span></div>
+      <p class="meta" style="margin-top: 12px;">${exs}</p>
+      <div class="btn-row">
+        <button class="btn primary" onclick="openTab('log')">Start workout</button>
+      </div>
+    `;
+  }
+
+  function decisionColor(d) {
+    if (d === 'GREEN') return 'var(--green)';
+    if (d === 'YELLOW') return 'var(--yellow)';
+    if (d === 'RED') return 'var(--red)';
+    return 'var(--accent-3)';
+  }
+
+  function renderDiet(d) {
+    document.getElementById('diet-card').innerHTML = `
+      <h3>🍽️ Today's nutrition</h3>
+      <div class="card-row"><span class="lbl">TDEE</span><span class="val">${d.tdee} kcal</span></div>
+      <div class="card-row"><span class="lbl">Target</span><span class="val">${d.target_kcal} kcal</span></div>
+      <div class="card-row"><span class="lbl">Protein</span><span class="val">${d.protein_g} g</span></div>
+      <div class="card-row"><span class="lbl">Fat</span><span class="val">${d.fat_g} g</span></div>
+      <div class="card-row"><span class="lbl">Carbs</span><span class="val">${d.carbs_g} g</span></div>
+    `;
+  }
+
+  function showError(elemId, msg) {
+    document.getElementById(elemId).innerHTML =
+      `<div class="error">⚠ ${msg}<br><br>Start the API: <code>PYTHONPATH=. python3 -m uvicorn varunos.api.server:app --reload</code></div>`;
+  }
+
+  // ========== LOG MODALS ==========
+  function openLogModal(kind) {
+    const content = document.getElementById('modal-content');
+    if (kind === 'workout') content.innerHTML = workoutModal();
+    else if (kind === 'meal') content.innerHTML = mealModal();
+    else if (kind === 'bp') content.innerHTML = bpModal();
+    else if (kind === 'glucose') content.innerHTML = glucoseModal();
+    else if (kind === 'checkin') content.innerHTML = checkinModal();
+    document.getElementById('modal-bg').classList.add('active');
+  }
+  function closeModal() { document.getElementById('modal-bg').classList.remove('active'); }
+
+  function workoutModal() {
+    return `
+      <h3>🏋️ Log a set</h3>
+      <p class="meta" style="margin-bottom: 16px;">Auto-detects PRs</p>
+      <div class="form-grid">
+        <div class="form-row"><label>Exercise</label>
+          <input type="text" id="m-ex" value="bench_press" style="width: 140px; text-align: right;">
+        </div>
+        <div class="form-row"><label>Weight (kg)</label><input type="number" id="m-w" value="100" step="0.5"></div>
+        <div class="form-row"><label>Reps</label><input type="number" id="m-r" value="5"></div>
+        <div class="form-row"><label>RPE</label><input type="number" id="m-rpe" min="1" max="10" step="0.5" value="8"></div>
+      </div>
+      <button class="btn primary full" style="margin-top: 16px;" onclick="submitSet()">Log set</button>
+      <div id="m-result" style="margin-top: 12px;"></div>
+    `;
+  }
+
+  async function submitSet() {
+    const result = document.getElementById('m-result');
+    result.innerHTML = '<div class="loading">Logging…</div>';
+    try {
+      const r = await api('/v1/workouts/log', {
+        method: 'POST',
+        body: {
+          exercise_id: document.getElementById('m-ex').value,
+          weight_kg: parseFloat(document.getElementById('m-w').value),
+          reps: parseInt(document.getElementById('m-r').value),
+          rpe: parseFloat(document.getElementById('m-rpe').value),
+          history: [],   // Empty for now; in production, this would come from your stored sets
+        },
+      });
+      const pr = r.pr;
+      const isPR = pr.is_pr;
+      result.innerHTML = `
+        <div class="card" style="background: var(--bg-elev);">
+          <h3>${isPR ? '🎉 PR!' : '✓ Logged'}</h3>
+          <p class="meta">${r.logged.exercise_id} · ${r.logged.weight_kg}kg × ${r.logged.reps}${r.logged.rpe ? ' RPE ' + r.logged.rpe : ''}</p>
+          ${isPR ? `<p class="meta" style="color:var(--accent); margin-top: 8px;">${pr.pr_type.toUpperCase()} PR — previous: ${pr.previous}, current: ${pr.current}</p>` : `<p class="meta" style="margin-top: 8px;">No PR this time. Current e1RM: ${pr.current.toFixed(1)} kg, best was ${pr.previous.toFixed(1)} kg.</p>`}
+        </div>
+      `;
+    } catch (e) {
+      result.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  function mealModal() {
+    return `
+      <h3>🍽️ Log a meal</h3>
+      <p class="meta" style="margin-bottom: 16px;">Search the food DB; macros auto-computed</p>
+      <input type="text" id="m-search" placeholder="Search foods (try 'chicken', 'roti', 'paneer')" style="width: 100%; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
+      <div id="m-results" style="margin-top: 12px;"></div>
+    `;
+  }
+
+  // Hook the meal modal search
+  setTimeout(() => {
+    const search = document.getElementById('m-search');
+    if (search) {
+      let timer = null;
+      search.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => searchFoods(search.value), 250);
+      });
+    }
+  }, 100);
+
+  async function searchFoods(q) {
+    const out = document.getElementById('m-results');
+    if (!q) { out.innerHTML = ''; return; }
+    try {
+      const r = await api(`/v1/foods/search?q=${encodeURIComponent(q)}&limit=10`);
+      out.innerHTML = r.results.map(f => `
+        <div class="card" style="margin-bottom: 8px;">
+          <h3 style="font-size: 14px;">${f.name}</h3>
+          <div class="card-row"><span class="lbl">Per ${f.id.includes('pc') ? 'piece' : '100g'}</span><span class="val">${f.kcal} kcal · P${f.p} C${f.c} F${f.f}</span></div>
+          <div class="card-row"><span class="lbl">Category</span><span class="val">${f.category}</span></div>
+        </div>
+      `).join('');
+    } catch (e) {
+      out.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  function bpModal() {
+    return `
+      <h3>🩺 Log BP</h3>
+      <p class="meta" style="margin-bottom: 16px;">Sends to API; triggers CRITICAL escalation if hypertensive crisis</p>
+      <div class="form-grid">
+        <div class="form-row"><label>Systolic</label><input type="number" id="m-sys" value="125"></div>
+        <div class="form-row"><label>Diastolic</label><input type="number" id="m-dia" value="80"></div>
+        <div class="form-row"><label>Symptomatic?</label>
+          <select id="m-symp"><option value="false">No</option><option value="true">Yes (chest pain, vision change, etc.)</option></select>
+        </div>
+      </div>
+      <button class="btn primary full" style="margin-top: 16px;" onclick="submitBP()">Stage this reading</button>
+      <div id="m-result" style="margin-top: 12px;"></div>
+    `;
+  }
+
+  async function submitBP() {
+    const result = document.getElementById('m-result');
+    result.innerHTML = '<div class="loading">Sending…</div>';
+    try {
+      const r = await api('/v1/surveillance/bp', {
+        method: 'POST',
+        body: {
+          sbp: parseInt(document.getElementById('m-sys').value),
+          dbp: parseInt(document.getElementById('m-dia').value),
+          symptomatic: document.getElementById('m-symp').value === 'true',
+        },
+      });
+      const esc = r.escalation;
+      let escHtml = '';
+      if (esc) {
+        escHtml = `
+          <div class="card" style="background: rgba(239, 68, 68, 0.1); border-color: var(--red); margin-top: 12px;">
+            <h3 style="color: var(--red);">🚨 ${esc.level} ESCALATION</h3>
+            <p class="meta">${esc.message}</p>
+            <p class="meta" style="margin-top: 8px;"><strong>Channels:</strong> ${esc.channels.join(', ')}</p>
+            <p class="meta"><strong>TTA:</strong> ${esc.tta_seconds}s</p>
+          </div>
+        `;
+      }
+      result.innerHTML = `
+        <div class="card" style="background: var(--bg-elev);">
+          <h3>Stage: ${r.stage} · Tier: ${r.tier}</h3>
+          <div class="card-row"><span class="lbl">Action</span><span class="val">${r.action}</span></div>
+          <div class="card-row"><span class="lbl">Pulse pressure</span><span class="val">${r.pulse_pressure}</span></div>
+          <div class="card-row"><span class="lbl">MAP</span><span class="val">${r.map}</span></div>
+        </div>
+        ${escHtml}
+      `;
+    } catch (e) {
+      result.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  function glucoseModal() {
+    return `
+      <h3>🩸 Log glucose</h3>
+      <p class="meta" style="margin-bottom: 16px;">Try 40 to see CRITICAL escalation (hypoglycemia)</p>
+      <div class="form-grid">
+        <div class="form-row"><label>Value (mg/dL)</label><input type="number" id="m-glu" value="100"></div>
+        <div class="form-row"><label>Context</label>
+          <select id="m-ctx"><option value="random">Random</option><option value="fasting">Fasting</option><option value="post_meal">2h post-meal</option></select>
+        </div>
+        <div class="form-row"><label>Symptomatic?</label>
+          <select id="m-symp2"><option value="false">No</option><option value="true">Yes</option></select>
+        </div>
+      </div>
+      <button class="btn primary full" style="margin-top: 16px;" onclick="submitGlucose()">Submit</button>
+      <div id="m-result" style="margin-top: 12px;"></div>
+    `;
+  }
+
+  async function submitGlucose() {
+    const result = document.getElementById('m-result');
+    result.innerHTML = '<div class="loading">Sending…</div>';
+    try {
+      const r = await api('/v1/surveillance/escalate/glucose', {
+        method: 'POST',
+        body: {
+          value_mgdl: parseFloat(document.getElementById('m-glu').value),
+          symptomatic: document.getElementById('m-symp2').value === 'true',
+        },
+      });
+      const isCritical = r.level === 'CRITICAL';
+      result.innerHTML = `
+        <div class="card" style="background: ${isCritical ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-elev)'}; border-color: ${isCritical ? 'var(--red)' : 'var(--border)'};">
+          <h3 style="color: ${isCritical ? 'var(--red)' : 'inherit'};">${isCritical ? '🚨' : '✓'} Level: ${r.level}</h3>
+          <p class="meta">${r.message}</p>
+          ${r.recommendation ? `<p class="meta" style="margin-top: 8px;"><strong>Rec:</strong> ${r.recommendation}</p>` : ''}
+          ${r.channels ? `<p class="meta" style="margin-top: 8px;"><strong>Channels:</strong> ${r.channels.join(', ')}</p>` : ''}
+        </div>
+      `;
+    } catch (e) {
+      result.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  function checkinModal() {
+    return `
+      <h3>📋 Daily check-in</h3>
+      <p class="meta" style="margin-bottom: 16px;">These update your readiness score</p>
+      <div class="form-grid">
+        <div class="form-row"><label>HRV today</label><input type="number" id="c2-hrv" value="${checkin.hrv_today_ms}"></div>
+        <div class="form-row"><label>RHR today</label><input type="number" id="c2-rhr" value="${checkin.rhr_today_bpm}"></div>
+        <div class="form-row"><label>Sleep (min)</label><input type="number" id="c2-sleep" value="${checkin.sleep_min}"></div>
+        <div class="form-row"><label>Energy (1-5)</label><input type="number" id="c2-energy" min="1" max="5" value="${checkin.energy_1to5}"></div>
+        <div class="form-row"><label>Soreness (1-5)</label><input type="number" id="c2-soreness" min="1" max="5" value="${checkin.soreness_1to5}"></div>
+        <div class="form-row"><label>Mood (1-5)</label><input type="number" id="c2-mood" min="1" max="5" value="${checkin.mood_1to5}"></div>
+        <div class="form-row"><label>Stress (1-5)</label><input type="number" id="c2-stress" min="1" max="5" value="${checkin.stress_1to5}"></div>
+      </div>
+      <button class="btn primary full" style="margin-top: 16px;" onclick="submitCheckinModal()">Save & recompute</button>
+      <div id="m-result" style="margin-top: 12px;"></div>
+    `;
+  }
+
+  async function submitCheckinModal() {
+    checkin.hrv_today_ms = parseFloat(document.getElementById('c2-hrv').value);
+    checkin.rhr_today_bpm = parseFloat(document.getElementById('c2-rhr').value);
+    checkin.sleep_min = parseInt(document.getElementById('c2-sleep').value);
+    checkin.energy_1to5 = parseInt(document.getElementById('c2-energy').value);
+    checkin.soreness_1to5 = parseInt(document.getElementById('c2-soreness').value);
+    checkin.mood_1to5 = parseInt(document.getElementById('c2-mood').value);
+    checkin.stress_1to5 = parseInt(document.getElementById('c2-stress').value);
+    localStorage.setItem('varunos_checkin', JSON.stringify(checkin));
+    document.getElementById('m-result').innerHTML = '<div style="color:var(--green);">✓ Saved</div>';
+    setTimeout(() => { closeModal(); openTab('today'); }, 800);
+  }
+
+  // ========== INSIGHTS TAB ==========
+  async function computeIDRS() {
+    const out = document.getElementById('idrs-result');
+    out.innerHTML = '<div class="loading">Computing…</div>';
+    try {
+      const r = await api('/v1/surveillance/idrs', {
+        method: 'POST',
+        body: {
+          age_years: parseFloat(document.getElementById('idrs-age').value),
+          bmi: parseFloat(document.getElementById('idrs-bmi').value),
+          waist_cm: parseFloat(document.getElementById('idrs-waist').value),
+          sex: document.getElementById('idrs-sex').value,
+          family_history_dm: document.getElementById('idrs-fam').value === 'true',
+          activity: document.getElementById('idrs-act').value,
+        },
+      });
+      out.innerHTML = `
+        <div class="card" style="background: var(--bg-elev);">
+          <h3>Score: ${r.score} · Tier: ${r.tier}</h3>
+          <p class="meta">${r.screening_recommendation}</p>
+          <p class="meta" style="margin-top: 8px;"><strong>Components:</strong> ${JSON.stringify(r.components)}</p>
+        </div>
+      `;
+    } catch (e) {
+      out.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  async function computeASCVD() {
+    const out = document.getElementById('ascvd-result');
+    out.innerHTML = '<div class="loading">Computing…</div>';
+    try {
+      const r = await api('/v1/surveillance/ascvd', {
+        method: 'POST',
+        body: {
+          age: parseFloat(document.getElementById('ascvd-age').value),
+          sex: document.getElementById('ascvd-sex').value,
+          total_chol: parseFloat(document.getElementById('ascvd-tc').value),
+          hdl_c: parseFloat(document.getElementById('ascvd-hdl').value),
+          sbp: parseFloat(document.getElementById('ascvd-sbp').value),
+          bp_treated: document.getElementById('ascvd-bpmed').value === 'true',
+          diabetes: document.getElementById('ascvd-dm').value === 'true',
+          smoker: document.getElementById('ascvd-smk').value === 'true',
+          south_asian_adjustment: document.getElementById('ascvd-sa').value === 'true',
+        },
+      });
+      out.innerHTML = `
+        <div class="card" style="background: var(--bg-elev);">
+          <h3>10-yr risk: ${r.risk_10yr_pct.toFixed(2)}% · Tier: ${r.tier}</h3>
+          <p class="meta">${r.action_label}</p>
+          <p class="meta" style="margin-top: 8px; font-size: 10px;">${r.disclaimer}</p>
+        </div>
+      `;
+    } catch (e) {
+      out.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  async function computeBP() {
+    const out = document.getElementById('bp-result');
+    out.innerHTML = '<div class="loading">Computing…</div>';
+    try {
+      const r = await api('/v1/surveillance/bp', {
+        method: 'POST',
+        body: {
+          sbp: parseInt(document.getElementById('bp-sys').value),
+          dbp: parseInt(document.getElementById('bp-dia').value),
+        },
+      });
+      let esc = '';
+      if (r.escalation) {
+        esc = `<div class="card" style="background: rgba(239, 68, 68, 0.1); border-color: var(--red); margin-top: 8px;">
+          <h3 style="color: var(--red);">🚨 ${r.escalation.level} ESCALATION</h3>
+          <p class="meta">${r.escalation.message}</p>
+          <p class="meta"><strong>Channels:</strong> ${r.escalation.channels.join(', ')}</p>
+        </div>`;
+      }
+      out.innerHTML = `
+        <div class="card" style="background: var(--bg-elev);">
+          <h3>Stage: ${r.stage} · Tier: ${r.tier}</h3>
+          <p class="meta">${r.action}</p>
+          <div class="card-row"><span class="lbl">Pulse pressure</span><span class="val">${r.pulse_pressure}</span></div>
+          <div class="card-row"><span class="lbl">MAP</span><span class="val">${r.map}</span></div>
+        </div>
+        ${esc}
+      `;
+    } catch (e) {
+      out.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  // ========== COACH TAB ==========
+  function sendChat() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    addChat('user', 'You · now', text);
+    input.value = '';
+    setTimeout(() => handleCoachCommand(text.toLowerCase()), 400);
+  }
+
+  function addChat(role, label, body) {
+    const div = document.createElement('div');
+    div.className = 'chat' + (role === 'user' ? ' user' : '');
+    div.innerHTML = `<div class="role">${label}</div><p>${body}</p>`;
+    document.getElementById('chat-history').appendChild(div);
+    div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }
+
+  async function handleCoachCommand(text) {
+    if (text.includes('briefing') || text.includes('how am i')) {
+      await loadToday();
+      const r = cachedSnapshot?.readiness;
+      if (r) {
+        addChat('bot', 'VarunOS · now',
+          `Readiness ${Math.round(r.overall)} (${r.color}). Diet: ${cachedSnapshot.diet.target_kcal} kcal · P${cachedSnapshot.diet.protein_g} F${cachedSnapshot.diet.fat_g} C${cachedSnapshot.diet.carbs_g}.`);
+      } else {
+        addChat('bot', 'VarunOS · now', 'Could not reach API. Check connection.');
+      }
+    } else if (text.includes('workout') || text.includes('train')) {
+      if (cachedWorkout) {
+        addChat('bot', 'VarunOS · now',
+          `${cachedWorkout.day_name} day, ${cachedWorkout.decision} decision. ${cachedWorkout.exercises.length} exercises. Top set: ${cachedWorkout.exercises[0].id} ${cachedWorkout.exercises[0].sets}×${cachedWorkout.exercises[0].reps}.`);
+      }
+    } else if (text.includes('macro') || text.includes('diet') || text.includes('eat')) {
+      if (cachedSnapshot?.diet) {
+        addChat('bot', 'VarunOS · now',
+          `TDEE ${cachedSnapshot.diet.tdee} kcal. Target ${cachedSnapshot.diet.target_kcal} kcal: P${cachedSnapshot.diet.protein_g}g, F${cachedSnapshot.diet.fat_g}g, C${cachedSnapshot.diet.carbs_g}g.`);
+      }
+    } else if (text.includes('pr')) {
+      addChat('bot', 'VarunOS · now', 'Log a set in the Log tab — PR detection runs on every entry.');
+    } else if (text.includes('risk') || text.includes('score')) {
+      addChat('bot', 'VarunOS · now', 'Open the Insights tab — IDRS, ASCVD, BP staging all live there.');
+    } else {
+      addChat('bot', 'VarunOS · now', 'Try: "show briefing", "what\'s my workout", "compute macros", "open insights".');
+    }
+  }
+
+  function quickAction(action) {
+    if (action === 'briefing') { openTab('today'); return; }
+    if (action === 'workout') { handleCoachCommand('workout'); return; }
+    if (action === 'doctor_share') {
+      addChat('user', 'You · now', 'Generate doctor-share');
+      addChat('bot', 'VarunOS · now', 'Doctor-share PDF is generated via the CLI: <code>PYTHONPATH=. python3 scripts/doctor_share_pdf.py</code>. Browser-based PDF coming in v2.2.');
+    }
+  }
+
+  // ========== SETTINGS ==========
+  function loadProfileForm() {
+    document.getElementById('p-name').value = profile.user_id;
+    document.getElementById('p-age').value = profile.age;
+    document.getElementById('p-sex').value = profile.sex;
+    document.getElementById('p-h').value = profile.height_cm;
+    document.getElementById('p-w').value = profile.weight_kg;
+    document.getElementById('p-act').value = profile.activity;
+    document.getElementById('p-goal').value = profile.goal;
+  }
+  function saveProfile() {
+    profile = {
+      user_id: document.getElementById('p-name').value || 'user',
+      sex: document.getElementById('p-sex').value,
+      age: parseInt(document.getElementById('p-age').value),
+      height_cm: parseFloat(document.getElementById('p-h').value),
+      weight_kg: parseFloat(document.getElementById('p-w').value),
+      activity: document.getElementById('p-act').value,
+      goal: document.getElementById('p-goal').value,
+    };
+    localStorage.setItem('varunos_profile', JSON.stringify(profile));
+    document.getElementById('profile-status').innerHTML = '<span style="color:var(--green);">✓ Saved. Reloading Today…</span>';
+    setTimeout(() => openTab('today'), 600);
+  }
+  function loadCheckinForm() {
+    document.getElementById('c-hrv').value = checkin.hrv_today_ms;
+    document.getElementById('c-hrvb').value = checkin.hrv_7d_baseline_ms;
+    document.getElementById('c-rhr').value = checkin.rhr_today_bpm;
+    document.getElementById('c-rhrb').value = checkin.rhr_30d_baseline_bpm;
+    document.getElementById('c-sleep').value = checkin.sleep_min;
+    document.getElementById('c-energy').value = checkin.energy_1to5;
+    document.getElementById('c-soreness').value = checkin.soreness_1to5;
+    document.getElementById('c-mood').value = checkin.mood_1to5;
+    document.getElementById('c-stress').value = checkin.stress_1to5;
+  }
+  function saveCheckin() {
+    checkin = {
+      ...checkin,
+      hrv_today_ms: parseFloat(document.getElementById('c-hrv').value),
+      hrv_7d_baseline_ms: parseFloat(document.getElementById('c-hrvb').value),
+      rhr_today_bpm: parseFloat(document.getElementById('c-rhr').value),
+      rhr_30d_baseline_bpm: parseFloat(document.getElementById('c-rhrb').value),
+      sleep_min: parseInt(document.getElementById('c-sleep').value),
+      energy_1to5: parseInt(document.getElementById('c-energy').value),
+      soreness_1to5: parseInt(document.getElementById('c-soreness').value),
+      mood_1to5: parseInt(document.getElementById('c-mood').value),
+      stress_1to5: parseInt(document.getElementById('c-stress').value),
+    };
+    localStorage.setItem('varunos_checkin', JSON.stringify(checkin));
+    document.getElementById('checkin-status').innerHTML = '<span style="color:var(--green);">✓ Saved. Recomputing readiness…</span>';
+    setTimeout(() => openTab('today'), 600);
+  }
+
+  // ========== CONNECTION (Settings) ==========
+  function loadConnectionForm() {
+    const baseEl = document.getElementById('s-api-base');
+    const keyEl = document.getElementById('s-api-key');
+    if (baseEl) baseEl.value = API_BASE;
+    if (keyEl) keyEl.value = API_KEY;
+  }
+  async function saveConnection() {
+    const base = document.getElementById('s-api-base').value.trim() || 'http://127.0.0.1:8000';
+    const key = document.getElementById('s-api-key').value.trim();
+    localStorage.setItem('varunos_api', base);
+    if (key) localStorage.setItem('varunos_key', key);
+    else localStorage.removeItem('varunos_key');
+    // Re-read into globals and reload
+    document.getElementById('conn-test-result').innerHTML =
+      '<span style="color:var(--text-dim);">Testing…</span>';
+    // Force a full page reload so the new API_BASE/KEY are picked up
+    setTimeout(() => location.reload(), 300);
+  }
+  function clearConnection() {
+    localStorage.removeItem('varunos_api');
+    localStorage.removeItem('varunos_key');
+    setTimeout(() => location.reload(), 200);
+  }
+  function clearLocalCache() {
+    if (!confirm('Clear all VarunOS data stored in this browser? (server data is untouched.)')) return;
+    ['varunos_api','varunos_key','varunos_profile','varunos_checkin','varunos_onboarded',
+     'varunos_surveillance_ack'].forEach(k => localStorage.removeItem(k));
+    location.reload();
+  }
+
+  // ========== SURVEILLANCE CONSENT ==========
+  async function refreshConsent() {
+    const el = document.getElementById('surveillance-state');
+    if (!el) return;
+    try {
+      const r = await api('/v1/user/surveillance');
+      el.innerHTML = r.surveillance_on
+        ? '<span style="color:var(--green);">● ON (raw values stored)</span>'
+        : '<span style="color:var(--yellow);">● OFF (only tiers, no raw)</span>';
+    } catch (e) {
+      el.innerHTML = '<span style="color:var(--red);">— API unreachable</span>';
+    }
+  }
+  async function setConsent(on) {
+    const ack = document.getElementById('s-consent-ack');
+    if (on && (!ack || !ack.checked)) {
+      document.getElementById('consent-result').innerHTML =
+        '<span style="color:var(--red);">Please tick the acknowledgement first.</span>';
+      return;
+    }
+    try {
+      const r = await api('/v1/user/surveillance', {
+        method: 'POST',
+        body: { on, acknowledged_medical_disclaimer: ack ? ack.checked : false },
+      });
+      document.getElementById('consent-result').innerHTML =
+        '<span style="color:var(--green);">✓ ' + (on ? 'Enabled' : 'Disabled') + '</span>';
+      refreshConsent();
+    } catch (e) {
+      document.getElementById('consent-result').innerHTML =
+        '<span style="color:var(--red);">— ' + e.message + '</span>';
+    }
+  }
+
+  // ========== ONBOARDING ==========
+  function maybeShowOnboard() {
+    if (localStorage.getItem('varunos_onboarded')) {
+      document.getElementById('onboard-overlay').style.display = 'none';
+      return;
+    }
+    document.getElementById('onboard-overlay').style.display = 'block';
+    document.getElementById('onb-api-base').value = API_BASE;
+    document.getElementById('onb-api-key').value = API_KEY;
+  }
+  function onboardStepShow(n) {
+    for (let i = 1; i <= 5; i++) {
+      const el = document.getElementById('onboard-step-' + i);
+      if (el) el.style.display = (i === n) ? 'block' : 'none';
+    }
+  }
+  function onboardNext(n) {
+    if (n === 3) {
+      const baseOk = (document.getElementById('onb-api-base').value || '').trim();
+      if (!baseOk) {
+        document.getElementById('onb-test').innerHTML =
+          '<span style="color:var(--red);">Enter the API base URL.</span>';
+        return;
+      }
+    }
+    if (n === 5) {
+      const safety = document.getElementById('onb-safety-ack');
+      if (!safety.checked) {
+        alert('Please tick the safety acknowledgement to continue.');
+        return;
+      }
+    }
+    onboardStepShow(n);
+  }
+  function onboardBack(n) { onboardStepShow(n); }
+  async function onboardTestConn() {
+    const base = document.getElementById('onb-api-base').value.trim();
+    const key = document.getElementById('onb-api-key').value.trim();
+    const el = document.getElementById('onb-test');
+    el.innerHTML = '<span style="color:var(--text-dim);">Testing…</span>';
+    try {
+      const r = await fetch(base + '/healthz');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      // Now test with key
+      const r2 = await fetch(base + '/v1/auth/check', {
+        headers: key ? { 'Authorization': 'Bearer ' + key } : {},
+      });
+      if (r2.status === 401) {
+        el.innerHTML = '<span style="color:var(--red);">Server reached, but API key is wrong.</span>';
+        return;
+      }
+      if (r2.status === 503) {
+        el.innerHTML = '<span style="color:var(--yellow);">Server reached, but no API key configured on server.</span>';
+        return;
+      }
+      if (r2.ok) {
+        el.innerHTML = '<span style="color:var(--green);">✓ Connected &amp; authenticated.</span>';
+      } else {
+        el.innerHTML = '<span style="color:var(--yellow);">Server reachable, unexpected response ' + r2.status + '.</span>';
+      }
+    } catch (e) {
+      el.innerHTML = '<span style="color:var(--red);">— ' + e.message + '<br>Check that the server is running and CORS allows this origin.</span>';
+    }
+  }
+  async function onboardFinish(enableSurveillance) {
+    // Save connection
+    const base = document.getElementById('onb-api-base').value.trim() || 'http://127.0.0.1:8000';
+    const key = document.getElementById('onb-api-key').value.trim();
+    localStorage.setItem('varunos_api', base);
+    if (key) localStorage.setItem('varunos_key', key); else localStorage.removeItem('varunos_key');
+    // Save profile
+    const prof = {
+      user_id: document.getElementById('onb-name').value || 'user',
+      sex: document.getElementById('onb-sex').value,
+      age: parseInt(document.getElementById('onb-age').value),
+      height_cm: parseFloat(document.getElementById('onb-h').value),
+      weight_kg: parseFloat(document.getElementById('onb-w').value),
+      activity: document.getElementById('onb-act').value,
+      goal: document.getElementById('onb-goal').value,
+    };
+    localStorage.setItem('varunos_profile', JSON.stringify(prof));
+    profile = prof;
+    // Try to enable surveillance on the server if asked
+    if (enableSurveillance) {
+      try {
+        await fetch(base + '/v1/user/surveillance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(key ? { 'Authorization': 'Bearer ' + key } : {}),
+          },
+          body: JSON.stringify({ on: true, acknowledged_medical_disclaimer: true }),
+        });
+      } catch (e) { /* offline, will retry from Settings */ }
+    }
+    // Mark done
+    localStorage.setItem('varunos_onboarded', '1');
+    location.reload();
+  }
+
+  // ========== BOOT ==========
+  document.getElementById('chat-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendChat();
+  });
+
+  // Initial load
+  loadConnectionForm();
+  maybeShowOnboard();
+  healthCheck();
+  loadProfileForm();
+  loadCheckinForm();
+  loadToday();
+  refreshConsent();
+
+  // Re-check connection every 10s
+  setInterval(healthCheck, 10000);
+</script>
+</body>
+</html>

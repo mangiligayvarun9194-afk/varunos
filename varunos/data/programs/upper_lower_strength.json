@@ -1,0 +1,57 @@
+{
+  "name": "Upper/Lower Strength",
+  "goal": "strength_size",
+  "split": ["Upper", "Lower"],
+  "days_per_week": 4,
+  "weeks": 8,
+  "deload_week": 7,
+  "progression_rule": "linear",
+  "days": [
+    {
+      "name": "Upper A",
+      "exercises": [
+        {"id": "bench_press", "sets": 4, "reps": "5-6", "intensity": "RPE 8", "rest_s": 180},
+        {"id": "barbell_row", "sets": 4, "reps": "5-6", "intensity": "RPE 8", "rest_s": 180},
+        {"id": "ohp", "sets": 3, "reps": "6-8", "intensity": "RPE 7-8", "rest_s": 150},
+        {"id": "pullup", "sets": 3, "reps": "6-8", "intensity": "RPE 8", "rest_s": 120},
+        {"id": "db_curl", "sets": 3, "reps": "8-10", "intensity": "RPE 8", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Lower A",
+      "exercises": [
+        {"id": "squat", "sets": 4, "reps": "5-6", "intensity": "RPE 8", "rest_s": 180},
+        {"id": "romanian_deadlift", "sets": 3, "reps": "6-8", "intensity": "RPE 7-8", "rest_s": 150},
+        {"id": "leg_press", "sets": 3, "reps": "8-10", "intensity": "RPE 8", "rest_s": 120},
+        {"id": "leg_curl", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "calf_raise", "sets": 4, "reps": "10-15", "intensity": "RPE 9", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Upper B",
+      "exercises": [
+        {"id": "ohp", "sets": 4, "reps": "5-6", "intensity": "RPE 8", "rest_s": 180},
+        {"id": "pullup", "sets": 4, "reps": "5-6", "intensity": "RPE 8", "rest_s": 180},
+        {"id": "incline_db_press", "sets": 3, "reps": "8-10", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "seated_row", "sets": 3, "reps": "8-10", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "tricep_pushdown", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 60}
+      ]
+    },
+    {
+      "name": "Lower B",
+      "exercises": [
+        {"id": "deadlift", "sets": 3, "reps": "4-5", "intensity": "RPE 8", "rest_s": 240},
+        {"id": "front_squat", "sets": 3, "reps": "6-8", "intensity": "RPE 7-8", "rest_s": 150},
+        {"id": "bulgarian_split_squat", "sets": 3, "reps": "8-10", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "leg_curl", "sets": 3, "reps": "10-12", "intensity": "RPE 8", "rest_s": 90},
+        {"id": "calf_raise", "sets": 4, "reps": "10-15", "intensity": "RPE 9", "rest_s": 60}
+      ]
+    }
+  ],
+  "substitutions": {
+    "bench_press": ["db_bench_press", "smith_bench", "pushup"],
+    "squat": ["goblet_squat", "leg_press", "bulgarian_split_squat"],
+    "deadlift": ["trap_bar_dl", "sumo_dl", "romanian_deadlift"],
+    "pullup": ["lat_pulldown", "band_assisted_pullup", "inverted_row"]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "category": "nuts_seeds_fats",
+  "items": [
+    {"id": "almonds_28g", "name": "Almonds (28g, ~23 pcs)", "kcal": 164, "p": 6, "c": 6, "f": 14, "category": "fat", "tags": ["veg", "indian"], "portion_g": 28, "portion_label": "28g (~23 almonds)"},
+    {"id": "walnuts_28g", "name": "Walnuts (28g, ~7 halves)", "kcal": 185, "p": 4.3, "c": 3.9, "f": 18, "category": "fat", "tags": ["veg", "omega3"], "portion_g": 28, "portion_label": "28g"},
+    {"id": "cashews_28g", "name": "Cashews (28g, ~18 pcs)", "kcal": 157, "p": 5, "c": 9, "f": 12, "category": "fat", "tags": ["veg"], "portion_g": 28, "portion_label": "28g"},
+    {"id": "peanuts_28g", "name": "Peanuts (28g, ~30 pcs)", "kcal": 161, "p": 7, "c": 5, "f": 14, "category": "fat", "tags": ["veg", "indian"], "portion_g": 28, "portion_label": "28g"},
+    {"id": "chia_15g", "name": "Chia Seeds (15g)", "kcal": 73, "p": 2.5, "c": 6, "f": 4.6, "category": "fat", "tags": ["vegan", "omega3"], "portion_g": 15, "portion_label": "15g"},
+    {"id": "flax_15g", "name": "Flax Seeds (15g)", "kcal": 80, "p": 2.6, "c": 4, "f": 6.3, "category": "fat", "tags": ["vegan", "omega3"], "portion_g": 15, "portion_label": "15g"},
+    {"id": "pumpkin_seeds_28g", "name": "Pumpkin Seeds (28g)", "kcal": 151, "p": 7, "c": 5, "f": 13, "category": "fat", "tags": ["veg"], "portion_g": 28, "portion_label": "28g"},
+    {"id": "peanut_butter_1tbsp", "name": "Peanut Butter (1 tbsp, 16g)", "kcal": 95, "p": 4, "c": 3.5, "f": 8, "category": "fat", "tags": ["veg"], "portion_g": 16, "portion_label": "1 tbsp"},
+    {"id": "olive_oil_1tbsp", "name": "Olive Oil (1 tbsp, 14g)", "kcal": 120, "p": 0, "c": 0, "f": 14, "category": "fat", "tags": ["vegan", "mediterranean"], "portion_g": 14, "portion_label": "1 tbsp"},
+    {"id": "coconut_oil_1tbsp", "name": "Coconut Oil (1 tbsp, 14g)", "kcal": 120, "p": 0, "c": 0, "f": 14, "category": "fat", "tags": ["vegan"], "portion_g": 14, "portion_label": "1 tbsp"}
+  ]
+}

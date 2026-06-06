@@ -1,0 +1,14 @@
+{
+  "category": "nonveg",
+  "items": [
+    {"id": "chicken_breast_100g", "name": "Chicken Breast (cooked, 100g)", "kcal": 165, "p": 31, "c": 0, "f": 3.6, "category": "protein", "tags": ["nonveg"], "portion_g": 100, "portion_label": "100g cooked"},
+    {"id": "chicken_thigh_100g", "name": "Chicken Thigh (cooked, 100g)", "kcal": 209, "p": 26, "c": 0, "f": 11, "category": "protein", "tags": ["nonveg"], "portion_g": 100, "portion_label": "100g cooked"},
+    {"id": "egg_whole_1pc", "name": "Egg Whole (1 large, ~50g)", "kcal": 72, "p": 6, "c": 0.4, "f": 5, "category": "protein", "tags": ["nonveg", "eggs"], "portion_g": 50, "portion_label": "1 egg"},
+    {"id": "egg_white_1pc", "name": "Egg White (1 large, ~33g)", "kcal": 17, "p": 3.6, "c": 0.2, "f": 0.1, "category": "protein", "tags": ["nonveg", "eggs"], "portion_g": 33, "portion_label": "1 white"},
+    {"id": "mutton_100g", "name": "Mutton (cooked, 100g)", "kcal": 250, "p": 25, "c": 0, "f": 17, "category": "protein", "tags": ["nonveg", "halal"], "portion_g": 100, "portion_label": "100g cooked"},
+    {"id": "fish_rohu_100g", "name": "Fish Rohu (cooked, 100g)", "kcal": 97, "p": 21, "c": 0, "f": 1, "category": "protein", "tags": ["nonveg", "indian", "halal"], "portion_g": 100, "portion_label": "100g cooked"},
+    {"id": "fish_salmon_100g", "name": "Salmon (cooked, 100g)", "kcal": 208, "p": 22, "c": 0, "f": 13, "category": "protein", "tags": ["nonveg", "omega3"], "portion_g": 100, "portion_label": "100g cooked"},
+    {"id": "fish_tuna_100g", "name": "Tuna (cooked, 100g)", "kcal": 132, "p": 28, "c": 0, "f": 1, "category": "protein", "tags": ["nonveg"], "portion_g": 100, "portion_label": "100g cooked"},
+    {"id": "prawns_100g", "name": "Prawns (cooked, 100g)", "kcal": 99, "p": 24, "c": 0, "f": 0.3, "category": "protein", "tags": ["nonveg", "halal"], "portion_g": 100, "portion_label": "100g cooked"}
+  ]
+}
