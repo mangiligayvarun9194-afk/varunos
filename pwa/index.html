@@ -357,6 +357,20 @@
     .readiness-components { grid-template-columns: repeat(2, 1fr); }
     .pick .emoji { font-size: 22px; }
   }
+  /* ---- Vee mascot + momentum ---- */
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  @keyframes veeBreathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.04); } }
+  @keyframes veeLift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+  @keyframes veeJump { 0%, 100% { transform: translateY(0) rotate(0deg); } 30% { transform: translateY(-9px) rotate(-4deg); } 60% { transform: translateY(-9px) rotate(4deg); } }
+  @keyframes veeZzz { 0% { opacity: 0; transform: translate(0,0); } 50% { opacity: 1; } 100% { opacity: 0; transform: translate(6px,-10px); } }
+  #vee-wrap svg { display: block; }
+  .vee-idle .vee-body { animation: veeBreathe 3s ease-in-out infinite; transform-origin: 32px 58px; }
+  .vee-lift .vee-all { animation: veeLift 1.1s ease-in-out infinite; }
+  .vee-celebrate .vee-all { animation: veeJump 0.7s ease-in-out 4; }
+  .vee-sleep .vee-zzz { animation: veeZzz 2.2s ease-out infinite; }
+  .confetti-bit { position: fixed; top: -10px; width: 8px; height: 12px; z-index: 999; pointer-events: none; }
+  @keyframes confettiFall { to { transform: translateY(105vh) rotate(720deg); opacity: 0.7; } }
+  .rest-timer { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -503,11 +517,15 @@
 <main>
   <!-- TODAY TAB -->
   <section id="tab-today" class="tab active">
-    <div class="greeting">
-      <h2>gm, <span id="user-first-name">Varun</span> <span class="pulse"></span></h2>
-      <p id="today-date">—</p>
+    <div class="greeting" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+      <div>
+        <h2 id="wakeup-greeting">gm, <span id="user-first-name">Varun</span> <span class="pulse"></span></h2>
+        <p id="today-date">—</p>
+      </div>
+      <div id="vee-wrap" title="Vee — your training twin"></div>
     </div>
 
+    <div id="momentum-banner"></div>
     <div id="readiness-card-wrap"></div>
 
     <div class="section-title" id="tiers-title" style="display:none">Risk tiers (today)</div>
@@ -695,6 +713,13 @@
             <option value="recomp" selected>Recomp</option>
             <option value="lean_bulk">Lean bulk</option>
             <option value="bulk">Bulk</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Workout time</label>
+          <select id="p-wtime">
+            <option value="morning">Morning</option>
+            <option value="evening">Evening</option>
+            <option value="flexible" selected>Flexible</option>
           </select>
         </div>
       </div>
@@ -996,37 +1021,33 @@
     const today = date.toISOString().slice(0, 10);
     document.getElementById('today-date').textContent =
       date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-    document.getElementById('user-first-name').textContent = profile.user_id.charAt(0).toUpperCase() + profile.user_id.slice(1);
     document.getElementById('avatar').textContent = profile.user_id.charAt(0).toUpperCase();
 
-    // Server computes today's readiness from whatever exists (taps, watch, or both)
-    let readiness = null;
-    try {
-      const r = await api('/v1/readiness/today');
-      if (r.has_data) readiness = r;
-    } catch(_) {}
+    // ONE call gives greeting + readiness + adjusted workout + momentum
+    let wk = null;
+    try { wk = await api('/v1/wakeup'); } catch(_) {}
 
+    if (wk) {
+      document.getElementById('wakeup-greeting').innerHTML =
+        `${wk.greeting} <span class="pulse"></span>`;
+      renderMomentum(wk.momentum);
+      loadVee(!wk.readiness.has_data);
+    }
+
+    const readiness = (wk && wk.readiness.has_data) ? wk.readiness : null;
     if (readiness) {
       cachedSnapshot = { readiness };
       renderSnapshot({ readiness });
       document.getElementById('tiers-title').style.display = '';
       document.getElementById('tier-row').style.display = '';
-      try {
-        cachedWorkout = await api('/v1/workouts/today', { method: 'POST', body: {
-          program: 'ppl_power', week: 3, day_index: 0, readiness: readiness.overall,
-          subjective_energy: 3, soreness: 3, acute_chronic_ratio: 1.0,
-        }});
-        renderWorkout(cachedWorkout);
-      } catch(e) { showError('workout-card', e.message); }
     } else {
       renderReadinessEmpty();
-      try {
-        cachedWorkout = await api('/v1/workouts/today', { method: 'POST', body: {
-          program: 'ppl_power', week: 3, day_index: 0,
-          readiness: 75, subjective_energy: 3, soreness: 3, acute_chronic_ratio: 1.0,
-        }});
-        renderWorkout(cachedWorkout, true);
-      } catch(e) { showError('workout-card', e.message); }
+    }
+    if (wk && wk.workout) {
+      cachedWorkout = wk.workout;
+      renderWorkout(wk.workout, !readiness);
+    } else if (!wk) {
+      showError('workout-card', 'Server unreachable');
     }
 
     // Diet — macros from profile (always shown), consumed from real logs
@@ -1091,12 +1112,108 @@
     document.getElementById('chip-cvd').innerHTML = `<span class="tier-dot LOW"></span>CVD LOW`;
   }
 
+  function renderMomentum(ev) {
+    const box = document.getElementById('momentum-banner');
+    if (!ev) { box.innerHTML = ''; return; }
+    const tone = ev.kind === 'pr' ? 'var(--green)' : 'var(--accent)';
+    box.innerHTML = `
+      <div class="card" style="border-left:3px solid ${tone}; margin-bottom:12px; animation: slideIn .35s ease-out;">
+        <div style="font-weight:700; font-size:14px;">${ev.title}</div>
+        <p class="meta" style="margin-top:4px;">${ev.detail}</p>
+      </div>`;
+    if (ev.kind === 'pr') confettiBurst();
+  }
+
+  // ========== VEE — the training twin mascot ==========
+  let veeState = { stage: 1, level: 0, label: '', mode: 'idle' };
+
+  async function loadVee(asleep) {
+    try {
+      const a = await api('/v1/avatar/state');
+      veeState.stage = a.avatar.stage; veeState.level = a.avatar.level;
+      veeState.label = a.avatar.label;
+    } catch(_) {}
+    veeRender(asleep ? 'sleep' : 'idle');
+  }
+
+  function veeRender(mode) {
+    const wrap = document.getElementById('vee-wrap');
+    if (!wrap) return;
+    veeState.mode = mode;
+    const s = veeState.stage || 1;
+    const torso = 16 + s * 3;            // chest widens with physique stage
+    const arm = 3 + s * 0.9;             // arms thicken
+    const x0 = 32 - torso / 2, x1 = 32 + torso / 2;
+    const armsUp = mode === 'lift';
+    const eyes = mode === 'sleep'
+      ? `<path d="M27 15 h4 M33 15 h4" stroke="#0d1117" stroke-width="1.6" stroke-linecap="round"/>`
+      : `<circle cx="29" cy="15" r="1.6" fill="#0d1117"/><circle cx="35" cy="15" r="1.6" fill="#0d1117"/>`;
+    const smile = mode === 'celebrate'
+      ? `<path d="M28 19 q4 4 8 0" stroke="#0d1117" stroke-width="1.6" fill="none" stroke-linecap="round"/>`
+      : `<path d="M29 19.5 q3 2 6 0" stroke="#0d1117" stroke-width="1.4" fill="none" stroke-linecap="round"/>`;
+    const armPaths = armsUp
+      ? `<path d="M${x0+2} 32 L18 18" stroke="var(--accent)" stroke-width="${arm}" stroke-linecap="round"/>
+         <path d="M${x1-2} 32 L46 18" stroke="var(--accent)" stroke-width="${arm}" stroke-linecap="round"/>`
+      : `<path d="M${x0+2} 32 L${x0-5} 44" stroke="var(--accent)" stroke-width="${arm}" stroke-linecap="round"/>
+         <path d="M${x1-2} 32 L${x1+5} 44" stroke="var(--accent)" stroke-width="${arm}" stroke-linecap="round"/>`;
+    const barbell = armsUp
+      ? `<g><rect x="8" y="14" width="48" height="3" rx="1.5" fill="var(--text-dim)"/>
+           <rect x="6" y="9" width="5" height="13" rx="2" fill="var(--text-dim)"/>
+           <rect x="53" y="9" width="5" height="13" rx="2" fill="var(--text-dim)"/></g>`
+      : '';
+    const zzz = mode === 'sleep'
+      ? `<text class="vee-zzz" x="44" y="10" font-size="9" fill="var(--text-mute)" font-weight="700">z z</text>` : '';
+    wrap.className = 'vee-' + mode;
+    wrap.innerHTML = `<svg width="62" height="74" viewBox="0 0 64 76" role="img" aria-label="Vee, your training twin">
+      <g class="vee-all">
+        ${barbell}${zzz}
+        <circle cx="32" cy="15" r="9.5" fill="var(--accent)"/>
+        ${eyes}${smile}
+        <g class="vee-body">
+          <rect x="${x0}" y="25" width="${torso}" height="26" rx="9" fill="var(--accent)" opacity="0.92"/>
+        </g>
+        ${armPaths}
+        <path d="M28 51 L26 66 M36 51 L38 66" stroke="var(--accent)" stroke-width="${arm + 0.5}" stroke-linecap="round"/>
+      </g>
+    </svg>
+    <div style="font-size:9px; text-align:center; color:var(--text-mute); margin-top:-2px;">Vee · Lv ${veeState.level}</div>`;
+  }
+
+  function veeLift() { veeRender('lift'); setTimeout(() => veeRender('idle'), 4500); }
+  function veeCelebrate() { veeRender('celebrate'); setTimeout(() => veeRender('idle'), 3200); }
+
+  function confettiBurst() {
+    const colors = ['#34d399', '#fbbf24', '#60a5fa', '#f472b6', '#a78bfa'];
+    for (let i = 0; i < 36; i++) {
+      const b = document.createElement('div');
+      b.className = 'confetti-bit';
+      b.style.left = Math.random() * 100 + 'vw';
+      b.style.background = colors[i % colors.length];
+      b.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      b.style.animation = `confettiFall ${1.6 + Math.random() * 1.6}s ease-in ${Math.random() * 0.4}s forwards`;
+      document.body.appendChild(b);
+      setTimeout(() => b.remove(), 4000);
+    }
+  }
+
+  // Plate calculator: what to load per side on a 20 kg bar
+  function plateText(weight) {
+    if (!weight || weight <= 20) return 'empty bar';
+    let per = (weight - 20) / 2;
+    const plates = [25, 20, 15, 10, 5, 2.5, 1.25];
+    const out = [];
+    for (const p of plates) { while (per >= p - 0.01) { out.push(p); per -= p; } }
+    return out.length ? out.join(' + ') + ' /side' : 'empty bar';
+  }
+
   function renderWorkout(w, isDefault = false) {
-    const exs = w.exercises.map(ex => `&nbsp;&nbsp;• ${ex.id.replace(/_/g,' ')}: ${ex.sets}×${ex.reps} <span style="color:var(--text-mute)">(${ex.intensity})</span>`).join('<br>');
+    const exs = w.exercises.map(ex => `&nbsp;&nbsp;• ${ex.id.replace(/_/g,' ')}: ${ex.sets}×${ex.reps} <span style="color:var(--text-mute)">(${ex.intensity || ''})</span>`).join('<br>');
     const defaultNote = isDefault ? `<div style="background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.2); border-radius:8px; padding:8px 12px; font-size:12px; color:var(--yellow); margin-bottom:12px;">⚠ Do your morning check-in to get a personalised decision (GREEN / YELLOW / RED)</div>` : '';
+    const sub = [w.program, w.week ? `Week ${w.week}` : null, w.block ? `${w.block} block` : null,
+                 w.is_custom ? '✏️ your plan' : null].filter(Boolean).join(' · ');
     document.getElementById('workout-card').innerHTML = `
       <h3>🏋️ ${w.day_name} day</h3>
-      <p class="meta" style="margin-bottom:12px;">${w.program} · Week ${w.week} · ${w.block} block</p>
+      <p class="meta" style="margin-bottom:12px;">${sub}</p>
       ${defaultNote}
       <div class="card-row"><span class="lbl">Decision</span><span class="val" style="color:${decisionColor(w.decision)}">${w.decision}</span></div>
       <div class="card-row"><span class="lbl">Exercises</span><span class="val">${w.exercises.length}</span></div>
@@ -1172,31 +1289,43 @@
   async function loadWorkoutLogger() {
     const list = document.getElementById('ex-list');
     try {
-      const w = cachedWorkout || await api('/v1/workouts/today', { method: 'POST', body: {
-        program: 'ppl_power', week: 3, day_index: 0, readiness: 75,
-        subjective_energy: 3, soreness: 3, acute_chronic_ratio: 1.0,
-      }});
+      let w = cachedWorkout;
+      if (!w) {
+        const wake = await api('/v1/wakeup');
+        w = wake.workout;
+      }
+      if (!w) throw new Error('No plan for today');
       cachedWorkout = w;
+      // "Beat this": pre-fill every exercise with your last logged numbers
+      let last = {};
+      try { last = (await api('/v1/logs/sets/last')).last_sets || {}; } catch(_) {}
       workoutState = {};
       list.innerHTML = `<p class="meta" style="margin-bottom:12px;">${w.day_name} · ${w.program}</p>` +
         w.exercises.map((ex, i) => {
-          const reps = parseInt((ex.reps + '').split('-')[0]) || 8;
-          workoutState[ex.id] = { weight: 20, reps, rpe: 8, name: ex.id };
+          const prev = last[ex.id];
+          const reps = prev ? prev.reps : (parseInt((ex.reps + '').split('-')[0]) || 8);
+          const weight = prev ? prev.weight_kg : 20;
+          workoutState[ex.id] = { weight, reps, rpe: 8, name: ex.id, rest_s: ex.rest_s || 90 };
+          const beatThis = prev
+            ? `<div style="font-size:11px; color:var(--accent); margin-bottom:8px;">🎯 Last time: ${prev.weight_kg} kg × ${prev.reps} — beat it</div>`
+            : `<div style="font-size:11px; color:var(--text-mute); margin-bottom:8px;">First time logging this — set the bar</div>`;
           return `
           <div class="ex-card" id="exc-${ex.id}">
             <div class="ex-head" onclick="this.parentElement.classList.toggle('open')">
-              <div><div class="exn">${ex.id.replace(/_/g,' ')}</div><div class="exm">${ex.sets} sets × ${ex.reps} · ${ex.intensity}</div></div>
+              <div><div class="exn">${ex.id.replace(/_/g,' ')}</div><div class="exm">${ex.sets} sets × ${ex.reps} · ${ex.intensity || ''}</div></div>
               <span style="color:var(--text-mute); font-size:13px;">tap ▾</span>
             </div>
             <div class="ex-body">
+              ${beatThis}
               <div class="ex-row">
                 <span class="exlbl">Weight</span>
                 <div class="stepper" style="flex:1;">
                   <button onclick="exStep('${ex.id}','weight',-2.5)">−</button>
-                  <div class="sval" id="w-${ex.id}">20 <small>kg</small></div>
+                  <div class="sval" id="w-${ex.id}">${weight} <small>kg</small></div>
                   <button onclick="exStep('${ex.id}','weight',2.5)">+</button>
                 </div>
               </div>
+              <div style="font-size:10px; color:var(--text-mute); text-align:right; margin:-4px 0 4px;" id="plates-${ex.id}">🏋️ ${plateText(weight)}</div>
               <div class="ex-row">
                 <span class="exlbl">Reps</span>
                 <div class="stepper" style="flex:1;">
@@ -1227,8 +1356,35 @@
   function exStep(id, field, delta) {
     const s = workoutState[id];
     s[field] = Math.max(field === 'weight' ? 0 : 1, s[field] + delta);
-    if (field === 'weight') document.getElementById('w-' + id).innerHTML = s.weight + ' <small>kg</small>';
+    if (field === 'weight') {
+      document.getElementById('w-' + id).innerHTML = s.weight + ' <small>kg</small>';
+      const p = document.getElementById('plates-' + id);
+      if (p) p.textContent = '🏋️ ' + plateText(s.weight);
+    }
     else document.getElementById('r-' + id).textContent = s.reps;
+  }
+
+  // Rest timer: counts down in the exercise card after each logged set
+  const restTimers = {};
+  function startRestTimer(id, seconds) {
+    const el = document.getElementById('res-' + id);
+    if (!el) return;
+    clearInterval(restTimers[id]);
+    let left = seconds;
+    const prevHTML = el.innerHTML;
+    const tick = () => {
+      if (left <= 0) {
+        clearInterval(restTimers[id]);
+        el.innerHTML = prevHTML + `<div style="color:var(--green); font-size:12px; padding:4px 0;">⏰ Rest done — next set!</div>`;
+        if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+        return;
+      }
+      const m = Math.floor(left / 60), sec = (left % 60).toString().padStart(2, '0');
+      el.innerHTML = prevHTML + `<div style="font-size:12px; padding:4px 0;">Rest: <span class="rest-timer">${m}:${sec}</span></div>`;
+      left -= 1;
+    };
+    tick();
+    restTimers[id] = setInterval(tick, 1000);
   }
 
   function exEffort(id, rpe, el) {
@@ -1257,9 +1413,13 @@
       document.getElementById('exc-' + id).classList.add('done');
       if (pr.is_pr) {
         res.innerHTML = `<div style="color:var(--green); font-weight:600; padding:8px 0;">🎉 ${pr.pr_type.toUpperCase()} PR! ${s.weight}kg × ${s.reps}</div>`;
+        confettiBurst();
+        veeCelebrate();
       } else {
         res.innerHTML = `<div style="color:var(--green); padding:8px 0;">✓ Logged ${s.weight}kg × ${s.reps}</div>`;
+        veeLift();
       }
+      startRestTimer(id, s.rest_s || 90);
     } catch (e) {
       res.innerHTML = `<div class="error">${e.message}</div>`;
     }
@@ -1739,34 +1899,7 @@
 
   async function handleCoachCommand(text) {
     try {
-      if (text.includes('briefing') || text.includes('how am i') || text.includes('status')) {
-        await loadToday();
-        const r = cachedSnapshot?.readiness;
-        if (r) {
-          const d = cachedSnapshot.diet;
-          addChat('bot', 'VarunOS', `<strong>${r.color} day</strong> — readiness ${Math.round(r.overall)}/100.<br>HRV ${Math.round(r.components.hrv)} · Sleep ${Math.round(r.components.sleep)} · Load ${Math.round(r.components.load)}<br><br>Target: ${d.target_kcal} kcal · P${d.protein_g}g F${d.fat_g}g C${d.carbs_g}g`);
-        } else {
-          addChat('bot', 'VarunOS', 'Could not reach API. Check Settings → connection.');
-        }
-      } else if (text.includes('workout') || text.includes('train') || text.includes('exercise')) {
-        if (!cachedWorkout) await loadToday();
-        if (cachedWorkout) {
-          const exList = cachedWorkout.exercises.map(e => `${e.id.replace(/_/g,' ')}: ${e.sets}×${e.reps}`).join('<br>');
-          addChat('bot', 'VarunOS', `<strong>${cachedWorkout.day_name}</strong> · ${cachedWorkout.program} · ${cachedWorkout.decision}<br><br>${exList}`);
-        }
-      } else if (text.includes('macro') || text.includes('diet') || text.includes('calorie') || text.includes('eat') || text.includes('nutrition')) {
-        if (!cachedSnapshot) await loadToday();
-        if (cachedSnapshot?.diet) {
-          const d = cachedSnapshot.diet;
-          let meals;
-          try { meals = await api('/v1/logs/meals?limit=50'); } catch(_) { meals = {meals:[]}; }
-          const today = new Date().toISOString().slice(0,10);
-          const todayMeals = (meals.meals||[]).filter(m => m.ts?.startsWith(today));
-          const eaten = todayMeals.reduce((s,m) => s + (m.kcal||0), 0);
-          const items = todayMeals.map(m => `${m.food_id.replace(/_/g,' ')} — ${Math.round(m.kcal)} kcal`).join('<br>');
-          addChat('bot', 'VarunOS', `Target: <strong>${d.target_kcal} kcal</strong> · P${d.protein_g}g F${d.fat_g}g C${d.carbs_g}g<br><br>Eaten today: <strong>${Math.round(eaten)} kcal</strong> (${Math.round(eaten/d.target_kcal*100)}%)<br>${items || '<em>Nothing logged yet</em>'}<br><br>Remaining: ${Math.max(0, d.target_kcal - Math.round(eaten))} kcal`);
-        }
-      } else if (text.includes('history') || text.includes('recent') || text.includes('log')) {
+      if (text.includes('history') || text.includes('recent log')) {
         const meals = await api('/v1/logs/meals?limit=10');
         const wk = await api('/v1/logs/workouts?limit=5');
         let out = '<strong>Recent meals:</strong><br>';
@@ -1791,7 +1924,10 @@
         const r = await api('/v1/programs');
         addChat('bot', 'VarunOS', `Available programs:<br>${r.programs.map(p => `• ${p}`).join('<br>')}`);
       } else {
-        addChat('bot', 'VarunOS', `Try:<br>• <em>briefing</em> — full status<br>• <em>workout</em> — today's session<br>• <em>macros</em> — diet + what you ate<br>• <em>history</em> — recent meals & workouts<br>• <em>search chicken</em> — food lookup<br>• <em>meal plan</em> — generate a plan<br>• <em>programs</em> — list workout programs`);
+        // Everything else → the Brain (LLM if configured, else deterministic)
+        const r = await api('/v1/coach/ask', { method: 'POST', body: { question: text } });
+        const badge = r.engine === 'llm' ? '' : '';
+        addChat('bot', 'VarunOS' + badge, r.answer.replace(/\n/g, '<br>'));
       }
     } catch (e) {
       addChat('bot', 'VarunOS', `Error: ${e.message}`);
@@ -1816,8 +1952,9 @@
     document.getElementById('p-w').value = profile.weight_kg;
     document.getElementById('p-act').value = profile.activity;
     document.getElementById('p-goal').value = profile.goal;
+    document.getElementById('p-wtime').value = profile.workout_time_pref || 'flexible';
   }
-  function saveProfile() {
+  async function saveProfile() {
     profile = {
       user_id: document.getElementById('p-name').value || 'user',
       sex: document.getElementById('p-sex').value,
@@ -1826,8 +1963,18 @@
       weight_kg: parseFloat(document.getElementById('p-w').value),
       activity: document.getElementById('p-act').value,
       goal: document.getElementById('p-goal').value,
+      workout_time_pref: document.getElementById('p-wtime').value,
     };
     localStorage.setItem('varunos_profile', JSON.stringify(profile));
+    // Persist server-side too so /v1/wakeup greets by name and respects the pref
+    try {
+      await api('/v1/user/profile', { method: 'PUT', body: {
+        name: profile.user_id, sex: profile.sex, age: profile.age,
+        height_cm: profile.height_cm, weight_kg: profile.weight_kg,
+        activity: profile.activity, goal: profile.goal,
+        workout_time_pref: profile.workout_time_pref,
+      }});
+    } catch(_) {}
     document.getElementById('profile-status').innerHTML = '<span style="color:var(--green);">✓ Saved. Reloading Today…</span>';
     setTimeout(() => openTab('today'), 600);
   }

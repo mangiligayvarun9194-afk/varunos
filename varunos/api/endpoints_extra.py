@@ -97,6 +97,9 @@ class ProfileIn(BaseModel):
     weight_kg: Optional[float] = None
     activity: Optional[str] = None
     goal: Optional[str] = None
+    workout_time_pref: Optional[str] = None   # morning | evening | flexible
+    active_program: Optional[str] = None      # built-in or custom program name
+    planned_per_week: Optional[int] = None    # target sessions/week
 
 
 @router.get("/v1/user/profile")
@@ -386,6 +389,268 @@ def get_insights():
     result = build_insights(daily)
     result["disclaimer"] = DISCLAIMER
     return result
+
+
+# ---- Readiness forecast ---------------------------------------------------
+
+@router.get("/v1/readiness/forecast")
+def readiness_forecast():
+    """Project tomorrow's readiness from recent trend + sleep + load."""
+    from varunos.core.forecast import forecast_readiness
+    uid = _user_id_from_default()
+    daily = _build_daily_features(uid)
+    recent = [d["readiness"] for d in daily if d.get("readiness") is not None][-10:]
+    if len(recent) < 3:
+        return {"available": False,
+                "reason": "Need at least 3 days of readiness history."}
+    last = daily[-1] if daily else {}
+    fc = forecast_readiness(
+        recent,
+        last_sleep_hours=last.get("sleep_hours"),
+        trained_today=bool(last.get("training_load")),
+    )
+    return {"available": True, **(fc or {})}
+
+
+# ---- Environmental context (AQI + weather → training advice) --------------
+
+class LocationIn(BaseModel):
+    city: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+
+
+def _geocode(city: str) -> Optional[dict]:
+    import httpx
+    try:
+        r = httpx.get("https://geocoding-api.open-meteo.com/v1/search",
+                      params={"name": city, "count": 1}, timeout=8)
+        results = r.json().get("results") or []
+        if results:
+            g = results[0]
+            return {"lat": g["latitude"], "lon": g["longitude"],
+                    "city": f"{g['name']}, {g.get('country_code','')}"}
+    except Exception:
+        return None
+    return None
+
+
+@router.post("/v1/context/location")
+def set_location(payload: LocationIn):
+    uid = _user_id_from_default()
+    if payload.city and (payload.lat is None or payload.lon is None):
+        g = _geocode(payload.city)
+        if not g:
+            raise HTTPException(404, f"Could not find location: {payload.city}")
+        db.upsert_profile(uid, g)
+        return {"saved": True, **g}
+    if payload.lat is not None and payload.lon is not None:
+        data = {"lat": payload.lat, "lon": payload.lon, "city": payload.city or "Custom"}
+        db.upsert_profile(uid, data)
+        return {"saved": True, **data}
+    raise HTTPException(400, "Provide a city name or lat+lon.")
+
+
+@router.get("/v1/context/today")
+def context_today():
+    """Live weather + air quality for the user's location, with training advice."""
+    from varunos.core.context import training_advice, aqi_category
+    import httpx
+    uid = _user_id_from_default()
+    p = db.get_profile(uid) or {}
+    lat, lon = p.get("lat"), p.get("lon")
+    if lat is None or lon is None:
+        return {"available": False,
+                "reason": "Set your location first (Settings → location)."}
+    out: dict = {"available": True, "city": p.get("city")}
+    try:
+        w = httpx.get("https://api.open-meteo.com/v1/forecast", params={
+            "latitude": lat, "longitude": lon,
+            "current": "temperature_2m,relative_humidity_2m,weather_code",
+        }, timeout=8).json().get("current", {})
+        temp = w.get("temperature_2m")
+        hum = w.get("relative_humidity_2m")
+        out["weather"] = {"temp_c": temp, "humidity_pct": hum}
+    except Exception:
+        temp = hum = None
+    try:
+        aq = httpx.get("https://air-quality-api.open-meteo.com/v1/air-quality", params={
+            "latitude": lat, "longitude": lon, "current": "us_aqi,pm2_5",
+        }, timeout=8).json().get("current", {})
+        aqi = aq.get("us_aqi")
+        if aqi is not None:
+            label, color = aqi_category(aqi)
+            out["air_quality"] = {"us_aqi": aqi, "label": label, "color": color,
+                                  "pm2_5": aq.get("pm2_5")}
+    except Exception:
+        aqi = None
+    out["advice"] = training_advice(us_aqi=aqi, temp_c=temp, humidity_pct=hum)
+    return out
+
+
+# ---- The Brain (tier-only coaching; LLM optional) ------------------------
+
+class CoachAskIn(BaseModel):
+    question: str
+
+
+@router.post("/v1/coach/ask")
+def coach_ask(payload: CoachAskIn):
+    """Coaching answer. Uses an LLM if ANTHROPIC_API_KEY is set, else a
+    deterministic template narrator. Either way the brain sees TIERS ONLY."""
+    from varunos.core.brain import build_brain_context, narrate_template, SAFE_SYSTEM_PROMPT
+    from varunos.core.insights import build_insights
+    uid = _user_id_from_default()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Gather tier-only context
+    readiness = readiness_today(today)
+    readiness = readiness if readiness.get("has_data") else None
+    profile = db.get_profile(uid) or {}
+    diet = None
+    if profile.get("weight_kg"):
+        from varunos.core.diet import bmr_mifflin, tdee, goal_kcal, macros
+        bmr = bmr_mifflin(sex=profile.get("sex", "M"), weight_kg=profile["weight_kg"],
+                          height_cm=profile.get("height_cm", 175), age=profile.get("age", 30))
+        tv = tdee(bmr=bmr, activity=profile.get("activity", "moderate"))
+        tk = goal_kcal(tdee_value=tv, goal=profile.get("goal", "recomp"))
+        m = macros(kcal=tk, weight_kg=profile["weight_kg"], goal=profile.get("goal", "recomp"),
+                   sex=profile.get("sex", "M"))
+        diet = {"target_kcal": tk, "protein_g": m.protein_g, "fat_g": m.fat_g, "carbs_g": m.carbs_g}
+    meals = db.list_meals(uid)
+    consumed = sum(mm.get("kcal", 0) for mm in meals if (mm.get("ts") or "").startswith(today))
+    insights = build_insights(_build_daily_features(uid))
+
+    ctx = build_brain_context(readiness=readiness, diet=diet, insights=insights,
+                              consumed_kcal=consumed or None)
+
+    answer = _llm_or_template(payload.question, ctx, SAFE_SYSTEM_PROMPT)
+    db.log_event(uid, "coach_ask", channel="api", payload={"q": payload.question[:120]})
+    return {"answer": answer, "context_used": list(ctx.keys()),
+            "engine": "llm" if os.environ.get("ANTHROPIC_API_KEY") else "deterministic",
+            "disclaimer": DISCLAIMER}
+
+
+def _llm_or_template(question: str, ctx: dict, system: str) -> str:
+    from varunos.core.brain import narrate_template
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return narrate_template(question, ctx)
+    try:
+        import httpx, json as _json
+        r = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={
+                "model": os.environ.get("VARUNOS_LLM_MODEL", "claude-3-5-haiku-latest"),
+                "max_tokens": 350,
+                "system": system,
+                "messages": [{"role": "user", "content":
+                    f"My data (tiers only, no raw values):\n{_json.dumps(ctx, indent=2)}\n\n"
+                    f"Question: {question}"}],
+            }, timeout=30)
+        if r.status_code == 200:
+            blocks = r.json().get("content", [])
+            text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+            return text.strip() or narrate_template(question, ctx)
+        return narrate_template(question, ctx)
+    except Exception:
+        return narrate_template(question, ctx)
+
+
+# ---- Cloud wearable connectors (OAuth: Fitbit / Oura) --------------------
+
+_PROVIDERS = {
+    "fitbit": {
+        "authorize": "https://www.fitbit.com/oauth2/authorize",
+        "token": "https://api.fitbit.com/oauth2/token",
+        "scope": "heartrate sleep activity",
+        "client_id_env": "FITBIT_CLIENT_ID",
+        "client_secret_env": "FITBIT_CLIENT_SECRET",
+    },
+    "oura": {
+        "authorize": "https://cloud.ouraring.com/oauth/authorize",
+        "token": "https://api.ouraring.com/oauth/token",
+        "scope": "daily heartrate",
+        "client_id_env": "OURA_CLIENT_ID",
+        "client_secret_env": "OURA_CLIENT_SECRET",
+    },
+}
+
+
+@router.get("/v1/connect/providers")
+def connect_providers():
+    """Which cloud wearables are configured (have credentials) and connected."""
+    uid = _user_id_from_default()
+    connected = db.list_connected_providers(uid)
+    out = []
+    for name, cfg in _PROVIDERS.items():
+        out.append({
+            "provider": name,
+            "configured": bool(os.environ.get(cfg["client_id_env"])),
+            "connected": name in connected,
+        })
+    return {"providers": out,
+            "note": "Apple Health (via the Shortcut) needs no OAuth and covers most devices."}
+
+
+@router.get("/v1/connect/{provider}/start")
+def connect_start(provider: str, redirect_uri: str):
+    """Return the provider's authorize URL to open in a browser."""
+    cfg = _PROVIDERS.get(provider)
+    if not cfg:
+        raise HTTPException(404, f"Unknown provider: {provider}")
+    client_id = os.environ.get(cfg["client_id_env"])
+    if not client_id:
+        raise HTTPException(503, f"{provider} not configured. Set {cfg['client_id_env']} "
+                                 f"and {cfg['client_secret_env']} on the server.")
+    import urllib.parse
+    params = urllib.parse.urlencode({
+        "response_type": "code", "client_id": client_id,
+        "scope": cfg["scope"], "redirect_uri": redirect_uri,
+    })
+    return {"authorize_url": f"{cfg['authorize']}?{params}"}
+
+
+class OAuthCallbackIn(BaseModel):
+    code: str
+    redirect_uri: str
+
+
+@router.post("/v1/connect/{provider}/callback")
+def connect_callback(provider: str, payload: OAuthCallbackIn):
+    """Exchange an auth code for tokens and store them."""
+    cfg = _PROVIDERS.get(provider)
+    if not cfg:
+        raise HTTPException(404, f"Unknown provider: {provider}")
+    cid = os.environ.get(cfg["client_id_env"])
+    secret = os.environ.get(cfg["client_secret_env"])
+    if not cid or not secret:
+        raise HTTPException(503, f"{provider} not configured.")
+    import httpx, base64
+    uid = _user_id_from_default()
+    auth = base64.b64encode(f"{cid}:{secret}".encode()).decode()
+    try:
+        r = httpx.post(cfg["token"], headers={
+            "Authorization": f"Basic {auth}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }, data={
+            "grant_type": "authorization_code", "code": payload.code,
+            "redirect_uri": payload.redirect_uri, "client_id": cid,
+        }, timeout=20)
+        tok = r.json()
+        if "access_token" not in tok:
+            raise HTTPException(400, f"Token exchange failed: {tok}")
+        db.save_oauth_token(uid, provider, access_token=tok["access_token"],
+                            refresh_token=tok.get("refresh_token"),
+                            expires_at=str(tok.get("expires_in")),
+                            scope=tok.get("scope"))
+        return {"connected": True, "provider": provider}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"OAuth error: {e}")
 
 
 # ---- Wearable sync (Apple Health Shortcut / Fitbit / Oura / Whoop / Garmin) ----
@@ -966,4 +1231,241 @@ def weekly_report():
             "total_meals_logged": len(all_meals),
         },
         "days": days,
+    }
+
+
+# ---- Custom programs (user-uploaded plans) ---------------------------------
+
+class CustomProgramIn(BaseModel):
+    """Same JSON schema as the built-in programs in data/programs/."""
+    name: str
+    goal: str = "custom"
+    split: list[str] = Field(default_factory=list)
+    days_per_week: int = 3
+    weeks: int = 8
+    deload_week: Optional[int] = None
+    progression_rule: str = "double_progression"
+    days: list[dict]   # [{name, exercises: [{id, sets, reps, intensity, rest_s}]}]
+
+
+@router.post("/v1/programs/custom")
+def upload_custom_program(payload: CustomProgramIn):
+    """Upload your own training plan. Stored per-user; usable everywhere a
+    built-in program is (PR detection, readiness auto-regulation, wake-up card)."""
+    import json as _json
+    uid = _user_id_from_default()
+    if not payload.days:
+        raise HTTPException(422, "Program must have at least one day")
+    for d in payload.days:
+        if not d.get("name") or not isinstance(d.get("exercises"), list) or not d["exercises"]:
+            raise HTTPException(422, f"Each day needs a name and a non-empty exercises list (bad day: {d.get('name')!r})")
+        for ex in d["exercises"]:
+            if not ex.get("id"):
+                raise HTTPException(422, f"Every exercise needs an id (day {d['name']})")
+    data = payload.model_dump()
+    db.save_custom_program(uid, payload.name, _json.dumps(data))
+    db.upsert_profile(uid, {"active_program": payload.name})
+    return {"saved": True, "name": payload.name, "days": len(payload.days),
+            "active": True}
+
+
+@router.get("/v1/programs/custom")
+def list_custom():
+    uid = _user_id_from_default()
+    return {"custom_programs": db.list_custom_programs(uid)}
+
+
+def _resolve_program(uid: str, name: str) -> Optional[dict]:
+    """Custom program first, then the built-in JSON library. Returns plain dict."""
+    custom = db.get_custom_program(uid, name)
+    if custom:
+        return custom
+    try:
+        from varunos.core.workouts import load_program
+        p = load_program(name)
+        return {"name": p.name, "days_per_week": p.days_per_week,
+                "days": [{"name": d.name, "exercises": d.exercises} for d in p.days]}
+    except FileNotFoundError:
+        return None
+
+
+# ---- Momentum + avatar -------------------------------------------------------
+
+def _week_key(date_str: str):
+    from datetime import date as _date
+    return _date.fromisoformat(date_str[:10]).isocalendar()[:2]
+
+
+def _momentum_state(uid: str, today: str) -> dict:
+    """Shared assembly for /v1/momentum/today and /v1/avatar/state."""
+    from datetime import date as _date, timedelta as _td
+    from varunos.core import momentum as mo
+
+    since = (_date.fromisoformat(today) - _td(days=90)).isoformat()
+    all_sets = db.list_sets_since(uid, since)
+    session_dates = db.list_workout_dates(uid)
+    profile = db.get_profile(uid) or {}
+    planned = profile.get("planned_per_week") or 3
+
+    # Group sets by exercise and ISO week
+    cur_wk = _week_key(today)
+    prev_wk = _week_key((_date.fromisoformat(today) - _td(days=7)).isoformat())
+    by_ex_week: dict[str, dict[tuple, list[dict]]] = {}
+    for s in all_sets:
+        if not s.get("weight_kg") or not s.get("reps"):
+            continue
+        wk = _week_key(s["ts"])
+        by_ex_week.setdefault(s["exercise_id"], {}).setdefault(wk, []).append(s)
+
+    # Week-over-week progress per exercise
+    progress = []
+    for ex, weeks in by_ex_week.items():
+        if cur_wk in weeks and prev_wk in weeks:
+            ev = mo.exercise_progress(ex, weeks[cur_wk], weeks[prev_wk])
+            if ev:
+                progress.append(ev)
+
+    # PRs set today: best e1RM today beats everything before today
+    pr_titles = []
+    last_pr_date = None
+    running_best: dict[str, float] = {}
+    for s in sorted(all_sets, key=lambda x: x["ts"]):
+        if not s.get("weight_kg") or not s.get("reps"):
+            continue
+        e1 = mo.best_1rm_estimate(s["weight_kg"], s["reps"])
+        prev_best = running_best.get(s["exercise_id"])
+        if prev_best is not None and e1 > prev_best:
+            last_pr_date = s["ts"][:10]
+            if s["ts"][:10] == today:
+                pr_titles.append(
+                    f"{s['exercise_id'].replace('_', ' ').title()} "
+                    f"{s['weight_kg']:g} kg × {s['reps']} (e1RM {e1:.0f} kg)")
+        running_best[s["exercise_id"]] = max(prev_best or 0, e1)
+
+    events = mo.build_events(
+        pr_titles=pr_titles, progress_events=progress,
+        session_dates=session_dates, today=today, planned_per_week=planned,
+    )
+    best = mo.pick_best_event(events)
+
+    # Avatar level inputs
+    weekly_vol: dict[tuple, float] = {}
+    for s in all_sets:
+        if s.get("weight_kg") and s.get("reps"):
+            wk = _week_key(s["ts"])
+            weekly_vol[wk] = weekly_vol.get(wk, 0) + s["weight_kg"] * s["reps"]
+    vols = [v for _, v in sorted(weekly_vol.items())][-4:]
+    trend_pct = 0.0
+    if len(vols) >= 2 and vols[0] > 0:
+        trend_pct = ((vols[-1] / vols[0]) ** (1 / (len(vols) - 1)) - 1) * 100
+    days_since_pr = None
+    if last_pr_date:
+        days_since_pr = (_date.fromisoformat(today) - _date.fromisoformat(last_pr_date)).days
+    streak = mo.weekly_streak(session_dates, today)
+    cons = mo.consistency_4w(session_dates, today, planned)
+    level = mo.avatar_level(volume_trend_pct=trend_pct, streak_weeks=streak,
+                            days_since_pr=days_since_pr, consistency=cons)
+    return {
+        "events": [e.to_dict() for e in events],
+        "best_event": best.to_dict() if best else None,
+        "streak_weeks": streak,
+        "consistency_4w": cons,
+        "volume_trend_pct_per_week": round(trend_pct, 1),
+        "days_since_pr": days_since_pr,
+        "avatar": mo.avatar_stage(level),
+    }
+
+
+@router.get("/v1/logs/sets/last")
+def last_sets():
+    """Most recent logged set per exercise — powers the 'beat this' prefill."""
+    uid = _user_id_from_default()
+    rows = db.list_sets_since(uid, "1970-01-01")
+    latest: dict[str, dict] = {}
+    for s in rows:  # oldest→newest, so later writes win
+        if s.get("weight_kg") and s.get("reps"):
+            latest[s["exercise_id"]] = {
+                "weight_kg": s["weight_kg"], "reps": s["reps"],
+                "rpe": s.get("rpe"), "ts": s["ts"],
+            }
+    return {"last_sets": latest}
+
+
+@router.get("/v1/momentum/today")
+def momentum_today():
+    """Today's motivational state: at most ONE message worth pushing, plus the
+    full event list and streak/consistency stats for the UI."""
+    uid = _user_id_from_default()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return _momentum_state(uid, today)
+
+
+@router.get("/v1/avatar/state")
+def avatar_state():
+    """Physique stage for the mascot. Deterministic from training history."""
+    uid = _user_id_from_default()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    st = _momentum_state(uid, today)
+    return {"avatar": st["avatar"], "streak_weeks": st["streak_weeks"],
+            "volume_trend_pct_per_week": st["volume_trend_pct_per_week"],
+            "days_since_pr": st["days_since_pr"]}
+
+
+# ---- Wake-up: the one call the Today screen makes in the morning -------------
+
+@router.get("/v1/wakeup")
+def wakeup():
+    """Everything the user needs on waking: greeting, readiness, today's
+    workout auto-adjusted to readiness, and the day's momentum message."""
+    from varunos.core.workouts import (
+        decision_for_readiness, auto_regulate, ProgramDay, WorkoutDecision,
+    )
+    uid = _user_id_from_default()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    profile = db.get_profile(uid) or {}
+
+    r = readiness_today()
+    ci = db.get_checkin(uid, today) or {}
+
+    # Today's session from the active program
+    prog_name = profile.get("active_program") or "ppl_power"
+    prog = _resolve_program(uid, prog_name)
+    workout = None
+    if prog and prog.get("days"):
+        # Day index advances with each session this ISO week, cycling the split
+        wk = _week_key(today)
+        done_this_week = sum(1 for d in db.list_workout_dates(uid, days=14)
+                             if _week_key(d) == wk and d != today)
+        day = prog["days"][done_this_week % len(prog["days"])]
+        if r.get("has_data"):
+            decision = decision_for_readiness(
+                readiness=r.get("overall", 70),
+                subjective_energy=ci.get("energy_1to5") or 3,
+                soreness=ci.get("soreness_1to5") or 3,
+            )
+        else:
+            decision = WorkoutDecision.GREEN  # no data yet — show the plan as written
+        exercises = auto_regulate(
+            program_day=ProgramDay(day["name"], day["exercises"]),
+            decision=decision,
+        )
+        workout = {
+            "program": prog.get("name", prog_name),
+            "day_name": day["name"],
+            "decision": decision.value,
+            "exercises": exercises,
+            "is_custom": bool(db.get_custom_program(uid, prog_name)),
+        }
+
+    hour = datetime.now(timezone.utc).hour
+    greeting = "Good morning" if hour < 12 else ("Good afternoon" if hour < 17 else "Good evening")
+    name = profile.get("name")
+
+    return {
+        "greeting": f"{greeting}, {name}" if name else greeting,
+        "date": today,
+        "readiness": r,
+        "workout": workout,
+        "workout_time_pref": profile.get("workout_time_pref") or "flexible",
+        "momentum": _momentum_state(uid, today)["best_event"],
     }

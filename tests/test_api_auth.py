@@ -487,3 +487,96 @@ class TestNoKeyConfigured:
             r = c.get("/v1/programs")
             assert r.status_code == 503
             assert "VARUNOS_API_KEY" in r.json()["detail"]
+
+
+class TestWeek1Endpoints:
+    def test_wakeup_no_data(self, client):
+        r = client.get("/v1/wakeup", headers=_auth())
+        assert r.status_code == 200
+        body = r.json()
+        assert body["greeting"].startswith("Good ")
+        assert body["readiness"]["has_data"] is False
+        assert body["workout"] is not None  # plan shown even with no check-in
+        assert body["workout"]["decision"] == "GREEN"
+
+    def test_wakeup_respects_readiness(self, client):
+        today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+        client.post("/v1/logs/checkins", headers=_auth(), json={
+            "date": today, "sleep_min": 300, "energy_1to5": 2,
+            "soreness_1to5": 4, "mood_1to5": 2, "stress_1to5": 5})
+        r = client.get("/v1/wakeup", headers=_auth())
+        body = r.json()
+        assert body["readiness"]["has_data"] is True
+        assert body["workout"]["decision"] in ("RED", "YELLOW")
+
+    def test_custom_program_upload_and_active(self, client):
+        prog = {
+            "name": "varun_special", "goal": "strength", "days_per_week": 2,
+            "days": [
+                {"name": "Heavy", "exercises": [
+                    {"id": "barbell_squat", "sets": 5, "reps": "5", "rest_s": 180}]},
+                {"name": "Light", "exercises": [
+                    {"id": "walk_zone2", "sets": 1, "reps": "30 min", "rest_s": 0}]},
+            ],
+        }
+        r = client.post("/v1/programs/custom", headers=_auth(), json=prog)
+        assert r.status_code == 200 and r.json()["saved"] is True
+        r = client.get("/v1/programs/custom", headers=_auth())
+        assert "varun_special" in r.json()["custom_programs"]
+        # wake-up now serves the custom plan
+        r = client.get("/v1/wakeup", headers=_auth())
+        w = r.json()["workout"]
+        assert w["program"] == "varun_special" and w["is_custom"] is True
+        assert w["day_name"] == "Heavy"
+
+    def test_custom_program_validation(self, client):
+        r = client.post("/v1/programs/custom", headers=_auth(), json={
+            "name": "bad", "days": [{"name": "X", "exercises": []}]})
+        assert r.status_code == 422
+
+    def test_momentum_empty_history(self, client):
+        r = client.get("/v1/momentum/today", headers=_auth())
+        assert r.status_code == 200
+        body = r.json()
+        assert body["best_event"] is None
+        assert body["avatar"]["stage"] >= 1
+
+    def test_momentum_pr_detected(self, client):
+        # Two sessions: last week 100kg, today 110kg → PR + progress
+        import datetime as dt
+        from varunos import db as vdb
+        uid = "test-user"
+        wid1 = vdb.create_workout_log(uid, {"program": "p", "day_name": "Push",
+                                            "week": 1, "day_index": 0, "decision": "GREEN"})
+        last_week = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=7)).isoformat()
+        with vdb.transaction() as c:
+            c.execute("UPDATE workout_log SET ts=? WHERE id=?", (last_week, wid1))
+            c.execute("INSERT INTO workout_set (user_id, workout_id, exercise_id, set_index, "
+                      "weight_kg, reps, ts) VALUES (?,?,?,?,?,?,?)",
+                      (uid, wid1, "bench_press", 0, 100, 5, last_week))
+        client.post("/v1/logs/workouts", headers=_auth(), json={
+            "program": "p", "day_name": "Push", "week": 2, "day_index": 0,
+            "decision": "GREEN",
+            "sets": [{"exercise_id": "bench_press", "set_index": 0,
+                      "weight_kg": 110, "reps": 5}]})
+        r = client.get("/v1/momentum/today", headers=_auth())
+        body = r.json()
+        assert body["best_event"] is not None
+        assert body["best_event"]["kind"] == "pr"
+        kinds = {e["kind"] for e in body["events"]}
+        assert "progress" in kinds
+
+    def test_avatar_state(self, client):
+        r = client.get("/v1/avatar/state", headers=_auth())
+        assert r.status_code == 200
+        a = r.json()["avatar"]
+        assert 1 <= a["stage"] <= 5 and 0 <= a["level"] <= 100
+
+    def test_profile_workout_pref(self, client):
+        r = client.put("/v1/user/profile", headers=_auth(), json={
+            "name": "Varun", "workout_time_pref": "evening", "planned_per_week": 4})
+        assert r.status_code == 200
+        r = client.get("/v1/wakeup", headers=_auth())
+        body = r.json()
+        assert body["workout_time_pref"] == "evening"
+        assert body["greeting"].endswith("Varun")

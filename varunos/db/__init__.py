@@ -224,6 +224,27 @@ def _migrate(c: sqlite3.Connection) -> None:
         dedup_key   TEXT UNIQUE
     );
     CREATE INDEX IF NOT EXISTS ix_hevent_user_kind_ts ON health_event(user_id, kind, ts);
+
+    -- OAuth tokens for cloud wearable connectors (Fitbit / Oura / Whoop)
+    CREATE TABLE IF NOT EXISTS oauth_token (
+        user_id       TEXT,
+        provider      TEXT,
+        access_token  TEXT,
+        refresh_token TEXT,
+        expires_at    TEXT,
+        scope         TEXT,
+        updated_at    TEXT,
+        PRIMARY KEY (user_id, provider)
+    );
+
+    -- User-uploaded training programs (same JSON schema as data/programs/*.json)
+    CREATE TABLE IF NOT EXISTS custom_program (
+        user_id     TEXT,
+        name        TEXT,
+        program_json TEXT,
+        created_at  TEXT,
+        PRIMARY KEY (user_id, name)
+    );
     """)
     # Additive migrations for wearable sync (idempotent; ALTER only if missing)
     _ensure_columns(c, "daily_checkin", {
@@ -233,6 +254,12 @@ def _migrate(c: sqlite3.Connection) -> None:
         "resting_hr": "REAL",
         "wearable_source": "TEXT",
         "synced_at": "TEXT",
+    })
+    _ensure_columns(c, "user_profile", {
+        "lat": "REAL", "lon": "REAL", "city": "TEXT",
+        "workout_time_pref": "TEXT",      # morning | evening | flexible
+        "active_program": "TEXT",         # built-in name or custom program name
+        "planned_per_week": "INTEGER",    # sessions/week target for consistency math
     })
 
 
@@ -255,7 +282,9 @@ def get_profile(user_id: str) -> dict | None:
 
 def upsert_profile(user_id: str, data: dict) -> dict:
     """Insert or update the user profile. Partial updates merge with existing data."""
-    fields = ["name", "sex", "age", "height_cm", "weight_kg", "activity", "goal"]
+    fields = ["name", "sex", "age", "height_cm", "weight_kg", "activity", "goal",
+              "lat", "lon", "city", "workout_time_pref", "active_program",
+              "planned_per_week"]
     with transaction() as c:
         existing = c.execute("SELECT * FROM user_profile WHERE user_id=?", (user_id,)).fetchone()
         if existing:
@@ -358,6 +387,33 @@ def get_checkin(user_id: str, date: str) -> dict | None:
         "SELECT * FROM daily_checkin WHERE user_id=? AND date=?", (user_id, date)
     ).fetchone()
     return dict(row) if row else None
+
+
+def save_oauth_token(user_id: str, provider: str, *, access_token: str,
+                     refresh_token: str | None, expires_at: str | None,
+                     scope: str | None) -> None:
+    with transaction() as c:
+        c.execute(
+            "INSERT INTO oauth_token (user_id, provider, access_token, refresh_token, "
+            "expires_at, scope, updated_at) VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(user_id, provider) DO UPDATE SET "
+            "access_token=excluded.access_token, refresh_token=excluded.refresh_token, "
+            "expires_at=excluded.expires_at, scope=excluded.scope, updated_at=excluded.updated_at",
+            (user_id, provider, access_token, refresh_token, expires_at, scope, _now()),
+        )
+
+
+def get_oauth_token(user_id: str, provider: str) -> dict | None:
+    row = conn().execute(
+        "SELECT * FROM oauth_token WHERE user_id=? AND provider=?", (user_id, provider)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def list_connected_providers(user_id: str) -> list[str]:
+    rows = conn().execute(
+        "SELECT provider FROM oauth_token WHERE user_id=?", (user_id,)).fetchall()
+    return [r["provider"] for r in rows]
 
 
 def add_health_event(user_id: str, kind: str, value: dict, *, source: str,
@@ -498,6 +554,58 @@ def list_workout_logs(user_id: str, limit: int = 20) -> list[dict]:
         (user_id, limit),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def list_sets_since(user_id: str, since_iso: str) -> list[dict]:
+    """All logged sets since a timestamp, oldest→newest. Fuel for the momentum engine."""
+    rows = conn().execute(
+        "SELECT exercise_id, weight_kg, reps, rpe, ts FROM workout_set "
+        "WHERE user_id=? AND ts >= ? ORDER BY ts ASC",
+        (user_id, since_iso),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_workout_dates(user_id: str, days: int = 120) -> list[str]:
+    """Distinct YYYY-MM-DD dates with at least one workout session, oldest→newest."""
+    rows = conn().execute(
+        "SELECT DISTINCT substr(ts, 1, 10) AS d FROM workout_log "
+        "WHERE user_id=? ORDER BY d DESC LIMIT ?",
+        (user_id, days),
+    ).fetchall()
+    return [r["d"] for r in reversed(rows)]
+
+
+# ========== CUSTOM PROGRAMS ==========
+
+def save_custom_program(user_id: str, name: str, program_json: str) -> None:
+    with transaction() as c:
+        c.execute(
+            "INSERT INTO custom_program (user_id, name, program_json, created_at) "
+            "VALUES (?,?,?,?) ON CONFLICT(user_id, name) DO UPDATE SET "
+            "program_json=excluded.program_json, created_at=excluded.created_at",
+            (user_id, name, program_json, _now()),
+        )
+
+
+def get_custom_program(user_id: str, name: str) -> dict | None:
+    row = conn().execute(
+        "SELECT program_json FROM custom_program WHERE user_id=? AND name=?",
+        (user_id, name),
+    ).fetchone()
+    if not row:
+        return None
+    try:
+        return json.loads(row["program_json"])
+    except Exception:
+        return None
+
+
+def list_custom_programs(user_id: str) -> list[str]:
+    rows = conn().execute(
+        "SELECT name FROM custom_program WHERE user_id=? ORDER BY name", (user_id,)
+    ).fetchall()
+    return [r["name"] for r in rows]
 
 
 # ========== MEAL LOG ==========
