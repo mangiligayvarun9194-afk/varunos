@@ -371,9 +371,126 @@
   .confetti-bit { position: fixed; top: -10px; width: 8px; height: 12px; z-index: 999; pointer-events: none; }
   @keyframes confettiFall { to { transform: translateY(105vh) rotate(720deg); opacity: 0.7; } }
   .rest-timer { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); }
+
+  /* ============ v3 MOTION & DESIGN SYSTEM ============ */
+  :root {
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur-fast: 0.18s; --dur-med: 0.32s; --dur-slow: 0.55s;
+  }
+
+  /* Tab transitions: content rises in with a spring */
+  .tab.active { animation: tabIn var(--dur-med) var(--ease-out); }
+  @keyframes tabIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  /* Staggered card entrance on Today */
+  #tab-today .card, #tab-today .readiness-card { animation: cardIn var(--dur-slow) var(--ease-out) backwards; }
+  #tab-today > *:nth-child(2) .card, #tab-today .readiness-card { animation-delay: 0.05s; }
+  #tab-today #workout-card { animation-delay: 0.12s; }
+  #tab-today #diet-card { animation-delay: 0.18s; }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(14px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+  /* Buttons: lift on press-release, springy */
+  .btn { transition: transform var(--dur-fast) var(--ease-spring), opacity 0.1s, box-shadow var(--dur-fast); }
+  .btn.primary { box-shadow: 0 2px 12px rgba(110, 231, 183, 0.18); }
+  .btn.primary:active { box-shadow: 0 1px 4px rgba(110, 231, 183, 0.1); }
+  .btn:active { transform: scale(0.96); }
+
+  /* Bottom nav: sliding pill indicator + icon pop */
+  nav.bottom button { position: relative; border-radius: 12px; }
+  nav.bottom button .icon { transition: transform var(--dur-fast) var(--ease-spring); }
+  nav.bottom button.active .icon { transform: translateY(-2px) scale(1.12); }
+  nav.bottom button.active::before {
+    content: ''; position: absolute; inset: -2px 4px; border-radius: 12px;
+    background: rgba(110, 231, 183, 0.09); z-index: -1;
+    animation: navPill var(--dur-med) var(--ease-spring);
+  }
+  @keyframes navPill { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* Sheet modal: slides up with spring, drag handle, blurred backdrop */
+  .modal-bg { background: rgba(4, 6, 12, 0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    transition: opacity var(--dur-med); opacity: 0; pointer-events: none; display: flex; }
+  .modal-bg.active { opacity: 1; pointer-events: auto; }
+  .modal { transform: translateY(100%); transition: transform var(--dur-slow) var(--ease-spring);
+    border-top: 1px solid var(--border); box-shadow: 0 -12px 48px rgba(0,0,0,0.5); }
+  .modal-bg.active .modal { transform: translateY(0); }
+  .modal::before { content: ''; display: block; width: 38px; height: 4px; border-radius: 4px;
+    background: var(--border); margin: -6px auto 14px; }
+
+  /* Skeleton shimmer */
+  .skel { position: relative; overflow: hidden; background: var(--bg-elev); border-radius: 10px; min-height: 16px; }
+  .skel::after { content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+    animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+  /* Readiness ring */
+  .ring-wrap { display: flex; align-items: center; gap: 20px; }
+  .ring-svg { flex-shrink: 0; }
+  .ring-track { stroke: var(--bg-elev); }
+  .ring-fill { transition: stroke-dashoffset 1.1s var(--ease-out); transform: rotate(-90deg); transform-origin: center; stroke-linecap: round; }
+  .ring-score { font-size: 30px; font-weight: 800; font-family: "SF Mono", Menlo, monospace; letter-spacing: -0.03em; }
+  .ring-sub { font-size: 9px; fill: var(--text-mute); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* Lock screen */
+  #lock-screen { position: fixed; inset: 0; z-index: 600; background: var(--bg);
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  #lock-screen.active { display: flex; animation: fadeIn var(--dur-med); }
+  #lock-screen.unlocking { animation: lockOut 0.45s var(--ease-out) forwards; }
+  @keyframes lockOut { to { opacity: 0; transform: scale(1.06); visibility: hidden; } }
+  .pin-dots { display: flex; gap: 14px; margin: 18px 0 26px; }
+  .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--text-mute);
+    transition: all var(--dur-fast) var(--ease-spring); }
+  .pin-dot.filled { background: var(--accent); border-color: var(--accent); transform: scale(1.15); }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 76px); gap: 14px; }
+  .pin-key { width: 76px; height: 76px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text); font-size: 26px; font-weight: 600;
+    cursor: pointer; transition: transform var(--dur-fast) var(--ease-spring), background 0.1s;
+    display: flex; align-items: center; justify-content: center; }
+  .pin-key:active { transform: scale(0.9); background: var(--bg-elev); }
+  .pin-key.soft { border: none; background: transparent; font-size: 15px; color: var(--text-dim); }
+  .pin-shake { animation: shake 0.4s; }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-10px); } 40%,80% { transform: translateX(10px); } }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+    border-radius: 999px; padding: 10px 20px; font-size: 13px; font-weight: 600; z-index: 700;
+    opacity: 0; transition: all var(--dur-med) var(--ease-spring); box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
+
+<!-- LOCK SCREEN (PIN / biometric gate over the device-stored key) -->
+<div id="lock-screen">
+  <div id="lock-vee" style="margin-bottom:4px;"></div>
+  <h2 style="font-size:22px; font-weight:700;">Varun<span style="color:var(--accent)">OS</span></h2>
+  <p id="lock-title" style="color:var(--text-dim); font-size:14px;">Enter your PIN</p>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-pad">
+    <button class="pin-key" onclick="pinTap('1')">1</button>
+    <button class="pin-key" onclick="pinTap('2')">2</button>
+    <button class="pin-key" onclick="pinTap('3')">3</button>
+    <button class="pin-key" onclick="pinTap('4')">4</button>
+    <button class="pin-key" onclick="pinTap('5')">5</button>
+    <button class="pin-key" onclick="pinTap('6')">6</button>
+    <button class="pin-key" onclick="pinTap('7')">7</button>
+    <button class="pin-key" onclick="pinTap('8')">8</button>
+    <button class="pin-key" onclick="pinTap('9')">9</button>
+    <button class="pin-key soft" id="pin-left" onclick="pinSkip()">Skip</button>
+    <button class="pin-key" onclick="pinTap('0')">0</button>
+    <button class="pin-key soft" onclick="pinBack()">⌫</button>
+  </div>
+  <button class="btn ghost" id="bio-btn" style="margin-top:22px; display:none;" onclick="bioUnlock()">
+    Unlock with Face ID / Touch ID
+  </button>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <!-- ONBOARDING OVERLAY (shown until localStorage.varunos_onboarded=true) -->
 <div id="onboard-overlay" style="display:none; position:fixed; inset:0; z-index:500; background: var(--bg); overflow-y:auto;">
@@ -397,6 +514,10 @@
       <p style="color:var(--text-dim); margin-bottom: 16px;">
         Where is your VarunOS server running?
       </p>
+      <div style="background:rgba(110,231,183,0.07); border:1px solid rgba(110,231,183,0.2); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--text-dim); margin-bottom:16px;">
+        💡 Already set up on another device? Open Settings → <b>Copy pairing link</b>
+        there, then open that link here — this whole step disappears.
+      </div>
       <div class="form-row" style="margin-bottom: 12px;">
         <label>API base URL</label>
         <input type="text" id="onb-api-base" placeholder="http://127.0.0.1:8000">
@@ -537,11 +658,16 @@
 
     <div class="section-title">Today's plan</div>
     <div class="card" id="workout-card">
-      <div class="loading">Loading workout…</div>
+      <div class="skel" style="width:40%; height:18px; margin-bottom:12px;"></div>
+      <div class="skel" style="width:90%; height:12px; margin-bottom:8px;"></div>
+      <div class="skel" style="width:75%; height:12px; margin-bottom:8px;"></div>
+      <div class="skel" style="width:82%; height:12px;"></div>
     </div>
 
     <div class="card" id="diet-card">
-      <div class="loading">Loading diet…</div>
+      <div class="skel" style="width:45%; height:18px; margin-bottom:12px;"></div>
+      <div class="skel" style="width:100%; height:8px; margin-bottom:10px; border-radius:999px;"></div>
+      <div class="skel" style="width:70%; height:12px;"></div>
     </div>
 
     <div class="disclaimer" id="disclaimer-box">
@@ -777,6 +903,24 @@
     </div>
 
     <div class="card">
+      <h3>🔐 Device security & pairing</h3>
+      <p class="meta" style="margin-bottom:12px;">
+        Protect this device with a PIN (and Face ID / Touch ID), and add new devices
+        by link instead of pasting keys.
+      </p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button class="btn ghost full" onclick="setupPinFromSettings()" id="pin-setup-btn">Set up / change PIN</button>
+        <button class="btn ghost full" onclick="makePairLink()">🔗 Copy pairing link for a new device</button>
+        <button class="btn ghost full" onclick="removePinLock()" style="color:var(--red);">Remove PIN lock</button>
+      </div>
+      <p class="meta" style="margin-top:10px; font-size:11px;">
+        ⚠ The pairing link contains your API key — share it only with yourself
+        (AirDrop / your own notes), never in chat groups. Anyone with the link gets
+        full access to your data.
+      </p>
+    </div>
+
+    <div class="card">
       <h3>Health surveillance (opt-in)</h3>
       <p class="meta">
         Off by default. When OFF, your BP / glucose values are still used to compute a
@@ -844,8 +988,199 @@
 
 <script>
   // ========== CONFIG ==========
+  // ===== Device pairing: open a #pair= link from an already-set-up device =====
+  // The link carries {api, key} base64-encoded in the URL FRAGMENT, which is
+  // never sent to any server. We consume it and scrub it from history at once.
+  (function consumePairLink() {
+    if (!location.hash.startsWith('#pair=')) return;
+    try {
+      const data = JSON.parse(atob(decodeURIComponent(location.hash.slice(6))));
+      if (data.api && data.key) {
+        localStorage.setItem('varunos_api', data.api);
+        localStorage.setItem('varunos_key', data.key);
+        localStorage.setItem('varunos_onboarded', '1');
+        localStorage.setItem('varunos_paired', '1');
+      }
+    } catch (_) {}
+    history.replaceState(null, '', location.pathname + location.search);
+  })();
+
   let API_BASE = localStorage.getItem('varunos_api') || 'http://127.0.0.1:8000';
   let API_KEY = localStorage.getItem('varunos_key') || '';
+
+  // ===== Lock screen: PIN (SHA-256, local) + optional platform biometric =====
+  // Honest model: this protects the key stored ON THIS DEVICE from shoulder
+  // surfers and borrowed phones. Server auth is still the bearer key.
+  let pinBuf = '', pinMode = 'unlock';   // 'unlock' | 'create' | 'confirm'
+  let pinFirst = '';
+
+  async function sha256(s) {
+    const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function lockInit() {
+    const hasPin = !!localStorage.getItem('varunos_pin');
+    const skipped = localStorage.getItem('varunos_pin_skipped');
+    const onboarded = localStorage.getItem('varunos_onboarded');
+    if (!onboarded) return;                 // onboarding overlay handles first run
+    const lock = document.getElementById('lock-screen');
+    if (hasPin) {
+      pinMode = 'unlock';
+      document.getElementById('lock-title').textContent = 'Enter your PIN';
+      document.getElementById('pin-left').style.display = 'none';
+      lock.classList.add('active');
+      lockVee('sleep');
+      if (localStorage.getItem('varunos_bio') && window.PublicKeyCredential) {
+        document.getElementById('bio-btn').style.display = '';
+        bioUnlock();                        // try biometric immediately
+      }
+    } else if (!skipped) {
+      pinMode = 'create';
+      document.getElementById('lock-title').textContent = 'Create a 4-digit PIN to protect this device';
+      document.getElementById('pin-left').style.display = '';
+      lock.classList.add('active');
+      lockVee('idle');
+    }
+  }
+
+  function lockVee(mode) {
+    // Mini Vee on the lock screen for personality
+    const el = document.getElementById('lock-vee');
+    if (!el) return;
+    const eyes = mode === 'sleep'
+      ? `<path d="M27 15 h4 M33 15 h4" stroke="#0d1117" stroke-width="1.6" stroke-linecap="round"/>`
+      : `<circle cx="29" cy="15" r="1.6" fill="#0d1117"/><circle cx="35" cy="15" r="1.6" fill="#0d1117"/>`;
+    el.innerHTML = `<svg width="56" height="60" viewBox="0 0 64 70">
+      <circle cx="32" cy="15" r="9.5" fill="var(--accent)"/>${eyes}
+      <path d="M29 19.5 q3 2 6 0" stroke="#0d1117" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      <rect x="22" y="25" width="20" height="24" rx="9" fill="var(--accent)" opacity="0.92"/>
+      <path d="M24 32 L17 43 M40 32 L47 43" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
+      <path d="M28 49 L26 62 M36 49 L38 62" stroke="var(--accent)" stroke-width="4.5" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  function pinDots() {
+    document.querySelectorAll('#pin-dots .pin-dot').forEach((d, i) =>
+      d.classList.toggle('filled', i < pinBuf.length));
+  }
+
+  async function pinTap(n) {
+    if (pinBuf.length >= 4) return;
+    pinBuf += n;
+    pinDots();
+    if (pinBuf.length < 4) return;
+    const entered = pinBuf;
+    if (pinMode === 'unlock') {
+      const h = await sha256(entered);
+      if (h === localStorage.getItem('varunos_pin')) unlockNow();
+      else pinFail();
+    } else if (pinMode === 'create') {
+      pinFirst = entered; pinMode = 'confirm'; pinBuf = '';
+      document.getElementById('lock-title').textContent = 'Type it once more to confirm';
+      setTimeout(pinDots, 150);
+    } else if (pinMode === 'confirm') {
+      if (entered === pinFirst) {
+        localStorage.setItem('varunos_pin', await sha256(entered));
+        showToast('🔒 PIN set');
+        offerBiometric();
+        unlockNow();
+      } else {
+        pinMode = 'create'; pinFirst = '';
+        document.getElementById('lock-title').textContent = "Didn't match — create a 4-digit PIN";
+        pinFail();
+      }
+    }
+  }
+
+  function pinBack() { pinBuf = pinBuf.slice(0, -1); pinDots(); }
+  function pinSkip() {
+    localStorage.setItem('varunos_pin_skipped', '1');
+    unlockNow();
+  }
+  function pinFail() {
+    pinBuf = '';
+    const dots = document.getElementById('pin-dots');
+    dots.classList.add('pin-shake');
+    if (navigator.vibrate) navigator.vibrate(160);
+    setTimeout(() => { dots.classList.remove('pin-shake'); pinDots(); }, 420);
+  }
+  function unlockNow() {
+    const lock = document.getElementById('lock-screen');
+    lock.classList.add('unlocking');
+    setTimeout(() => { lock.classList.remove('active', 'unlocking'); }, 460);
+    pinBuf = ''; pinDots();
+  }
+
+  // Biometric (platform authenticator). Local gesture only — key stays on device.
+  async function offerBiometric() {
+    if (!window.PublicKeyCredential) return;
+    try {
+      const ok = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!ok) return;
+      const cred = await navigator.credentials.create({ publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: 'VarunOS' },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'varunos-user', displayName: 'VarunOS' },
+        pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+        timeout: 30000,
+      }});
+      if (cred) {
+        localStorage.setItem('varunos_bio', btoa(String.fromCharCode(...new Uint8Array(cred.rawId))));
+        showToast('✓ Face ID / Touch ID enabled');
+      }
+    } catch (_) {}
+  }
+
+  async function bioUnlock() {
+    try {
+      const rawId = Uint8Array.from(atob(localStorage.getItem('varunos_bio')), c => c.charCodeAt(0));
+      const a = await navigator.credentials.get({ publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        allowCredentials: [{ id: rawId, type: 'public-key' }],
+        userVerification: 'required', timeout: 30000,
+      }});
+      if (a) unlockNow();
+    } catch (_) {} // fall back to PIN silently
+  }
+
+  // ===== Pairing link generator (Settings) =====
+  function makePairLink() {
+    if (!API_KEY) { showToast('Connect to your server first'); return; }
+    const payload = btoa(JSON.stringify({ api: API_BASE, key: API_KEY }));
+    const link = location.origin + location.pathname + '#pair=' + encodeURIComponent(payload);
+    navigator.clipboard.writeText(link).then(
+      () => showToast('🔗 Pairing link copied — open it on your other device'),
+      () => prompt('Copy this pairing link:', link));
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  function setupPinFromSettings() {
+    localStorage.removeItem('varunos_pin');
+    localStorage.removeItem('varunos_pin_skipped');
+    pinMode = 'create'; pinBuf = ''; pinFirst = '';
+    document.getElementById('lock-title').textContent = 'Create a 4-digit PIN to protect this device';
+    document.getElementById('pin-left').style.display = '';
+    document.getElementById('bio-btn').style.display = 'none';
+    document.getElementById('lock-screen').classList.add('active');
+    lockVee('idle');
+    pinDots();
+  }
+
+  function removePinLock() {
+    localStorage.removeItem('varunos_pin');
+    localStorage.removeItem('varunos_bio');
+    localStorage.setItem('varunos_pin_skipped', '1');
+    showToast('PIN lock removed');
+  }
 
   // ========== STATE ==========
   let profile = JSON.parse(localStorage.getItem('varunos_profile') || JSON.stringify({
@@ -1082,6 +1417,7 @@
   function renderSnapshot(s) {
     const r = s.readiness;
     const colorClass = r.color.toLowerCase();
+    const tone = colorClass === 'green' ? 'var(--green)' : colorClass === 'yellow' ? 'var(--yellow)' : 'var(--red)';
     const statusText = {
       GREEN: '🟢 Green day — go for it',
       YELLOW: '🟡 Yellow day — pull back a little',
@@ -1094,19 +1430,49 @@
     const srcLabels = { apple_health: '⌚ Apple Health', fitbit: '⌚ Fitbit', oura: '💍 Oura', whoop: '🔴 Whoop', garmin: '⌚ Garmin', manual: '' };
     const srcBadge = (r.source && r.source !== 'manual')
       ? `<div style="position:absolute; top:16px; right:16px; font-size:11px; color:var(--text-mute);">${srcLabels[r.source] || '⌚ Synced'}</div>` : '';
+    // Animated ring: r=54, circumference = 2π·54 ≈ 339.3
+    const CIRC = 339.3;
+    const score = Math.round(r.overall);
     document.getElementById('readiness-card-wrap').innerHTML = `
       <div class="readiness-card ${colorClass}" id="readiness-card" style="position:relative;">
         ${srcBadge}
-        <div class="readiness-label">Readiness</div>
-        <div class="readiness-score" style="color:${colorClass === 'green' ? 'var(--green)' : colorClass === 'yellow' ? 'var(--yellow)' : 'var(--red)'}">${Math.round(r.overall)}</div>
-        <div class="readiness-status">${statusText}</div>
-        <div class="readiness-components">
-          ${comps.map(([k, v]) => `<div class="readiness-component">
-            <div class="label">${k}</div><div class="value" style="color:${compColor(v)}">${Math.round(v)}</div>
-          </div>`).join('')}
+        <div class="ring-wrap">
+          <svg class="ring-svg" width="128" height="128" viewBox="0 0 128 128">
+            <circle class="ring-track" cx="64" cy="64" r="54" fill="none" stroke-width="10"/>
+            <circle class="ring-fill" id="ring-fill" cx="64" cy="64" r="54" fill="none"
+              stroke="${tone}" stroke-width="10"
+              stroke-dasharray="${CIRC}" stroke-dashoffset="${CIRC}"/>
+            <text x="64" y="68" text-anchor="middle" class="ring-score" fill="${tone}" id="ring-num">0</text>
+            <text x="64" y="84" text-anchor="middle" class="ring-sub">Readiness</text>
+          </svg>
+          <div style="flex:1;">
+            <div class="readiness-status" style="margin-top:0;">${statusText}</div>
+            <div class="readiness-components" style="grid-template-columns: repeat(2, 1fr);">
+              ${comps.map(([k, v]) => `<div class="readiness-component">
+                <div class="label">${k}</div><div class="value" style="color:${compColor(v)}">${Math.round(v)}</div>
+              </div>`).join('')}
+            </div>
+          </div>
         </div>
       </div>
     `;
+    // Animate ring + count-up. setTimeout (not rAF) so it also runs when the
+    // tab is hidden — rAF never fires in background tabs and the ring would
+    // stay empty. The count-up uses rAF for smoothness with a timeout backstop.
+    setTimeout(() => {
+      const fill = document.getElementById('ring-fill');
+      if (fill) fill.style.strokeDashoffset = (CIRC * (1 - score / 100)).toFixed(1);
+      const num = document.getElementById('ring-num');
+      const t0 = performance.now();
+      const tick = (t) => {
+        const p = Math.min(1, (t - t0) / 1000);
+        const eased = 1 - Math.pow(1 - p, 3);
+        if (num) num.textContent = Math.round(score * eased);
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      setTimeout(() => { if (num) num.textContent = score; }, 1200);
+    }, 60);
     document.getElementById('chip-glucose').innerHTML = `<span class="tier-dot LOW"></span>Glucose LOW`;
     document.getElementById('chip-bp').innerHTML = `<span class="tier-dot LOW"></span>BP LOW`;
     document.getElementById('chip-cvd').innerHTML = `<span class="tier-dot LOW"></span>CVD LOW`;
@@ -2018,7 +2384,8 @@
   function clearLocalCache() {
     if (!confirm('Clear all VarunOS data stored in this browser? (server data is untouched.)')) return;
     ['varunos_api','varunos_key','varunos_profile','varunos_checkin','varunos_onboarded',
-     'varunos_surveillance_ack'].forEach(k => localStorage.removeItem(k));
+     'varunos_surveillance_ack','varunos_pin','varunos_bio','varunos_pin_skipped',
+     'varunos_paired'].forEach(k => localStorage.removeItem(k));
     location.reload();
   }
 
@@ -2255,6 +2622,7 @@
   });
 
   // Initial load
+  lockInit();
   loadConnectionForm();
   maybeShowOnboard();
   healthCheck();
