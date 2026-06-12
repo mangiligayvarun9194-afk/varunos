@@ -260,6 +260,7 @@ def _migrate(c: sqlite3.Connection) -> None:
         "workout_time_pref": "TEXT",      # morning | evening | flexible
         "active_program": "TEXT",         # built-in name or custom program name
         "planned_per_week": "INTEGER",    # sessions/week target for consistency math
+        "avatar_url": "TEXT",             # Ready Player Me .glb URL for the 3D Twin
     })
 
 
@@ -284,7 +285,7 @@ def upsert_profile(user_id: str, data: dict) -> dict:
     """Insert or update the user profile. Partial updates merge with existing data."""
     fields = ["name", "sex", "age", "height_cm", "weight_kg", "activity", "goal",
               "lat", "lon", "city", "workout_time_pref", "active_program",
-              "planned_per_week"]
+              "planned_per_week", "avatar_url"]
     with transaction() as c:
         existing = c.execute("SELECT * FROM user_profile WHERE user_id=?", (user_id,)).fetchone()
         if existing:

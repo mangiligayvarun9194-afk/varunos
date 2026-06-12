@@ -100,6 +100,7 @@ class ProfileIn(BaseModel):
     workout_time_pref: Optional[str] = None   # morning | evening | flexible
     active_program: Optional[str] = None      # built-in or custom program name
     planned_per_week: Optional[int] = None    # target sessions/week
+    avatar_url: Optional[str] = None          # Ready Player Me .glb for the 3D Twin
 
 
 @router.get("/v1/user/profile")

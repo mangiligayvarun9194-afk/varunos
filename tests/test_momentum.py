@@ -69,7 +69,7 @@ class TestStreaks:
 
 class TestAvatar:
     def test_level_bounds(self):
-        assert avatar_level() == 13  # baseline: small volume-trend credit only
+        assert avatar_level() == 10  # baseline: small volume-trend credit only
         hi = avatar_level(volume_trend_pct=10, streak_weeks=8, days_since_pr=0, consistency=1.0)
         assert hi == 100
 

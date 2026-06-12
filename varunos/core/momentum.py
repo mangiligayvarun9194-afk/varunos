@@ -149,7 +149,7 @@ def avatar_level(
 ) -> int:
     """Physique score 0–100 for the avatar. Deterministic and explainable.
 
-    40% volume trend · 30% streak · 20% PR recency · 10% consistency.
+    30% volume trend · 20% streak · 25% PR recency · 25% consistency.
     """
     vol = max(0.0, min(1.0, (volume_trend_pct + 5) / 15))     # -5% → 0, +10% → 1
     stk = max(0.0, min(1.0, streak_weeks / 8))                # 8-week streak maxes it
@@ -158,7 +158,7 @@ def avatar_level(
     else:
         pr = max(0.0, min(1.0, 1 - days_since_pr / 30))       # linear decay over 30 days
     cons = max(0.0, min(1.0, consistency))
-    return round(100 * (0.40 * vol + 0.30 * stk + 0.20 * pr + 0.10 * cons))
+    return round(100 * (0.30 * vol + 0.20 * stk + 0.25 * pr + 0.25 * cons))
 
 
 def avatar_stage(level: int) -> dict:
