@@ -16,8 +16,12 @@ deterministic intelligence core. Single-user by design. Deployed on Render
 - `varunos/db/__init__.py` — plain SQLite, no ORM. `health_event` is the
   append-only spine with `dedup_key UNIQUE` (idempotent ingest). Migrations are
   idempotent `CREATE TABLE IF NOT EXISTS` + `_ensure_columns()` ALTERs.
-- `pwa/index.html` — the ENTIRE frontend is this one file (~2600 lines).
-  Vanilla JS, no framework, no build step. Keep it that way.
+- `web/` — the frontend: Vite + React 18 + Framer Motion ("Obsidian" design
+  system, tokens in `web/src/theme.css`). Build with `cd web && npm run build`;
+  the output `web/dist/` is COMMITTED so Render serves it without a Node
+  toolchain. After any frontend change, rebuild and commit the new dist.
+- `pwa/index.html` — the legacy single-file PWA, kept at `/legacy` as a
+  transition fallback. Do not add features here.
 - `n8n/workflows/*.json` — automation workflows that call back into the API.
 - `vos` — stdlib-only CLI client.
 
@@ -42,8 +46,8 @@ deterministic intelligence core. Single-user by design. Deployed on Render
 
 - Run tests: `PYTHONPATH=. python3 -m pytest tests/ -q` — currently 318 pass.
   All must pass before you finish. New logic in `core/` requires new tests.
-- Validate PWA JS after editing `pwa/index.html`:
-  `python3 -c "import re; html=open('pwa/index.html').read(); open('/tmp/v.js','w').write('\n'.join(re.findall(r'<script>(.*?)</script>', html, re.S)))" && node --check /tmp/v.js`
+- Frontend: `cd web && npm run build` must succeed after any `web/src` change,
+  and the refreshed `web/dist/` must be part of the same commit.
 - Run the server locally:
   `set -a; source .env; set +a; PYTHONPATH=. python3 -m uvicorn varunos.api.server:app --port 8000`
 - Python 3.11 (pinned in `.python-version` for Render). Dependencies in

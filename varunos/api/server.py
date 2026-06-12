@@ -491,16 +491,29 @@ def _startup_check():
 # Re-import json for the list_programs endpoint
 import json
 
-# ---- Serve the PWA from the same origin (optional, controlled by VARUNOS_SERVE_PWA) ----
+# ---- Serve the frontend from the same origin (optional, VARUNOS_SERVE_PWA) ----
+# The React app (web/dist, committed so Render needs no Node build) is the
+# primary UI at /. The legacy single-file PWA stays available at /legacy.
 import os as _os
 _PWA_DIR = _os.path.join(_os.path.dirname(__file__), "..", "..", "pwa")
+_WEB_DIST = _os.path.join(_os.path.dirname(__file__), "..", "..", "web", "dist")
 if _os.path.isdir(_PWA_DIR) and _os.environ.get("VARUNOS_SERVE_PWA", "1") != "0":
     # Mount static assets (manifest, icons, sw.js) under /static path so they
     # don't collide with API routes. The app's root / serves index.html.
     app.mount("/static", StaticFiles(directory=_PWA_DIR), name="pwa-static")
+    if _os.path.isdir(_os.path.join(_WEB_DIST, "assets")):
+        app.mount("/assets", StaticFiles(directory=_os.path.join(_WEB_DIST, "assets")),
+                  name="web-assets")
 
     @app.get("/")
     def root_index():
+        new_ui = _os.path.join(_WEB_DIST, "index.html")
+        if _os.path.isfile(new_ui):
+            return FileResponse(new_ui)
+        return FileResponse(_os.path.join(_PWA_DIR, "index.html"))
+
+    @app.get("/legacy")
+    def legacy_index():
         return FileResponse(_os.path.join(_PWA_DIR, "index.html"))
 
     @app.get("/manifest.json")
