@@ -1,6 +1,6 @@
 {
   "name": "VarunOS \u2014 30 Telegram Concierge",
-  "description": "Single inbound Telegram bot webhook. Photo of a meal -> OpenAI vision estimates macros -> POST /v1/logs/meals -> confirmation. Any text -> /v1/coach/ask (server-side privacy gate, tiers only) -> reply. Closes the long-planned Photo Analyzer (#05) and makes the notifier bot two-way. Needs OPENAI_API_KEY; set the bot webhook to this URL.",
+  "description": "Single inbound Telegram bot webhook, fanned out by message type. Photo of a meal -> OpenAI vision macros -> POST /v1/logs/meals -> reply. Voice note -> Whisper transcribe -> text->macros -> POST /v1/logs/meals -> reply. Any text -> /v1/coach/ask (server-side privacy gate) -> reply. Needs OPENAI_API_KEY; set the bot webhook to this URL.",
   "nodes": [
     {
       "parameters": {
@@ -14,21 +14,21 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        240,
-        460
+        220,
+        520
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Classify an inbound Telegram update into a route + normalized fields.\n// One webhook = the bot's single allowed webhook; we fan out by message type.\nconst u = $json.body || $json;\nconst m = u.message || u.edited_message || u.channel_post || {};\nconst chat_id = (m.chat && m.chat.id) || '';\nlet route = 'other';\nlet file_id = '';\nif (Array.isArray(m.photo) && m.photo.length) {\n  route = 'photo';\n  file_id = m.photo[m.photo.length - 1].file_id; // largest rendition\n} else if (m.text) {\n  route = 'text';\n}\nreturn [{ json: {\n  route,\n  chat_id,\n  file_id,\n  text: m.text || '',\n  caption: m.caption || '',\n} }];\n"
+        "jsCode": "// One webhook = the bot's single allowed webhook; fan out by message type.\nconst u = $json.body || $json;\nconst m = u.message || u.edited_message || u.channel_post || {};\nconst chat_id = (m.chat && m.chat.id) || '';\nlet route = 'other', file_id = '';\nif (Array.isArray(m.photo) && m.photo.length) {\n  route = 'photo';\n  file_id = m.photo[m.photo.length - 1].file_id; // largest rendition\n} else if (m.voice) {\n  route = 'voice';\n  file_id = m.voice.file_id;\n} else if (m.text) {\n  route = 'text';\n}\nreturn [{ json: { route, chat_id, file_id, text: m.text || '', caption: m.caption || '' } }];\n"
       },
       "id": "classify",
       "name": "Classify update",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        460,
-        460
+        440,
+        520
       ]
     },
     {
@@ -42,20 +42,24 @@
               "output": 0
             },
             {
-              "value2": "text",
+              "value2": "voice",
               "output": 1
+            },
+            {
+              "value2": "text",
+              "output": 2
             }
           ]
         },
-        "fallbackOutput": 2
+        "fallbackOutput": 3
       },
       "id": "router",
       "name": "Route by type",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 1,
       "position": [
-        680,
-        460
+        660,
+        520
       ]
     },
     {
@@ -66,19 +70,22 @@
           "timeout": 10000
         }
       },
-      "id": "tg-getfile",
-      "name": "Telegram getFile",
+      "id": "ph-getfile",
+      "name": "Photo getFile",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        920,
-        300
+        900,
+        200
       ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://api.openai.com/v1/chat/completions",
+        "options": {
+          "timeout": 30000
+        },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -90,31 +97,28 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\"model\": \"gpt-4o-mini\", \"temperature\": 0, \"max_tokens\": 200, \"response_format\": {\"type\": \"json_object\"}, \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"You are a sports nutritionist. Estimate the nutrition of the food in this photo for the whole plate as served. Reply with ONLY a strict JSON object, no prose: {\\\"label\\\": short dish name, \\\"kcal\\\": int, \\\"p_g\\\": int protein grams, \\\"c_g\\\": int carb grams, \\\"f_g\\\": int fat grams}. If it is not food, return {\\\"label\\\":\\\"not food\\\",\\\"kcal\\\":0,\\\"p_g\\\":0,\\\"c_g\\\":0,\\\"f_g\\\":0}.\"}, {\"type\": \"image_url\", \"image_url\": {\"url\": \"=https://api.telegram.org/file/bot{{$env.TELEGRAM_BOT_TOKEN}}/{{$json.result.file_path}}\"}}]}]}) }}",
-        "options": {
-          "timeout": 30000
-        }
+        "jsonBody": "={{ JSON.stringify({\"model\": \"gpt-4o-mini\", \"temperature\": 0, \"max_tokens\": 200, \"response_format\": {\"type\": \"json_object\"}, \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"You are a sports nutritionist. Estimate the nutrition of the food in this photo for the whole plate as served. Reply with ONLY strict JSON, no prose: {\\\"label\\\": short dish name, \\\"kcal\\\": int, \\\"p_g\\\": int, \\\"c_g\\\": int, \\\"f_g\\\": int}. If it is not food return {\\\"label\\\":\\\"not food\\\",\\\"kcal\\\":0,\\\"p_g\\\":0,\\\"c_g\\\":0,\\\"f_g\\\":0}.\"}, {\"type\": \"image_url\", \"image_url\": {\"url\": \"=https://api.telegram.org/file/bot{{$env.TELEGRAM_BOT_TOKEN}}/{{$json.result.file_path}}\"}}]}]}) }}"
       },
-      "id": "vision",
-      "name": "OpenAI vision",
+      "id": "ph-vision",
+      "name": "Vision: meal macros",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1160,
-        300
+        1120,
+        200
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Parse the vision model's JSON macro estimate. The model is asked for a\n// strict JSON object; we still defend against code fences / stray prose.\nconst choice = $json.choices && $json.choices[0];\nconst raw = (choice && choice.message && choice.message.content) || '{}';\nlet txt = String(raw).trim().replace(/^```(json)?/i, '').replace(/```$/,'').trim();\nlet obj = {};\ntry { obj = JSON.parse(txt); } catch (e) {\n  const s = txt.indexOf('{'), eIdx = txt.lastIndexOf('}');\n  if (s !== -1 && eIdx !== -1) { try { obj = JSON.parse(txt.slice(s, eIdx + 1)); } catch (_) {} }\n}\nconst num = (v) => { const n = Number(v); return isFinite(n) ? Math.round(n) : 0; };\nconst cls = $node[\"Classify update\"].json;\nreturn [{ json: {\n  food_id: (obj.label || 'meal photo').toString().slice(0, 60),\n  portions: 1,\n  context: cls.caption || 'photo',\n  kcal: num(obj.kcal),\n  p_g: num(obj.p_g),\n  c_g: num(obj.c_g),\n  f_g: num(obj.f_g),\n  chat_id: cls.chat_id,\n  confident: num(obj.kcal) > 0,\n} }];\n"
+        "jsCode": "// Parse a vision/text model's strict-JSON macro estimate, defending against\n// code fences or stray prose. chat_id carried from the Classify node.\nconst choice = $json.choices && $json.choices[0];\nconst raw = (choice && choice.message && choice.message.content) || '{}';\nlet txt = String(raw).trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();\nlet o = {};\ntry { o = JSON.parse(txt); } catch (e) {\n  const s = txt.indexOf('{'), ei = txt.lastIndexOf('}');\n  if (s !== -1 && ei !== -1) { try { o = JSON.parse(txt.slice(s, ei + 1)); } catch (_) {} }\n}\nconst num = (v) => { const n = Number(v); return isFinite(n) ? Math.round(n) : 0; };\nconst cls = $node[\"Classify update\"].json;\nreturn [{ json: {\n  food_id: (o.label || 'meal').toString().slice(0, 60),\n  portions: 1,\n  context: cls.caption || (cls.route === 'voice' ? 'voice' : 'photo'),\n  kcal: num(o.kcal), p_g: num(o.p_g), c_g: num(o.c_g), f_g: num(o.f_g),\n  chat_id: cls.chat_id,\n  confident: num(o.kcal) > 0,\n} }];\n"
       },
-      "id": "parse-macros",
-      "name": "Parse macros",
+      "id": "ph-parse",
+      "name": "Parse meal macros",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1380,
-        300
+        1340,
+        200
       ]
     },
     {
@@ -128,19 +132,22 @@
           ]
         }
       },
-      "id": "if-confident",
-      "name": "Got macros?",
+      "id": "ph-if",
+      "name": "Photo: got macros?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        1600,
-        300
+        1560,
+        200
       ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "={{$env.VARUNOS_API_BASE}}/v1/logs/meals",
+        "options": {
+          "timeout": 10000
+        },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -152,55 +159,55 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\"food_id\": \"={{$json.food_id}}\", \"portions\": \"={{$json.portions}}\", \"context\": \"={{$json.context}}\", \"kcal\": \"={{$json.kcal}}\", \"p_g\": \"={{$json.p_g}}\", \"c_g\": \"={{$json.c_g}}\", \"f_g\": \"={{$json.f_g}}\"}) }}",
-        "options": {
-          "timeout": 10000
-        }
+        "jsonBody": "={{ JSON.stringify({\"food_id\": \"={{$json.food_id}}\", \"portions\": \"={{$json.portions}}\", \"context\": \"={{$json.context}}\", \"kcal\": \"={{$json.kcal}}\", \"p_g\": \"={{$json.p_g}}\", \"c_g\": \"={{$json.c_g}}\", \"f_g\": \"={{$json.f_g}}\"}) }}"
       },
-      "id": "log-meal",
-      "name": "POST /v1/logs/meals",
+      "id": "ph-log",
+      "name": "Photo: POST meal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1820,
-        220
+        1780,
+        120
       ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "options": {
+          "timeout": 10000
+        },
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
           "parameters": [
             {
               "name": "chat_id",
-              "value": "={{$node[\"Parse macros\"].json.chat_id}}"
+              "value": "={{$node[\"Parse meal macros\"].json.chat_id}}"
             },
             {
               "name": "text",
-              "value": "=Logged \ud83c\udf7d\ufe0f {{$node[\"Parse macros\"].json.food_id}}\\n{{$node[\"Parse macros\"].json.kcal}} kcal \u00b7 P{{$node[\"Parse macros\"].json.p_g}} C{{$node[\"Parse macros\"].json.c_g}} F{{$node[\"Parse macros\"].json.f_g}}\\nToday: {{$json.day_kcal_total}} kcal"
+              "value": "=Logged \ud83c\udf7d\ufe0f {{$node[\"Parse meal macros\"].json.food_id}}\\n{{$node[\"Parse meal macros\"].json.kcal}} kcal \u00b7 P{{$node[\"Parse meal macros\"].json.p_g}} C{{$node[\"Parse meal macros\"].json.c_g}} F{{$node[\"Parse meal macros\"].json.f_g}}\\nToday: {{$json.day_kcal_total}} kcal"
             }
           ]
-        },
-        "options": {
-          "timeout": 10000
         }
       },
-      "id": "reply-logged",
-      "name": "Reply: logged",
+      "id": "ph-reply-ok",
+      "name": "Photo: reply logged",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        2040,
-        220
+        2000,
+        120
       ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "options": {
+          "timeout": 10000
+        },
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
@@ -214,24 +221,166 @@
               "value": "=Couldn't read that plate \ud83d\ude15 \u2014 try a clearer, well-lit photo, or log it in the app."
             }
           ]
-        },
+        }
+      },
+      "id": "ph-reply-no",
+      "name": "Photo: reply unsure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1780,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/getFile?file_id={{$json.file_id}}",
         "options": {
           "timeout": 10000
         }
       },
-      "id": "reply-unsure",
-      "name": "Reply: unsure",
+      "id": "vo-getfile",
+      "name": "Voice getFile",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1820,
-        400
+        900,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.telegram.org/file/bot{{$env.TELEGRAM_BOT_TOKEN}}/{{$json.result.file_path}}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "vo-download",
+      "name": "Voice download",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        460
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.VARUNOS_API_BASE}}/v1/coach/ask",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "vo-whisper",
+      "name": "Whisper transcribe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "options": {
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'gpt-4o-mini',temperature:0,max_tokens:200,response_format:{type:'json_object'},messages:[{role:'user',content:\"The user described what they just ate. Estimate total macros for everything mentioned. Reply ONLY strict JSON {\\\"label\\\":short summary,\\\"kcal\\\":int,\\\"p_g\\\":int,\\\"c_g\\\":int,\\\"f_g\\\":int}. If not about food, kcal 0. They said: \" + ($node[\"Whisper transcribe\"].json.text || '')}]}) }}"
+      },
+      "id": "vo-llm",
+      "name": "Voice: text\u2192macros",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse a vision/text model's strict-JSON macro estimate, defending against\n// code fences or stray prose. chat_id carried from the Classify node.\nconst choice = $json.choices && $json.choices[0];\nconst raw = (choice && choice.message && choice.message.content) || '{}';\nlet txt = String(raw).trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();\nlet o = {};\ntry { o = JSON.parse(txt); } catch (e) {\n  const s = txt.indexOf('{'), ei = txt.lastIndexOf('}');\n  if (s !== -1 && ei !== -1) { try { o = JSON.parse(txt.slice(s, ei + 1)); } catch (_) {} }\n}\nconst num = (v) => { const n = Number(v); return isFinite(n) ? Math.round(n) : 0; };\nconst cls = $node[\"Classify update\"].json;\nreturn [{ json: {\n  food_id: (o.label || 'meal').toString().slice(0, 60),\n  portions: 1,\n  context: cls.caption || (cls.route === 'voice' ? 'voice' : 'photo'),\n  kcal: num(o.kcal), p_g: num(o.p_g), c_g: num(o.c_g), f_g: num(o.f_g),\n  chat_id: cls.chat_id,\n  confident: num(o.kcal) > 0,\n} }];\n"
+      },
+      "id": "vo-parse",
+      "name": "Parse voice macros",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.confident}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "vo-if",
+      "name": "Voice: got macros?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/logs/meals",
+        "options": {
+          "timeout": 10000
+        },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -243,24 +392,115 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\"question\": \"={{$json.text}}\"}) }}",
-        "options": {
-          "timeout": 30000
-        }
+        "jsonBody": "={{ JSON.stringify({\"food_id\": \"={{$json.food_id}}\", \"portions\": \"={{$json.portions}}\", \"context\": \"={{$json.context}}\", \"kcal\": \"={{$json.kcal}}\", \"p_g\": \"={{$json.p_g}}\", \"c_g\": \"={{$json.c_g}}\", \"f_g\": \"={{$json.f_g}}\"}) }}"
       },
-      "id": "coach-ask",
-      "name": "POST /v1/coach/ask",
+      "id": "vo-log",
+      "name": "Voice: POST meal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        920,
-        520
+        2220,
+        380
       ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{$node[\"Parse voice macros\"].json.chat_id}}"
+            },
+            {
+              "name": "text",
+              "value": "=Heard you \ud83c\udf99\ufe0f logged {{$node[\"Parse voice macros\"].json.food_id}}\\n{{$node[\"Parse voice macros\"].json.kcal}} kcal \u00b7 P{{$node[\"Parse voice macros\"].json.p_g}} C{{$node[\"Parse voice macros\"].json.c_g}} F{{$node[\"Parse voice macros\"].json.f_g}}\\nToday: {{$json.day_kcal_total}} kcal"
+            }
+          ]
+        }
+      },
+      "id": "vo-reply-ok",
+      "name": "Voice: reply logged",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2440,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{$json.chat_id}}"
+            },
+            {
+              "name": "text",
+              "value": "=Didn't catch any food in that \ud83d\ude15 \u2014 try again, e.g. \"two rotis, a bowl of dal, and a glass of milk\"."
+            }
+          ]
+        }
+      },
+      "id": "vo-reply-no",
+      "name": "Voice: reply unsure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2220,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/coach/ask",
+        "options": {
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\"question\": \"={{$json.text}}\"}) }}"
+      },
+      "id": "tx-coach",
+      "name": "POST /v1/coach/ask",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "options": {
+          "timeout": 10000
+        },
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
@@ -278,24 +518,24 @@
               "value": "true"
             }
           ]
-        },
-        "options": {
-          "timeout": 10000
         }
       },
-      "id": "reply-coach",
-      "name": "Reply: coach",
+      "id": "tx-reply",
+      "name": "Coach reply",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1160,
-        520
+        1120,
+        700
       ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "options": {
+          "timeout": 10000
+        },
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
@@ -306,21 +546,18 @@
             },
             {
               "name": "text",
-              "value": "=Send me a \ud83d\udcf8 photo of your meal to log it, or just ask me anything about your training or nutrition."
+              "value": "=Send me a \ud83d\udcf8 photo of your meal or a \ud83c\udf99\ufe0f voice note to log it, or just ask me anything about your training or nutrition."
             }
           ]
-        },
-        "options": {
-          "timeout": 10000
         }
       },
-      "id": "reply-help",
+      "id": "ot-reply",
       "name": "Reply: help",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        920,
-        720
+        900,
+        860
       ]
     }
   ],
@@ -351,7 +588,14 @@
       "main": [
         [
           {
-            "node": "Telegram getFile",
+            "node": "Photo getFile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Voice getFile",
             "type": "main",
             "index": 0
           }
@@ -372,62 +616,146 @@
         ]
       ]
     },
-    "Telegram getFile": {
+    "Photo getFile": {
       "main": [
         [
           {
-            "node": "OpenAI vision",
+            "node": "Vision: meal macros",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI vision": {
+    "Vision: meal macros": {
       "main": [
         [
           {
-            "node": "Parse macros",
+            "node": "Parse meal macros",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse macros": {
+    "Parse meal macros": {
       "main": [
         [
           {
-            "node": "Got macros?",
+            "node": "Photo: got macros?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Got macros?": {
+    "Photo: got macros?": {
       "main": [
         [
           {
-            "node": "POST /v1/logs/meals",
+            "node": "Photo: POST meal",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Reply: unsure",
+            "node": "Photo: reply unsure",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "POST /v1/logs/meals": {
+    "Photo: POST meal": {
       "main": [
         [
           {
-            "node": "Reply: logged",
+            "node": "Photo: reply logged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice getFile": {
+      "main": [
+        [
+          {
+            "node": "Voice download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice download": {
+      "main": [
+        [
+          {
+            "node": "Whisper transcribe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper transcribe": {
+      "main": [
+        [
+          {
+            "node": "Voice: text\u2192macros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice: text\u2192macros": {
+      "main": [
+        [
+          {
+            "node": "Parse voice macros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse voice macros": {
+      "main": [
+        [
+          {
+            "node": "Voice: got macros?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice: got macros?": {
+      "main": [
+        [
+          {
+            "node": "Voice: POST meal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Voice: reply unsure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice: POST meal": {
+      "main": [
+        [
+          {
+            "node": "Voice: reply logged",
             "type": "main",
             "index": 0
           }
@@ -438,7 +766,7 @@
       "main": [
         [
           {
-            "node": "Reply: coach",
+            "node": "Coach reply",
             "type": "main",
             "index": 0
           }

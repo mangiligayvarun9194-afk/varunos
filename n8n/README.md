@@ -56,6 +56,8 @@ not mock files; they are simply not in the repo. The honest status:
 | 21 | Post-Sync Briefing | `21_post_sync_briefing.json` | ✅ Working | webhook |
 | 22 | Momentum Notifier | `22_momentum_notifier.json` | ✅ Working | cron 8pm |
 | 30 | Telegram Concierge | `30_telegram_concierge.json` | ✅ Working | Telegram webhook |
+| 33 | Grocery Price Watch | `33_grocery_price_watch.json` | ✅ Working | cron weekly |
+| 34 | Weekly Insight Digest | `34_weekly_insight_digest.json` | ✅ Working | cron Sun 7pm |
 | 99 | Self-Test | `99_self_test.json` | ✅ Working | cron hourly |
 
 The 7 "Planned" workflows are scoped in `docs/ROADMAP.md`. They are not
@@ -135,6 +137,9 @@ out by message type:
   with a free-text label, so no food-DB lookup is needed) → a confirmation
   reply with the day's running total. This is the long-planned **Photo
   Analyzer (#05)**, finally shipped.
+- **🎙️ Voice note →** Whisper (`whisper-1`) transcribes "two rotis, a bowl of
+  dal, and a glass of milk" → an LLM turns the words into macros → same
+  `POST /v1/logs/meals` → confirmation. Hands-free logging while you cook.
 - **💬 Any text →** `POST /v1/coach/ask` → the answer comes straight back in
   the chat. The notifier bot becomes a real conversational coach.
 - **Anything else →** a friendly nudge on how to use it.
@@ -156,27 +161,60 @@ out by message type:
 
 ### Privacy
 
-The meal photo (a Telegram file URL, reachable only with the bot token) is sent
-to OpenAI for macro estimation — a **food photo, never a biomarker**, so it does
-not touch the Brain privacy gate. The coach branch calls `/v1/coach/ask`, where
-`build_brain_context()` already enforces tiers/scores/labels only, server-side —
-the LLM never sees raw BP, glucose, or HRV. No new privacy surface is opened.
+The meal photo / voice note (food only) is sent to OpenAI — a **food photo or a
+spoken meal, never a biomarker** — so it does not touch the Brain privacy gate.
+The coach branch calls `/v1/coach/ask`, where `build_brain_context()` already
+enforces tiers/scores/labels only, server-side — the LLM never sees raw BP,
+glucose, or HRV. No new privacy surface is opened.
 
-## Research: more patterns worth stealing from the n8n catalog
+> The voice branch uploads the audio file to OpenAI Whisper as multipart form
+> data — the one node most likely to need a tweak across n8n versions. If voice
+> logging errors on import, check the **Whisper transcribe** node's binary field
+> (`inputDataFieldName: data`); photo and text branches are independent and
+> unaffected.
+
+## Workflows 33 & 34 — grocery price watch + weekly insight digest
+
+**33 Grocery Price Watch** — a weekly cron fetches one product page, an LLM
+reads the current price, and you get a Telegram alert *only* when it is at or
+below your target. A human always taps buy; there is no auto-checkout. It is
+fully self-contained — it touches no health data and no VarunOS endpoint.
+Configure three env vars:
+- `GROCERY_PRODUCT_URL` — the product page to watch.
+- `GROCERY_TARGET_PRICE` — alert at/below this number.
+- `OPENAI_API_KEY` — for price extraction.
+
+**34 Weekly Insight Digest** — every Sunday 7pm it pulls `/v1/insights` (the
+deterministic correlation/anomaly engine) and Telegrams the top patterns it
+found in *your* data ("low sleep → low energy next day"). Labels and
+plain-English text only — never raw biomarkers. No extra env vars beyond the
+core `VARUNOS_*` and `TELEGRAM_*`.
+
+## Research: the n8n catalog scan, and what we did with it
 
 A scan of the public n8n template catalog for patterns that fit a personal
-health OS (not generic lead-gen). Mapped to VarunOS gaps, ranked by value:
+health OS (not generic lead-gen), and the disposition of each:
 
-| Pattern seen in the wild | VarunOS enhancement | Maps to | Effort |
-|---|---|---|---|
-| "Log meal nutrition from food photos with Gemini AI" | **✅ Built** as workflow 30 | Photo Analyzer #05 | done |
-| "Turn Telegram voice notes into … with Whisper" | Voice meal/check-in logging ("I had two rotis and dal") → Whisper → parse → `/v1/logs/meals` | new #31 | medium (multipart audio upload needs a live test) |
-| "Send PDF summaries with OCR + GPT" / "hybrid RAG over PDFs" | Lab-report import: emailed/photographed blood panel → OCR → extract values → compute tier → store **only if surveillance consent is ON** | Lab Import #09 | medium (respect the consent gate) |
-| "Detect pricing anomalies in Google Sheets" / "Track trending with Data Tables" | Grocery price-watch: track staple prices, alert on a dip, build an Instacart cart link (human taps buy) | Grocery #08 | medium |
-| "Generate weekly habit and mood insights with Sheets + OpenAI" | A Sunday "mind report" Telegram digest from `/v1/insights` + `/v1/report/weekly` | extends #06 | low |
-| "Monitor & alert with cron + Telegram" (visa-appointment poller) | Refill/re-test reminders: nudge when a supplement or a lab re-test is due | new | low |
-| "Multi-agent executive assistant from Telegram" | Already partly covered by the concierge text→coach branch; could add slash-commands (`/today`, `/macros`) | extends #30 | low |
+| Pattern seen in the wild | VarunOS enhancement | Status |
+|---|---|---|
+| "Log meal nutrition from food photos with AI" | Meal-photo macro logger | ✅ Built — wf 30 (Photo Analyzer #05) |
+| "Turn Telegram voice notes into X with Whisper" | Voice meal logging | ✅ Built — wf 30 voice branch |
+| "Multi-agent assistant from Telegram" | Two-way coach over Telegram | ✅ Built — wf 30 text branch |
+| "Detect pricing anomalies / track prices" | Grocery price-watch + alert | ✅ Built — wf 33 |
+| "Weekly habit & mood insights digest" | Sunday insight digest | ✅ Built — wf 34 |
+| "Monitor & alert" (cron poller) pattern | Reused for the price watch and digest cadence | ✅ folded in |
+| "PDF/photo OCR → extract values" | Lab-report import (blood panel → tiers) | ⛔ **Deliberately not built** |
 
-Rule for all of the above: orchestration only. Any health math stays in
+**Why lab-report OCR was *not* built:** every cloud-OCR template sends the
+document image to a third-party LLM. For a meal photo that is fine; for a
+**blood panel it means shipping raw biomarkers to OpenAI**, which is exactly
+what VarunOS's privacy posture exists to prevent. Lab import is worth doing —
+but with **on-device / self-hosted OCR** (e.g. Tesseract or a local
+Ollama-vision model) digitizing the values *before* anything leaves the box,
+plus a proper `/v1/labs/import` endpoint that respects the surveillance consent
+gate. That is a backend task, not a quick cloud-LLM n8n hack, and is left for a
+deliberate, tested build.
+
+Rule for everything here: orchestration only. Health math stays in
 `varunos/core/`, and nothing puts raw biomarkers in front of an LLM or in a
 Telegram message — tiers, scores, and labels only.

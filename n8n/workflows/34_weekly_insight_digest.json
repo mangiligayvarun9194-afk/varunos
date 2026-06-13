@@ -1,0 +1,141 @@
+{
+  "name": "VarunOS \u2014 34 Weekly Insight Digest",
+  "description": "Sunday 7pm cron pulls /v1/insights (the deterministic correlation/anomaly engine) and Telegrams the top patterns. Labels and plain-English text only \u2014 never raw biomarkers.",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                0
+              ],
+              "triggerAtHour": 19
+            }
+          ]
+        }
+      },
+      "id": "i-cron",
+      "name": "Sunday 7pm",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/insights",
+        "options": {
+          "timeout": 10000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.VARUNOS_API_KEY}}"
+            }
+          ]
+        }
+      },
+      "id": "i-get",
+      "name": "GET /v1/insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a Telegram digest from the deterministic insights engine.\n// Insights are correlations/anomalies = labels + plain-English text only;\n// no raw BP/glucose/HRV ever appears here.\nconst r = $json || {};\nconst anoms = r.anomalies || [];\nconst corrs = r.correlations || [];\nlet lines = ['\ud83e\udde0 Your weekly patterns'];\nif (!r.enough_data && anoms.length === 0 && corrs.length === 0) {\n  lines.push('', 'Not enough history yet \u2014 keep logging check-ins and a clear picture appears after ~7 days.');\n} else {\n  for (const a of anoms.slice(0, 3)) lines.push('', '\u26a0\ufe0f ' + a.title + (a.detail ? '\\n' + a.detail : ''));\n  for (const c of corrs.slice(0, 4)) lines.push('', '\ud83d\udd17 ' + c.title + (c.strength ? ' (' + c.strength + ')' : '') + (c.detail ? '\\n' + c.detail : ''));\n  lines.push('', 'Based on ' + (r.days_analyzed || 0) + ' days of your own data.');\n}\nreturn [{ json: { text: lines.join('\\n').slice(0, 3500) } }];\n"
+      },
+      "id": "i-fmt",
+      "name": "Format digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{$env.TELEGRAM_CHAT_ID}}"
+            },
+            {
+              "name": "text",
+              "value": "={{$json.text}}"
+            },
+            {
+              "name": "disable_web_page_preview",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "id": "i-send",
+      "name": "Telegram digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        880,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Sunday 7pm": {
+      "main": [
+        [
+          {
+            "node": "GET /v1/insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /v1/insights": {
+      "main": [
+        [
+          {
+            "node": "Format digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format digest": {
+      "main": [
+        [
+          {
+            "node": "Telegram digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

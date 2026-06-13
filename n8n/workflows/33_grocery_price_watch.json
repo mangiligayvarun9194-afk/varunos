@@ -1,0 +1,201 @@
+{
+  "name": "VarunOS \u2014 33 Grocery Price Watch",
+  "description": "Weekly cron watches one product page (GROCERY_PRODUCT_URL), extracts the price with an LLM, and Telegrams you only when it is at/below GROCERY_TARGET_PRICE. A human always taps buy \u2014 no auto-checkout. Self-contained; no health data.",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks"
+            }
+          ]
+        }
+      },
+      "id": "g-cron",
+      "name": "Weekly cron",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.GROCERY_PRODUCT_URL}}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "g-fetch",
+      "name": "Fetch product page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "options": {
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'gpt-4o-mini',temperature:0,max_tokens:120,response_format:{type:'json_object'},messages:[{role:'user',content:\"Extract the current selling price as a plain number (no currency symbol, no thousands separators) from this product page text. Reply ONLY strict JSON {\\\"price\\\": number, \\\"currency\\\": short code, \\\"title\\\": short product name}. If no price is found use {\\\"price\\\":0,\\\"currency\\\":\\\"\\\",\\\"title\\\":\\\"\\\"}. Page text: \" + String($json.data || $json.body || '').slice(0,6000)}]}) }}"
+      },
+      "id": "g-llm",
+      "name": "Extract price",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compare the extracted price to the GROCERY_TARGET_PRICE threshold.\nconst choice = $json.choices && $json.choices[0];\nlet txt = String((choice && choice.message && choice.message.content) || '{}').trim()\n  .replace(/^```(json)?/i,'').replace(/```$/,'').trim();\nlet o = {};\ntry { o = JSON.parse(txt); } catch (e) {\n  const s=txt.indexOf('{'), ei=txt.lastIndexOf('}');\n  if (s!==-1&&ei!==-1){ try{o=JSON.parse(txt.slice(s,ei+1));}catch(_){} }\n}\nconst price = Number(o.price) || 0;\nconst target = Number($env.GROCERY_TARGET_PRICE) || 0;\nconst url = $env.GROCERY_PRODUCT_URL || '';\nconst deal = price > 0 && target > 0 && price <= target;\nreturn [{ json: {\n  price, target, deal, url,\n  currency: o.currency || '',\n  title: (o.title || 'Tracked item').toString().slice(0,80),\n} }];\n"
+      },
+      "id": "g-decide",
+      "name": "Deal?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.deal}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "g-if",
+      "name": "At/below target?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "options": {
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{$env.TELEGRAM_CHAT_ID}}"
+            },
+            {
+              "name": "text",
+              "value": "=\ud83d\uded2 Price drop: {{$json.title}}\\nNow {{$json.currency}}{{$json.price}} (target {{$json.currency}}{{$json.target}})\\n{{$json.url}}"
+            }
+          ]
+        }
+      },
+      "id": "g-alert",
+      "name": "Telegram price alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1320,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Weekly cron": {
+      "main": [
+        [
+          {
+            "node": "Fetch product page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch product page": {
+      "main": [
+        [
+          {
+            "node": "Extract price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract price": {
+      "main": [
+        [
+          {
+            "node": "Deal?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deal?": {
+      "main": [
+        [
+          {
+            "node": "At/below target?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "At/below target?": {
+      "main": [
+        [
+          {
+            "node": "Telegram price alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
