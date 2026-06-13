@@ -40,8 +40,10 @@ export default function Coach() {
         const r = await api('/v1/programs');
         add('bot', 'VarunOS', `Available programs:\n${r.programs.map((p) => `• ${p}`).join('\n')}`);
       } else {
-        const r = await api('/v1/coach/ask', { method: 'POST', body: { question: text } });
-        add('bot', 'VarunOS', r.answer);
+        // The natural-language agent: it can log a set/weight/meal from plain
+        // English, or answer. No commands — just type how you'd say it.
+        const r = await api('/v1/coach/act', { method: 'POST', body: { text } });
+        add('bot', 'VarunOS', r.reply);
       }
     } catch (e) {
       add('bot', 'VarunOS', `Error: ${e.message}`);
@@ -70,13 +72,14 @@ export default function Coach() {
     <motion.div variants={stagger} initial="hidden" animate="show">
       <motion.div variants={rise} style={{ margin: '26px 0 20px' }}>
         <h2 className="display" style={{ fontSize: 30, fontWeight: 700 }}>Coach</h2>
-        <p className="meta">Ask the deterministic core anything</p>
+        <p className="meta">Just talk to it — log or ask, no commands</p>
       </motion.div>
 
       <motion.div variants={rise}>
         {msgs.length === 0 && (
-          <div className="empty" style={{ padding: '34px 20px' }}>
-            Try: <i>"compute my macros"</i> · <i>"search paneer"</i> · <i>"meal plan"</i>
+          <div className="empty" style={{ padding: '34px 20px', lineHeight: 1.9 }}>
+            Try: <i>"I benched 100 for 5"</i> · <i>"I weigh 77 today"</i><br />
+            <i>"had 3 eggs and dal"</i> · <i>"what should I eat tonight?"</i>
           </div>
         )}
         {msgs.map((m, i) => (

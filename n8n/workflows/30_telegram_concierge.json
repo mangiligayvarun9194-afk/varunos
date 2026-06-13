@@ -1,6 +1,6 @@
 {
   "name": "VarunOS \u2014 30 Telegram Concierge",
-  "description": "Single inbound Telegram bot webhook, fanned out by message type. Photo of a meal -> OpenAI vision macros -> POST /v1/logs/meals -> reply. Voice note -> Whisper transcribe -> text->macros -> POST /v1/logs/meals -> reply. Any text -> /v1/coach/ask (server-side privacy gate) -> reply. Needs OPENAI_API_KEY; set the bot webhook to this URL.",
+  "description": "Single inbound Telegram bot webhook, fanned out by message type. Photo of a meal -> OpenAI vision macros -> POST /v1/logs/meals -> reply. Voice note -> Whisper transcribe -> text->macros -> POST /v1/logs/meals -> reply. Any text -> /v1/coach/act (logs a set/weight/meal from plain English, or answers) (server-side privacy gate) -> reply. Needs OPENAI_API_KEY; set the bot webhook to this URL.",
   "nodes": [
     {
       "parameters": {
@@ -468,7 +468,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.VARUNOS_API_BASE}}/v1/coach/ask",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/coach/act",
         "options": {
           "timeout": 30000
         },
@@ -483,10 +483,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\"question\": \"={{$json.text}}\"}) }}"
+        "jsonBody": "={{ JSON.stringify({text: $json.text}) }}"
       },
       "id": "tx-coach",
-      "name": "POST /v1/coach/ask",
+      "name": "POST /v1/coach/act",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
@@ -511,7 +511,7 @@
             },
             {
               "name": "text",
-              "value": "={{$json.answer}}"
+              "value": "={{$json.reply}}"
             },
             {
               "name": "disable_web_page_preview",
@@ -602,7 +602,7 @@
         ],
         [
           {
-            "node": "POST /v1/coach/ask",
+            "node": "POST /v1/coach/act",
             "type": "main",
             "index": 0
           }
@@ -762,7 +762,7 @@
         ]
       ]
     },
-    "POST /v1/coach/ask": {
+    "POST /v1/coach/act": {
       "main": [
         [
           {

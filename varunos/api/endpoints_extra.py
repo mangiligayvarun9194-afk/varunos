@@ -44,7 +44,7 @@ All persistence endpoints respect surveillance consent.
 
 from __future__ import annotations
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
@@ -63,6 +63,7 @@ from varunos.core.surveillance.ascvd import ASCVDInput, ascvd_risk, ascvd_tier
 from varunos.core.surveillance.idrs import assess_from_raw
 from varunos.core import readiness_score, surveillance as surveillance_mod
 from varunos import db
+from varunos import notify
 
 
 router = APIRouter(dependencies=[Depends(require_auth)])
@@ -510,13 +511,17 @@ def coach_ask(payload: CoachAskIn):
     profile = db.get_profile(uid) or {}
     diet = None
     if profile.get("weight_kg"):
+        # A partial profile (e.g. weight logged before onboarding finished) can
+        # have null height/age; .get(k, default) keeps None, so coerce here.
         from varunos.core.diet import bmr_mifflin, tdee, goal_kcal, macros
-        bmr = bmr_mifflin(sex=profile.get("sex", "M"), weight_kg=profile["weight_kg"],
-                          height_cm=profile.get("height_cm", 175), age=profile.get("age", 30))
-        tv = tdee(bmr=bmr, activity=profile.get("activity", "moderate"))
-        tk = goal_kcal(tdee_value=tv, goal=profile.get("goal", "recomp"))
-        m = macros(kcal=tk, weight_kg=profile["weight_kg"], goal=profile.get("goal", "recomp"),
-                   sex=profile.get("sex", "M"))
+        sex = profile.get("sex") or "M"
+        goal = profile.get("goal") or "recomp"
+        bmr = bmr_mifflin(sex=sex, weight_kg=profile["weight_kg"],
+                          height_cm=profile.get("height_cm") or 175,
+                          age=profile.get("age") or 30)
+        tv = tdee(bmr=bmr, activity=profile.get("activity") or "moderate")
+        tk = goal_kcal(tdee_value=tv, goal=goal)
+        m = macros(kcal=tk, weight_kg=profile["weight_kg"], goal=goal, sex=sex)
         diet = {"target_kcal": tk, "protein_g": m.protein_g, "fat_g": m.fat_g, "carbs_g": m.carbs_g}
     meals = db.list_meals(uid)
     consumed = sum(mm.get("kcal", 0) for mm in meals if (mm.get("ts") or "").startswith(today))
@@ -544,7 +549,7 @@ def _llm_or_template(question: str, ctx: dict, system: str) -> str:
             headers={"x-api-key": key, "anthropic-version": "2023-06-01",
                      "content-type": "application/json"},
             json={
-                "model": os.environ.get("VARUNOS_LLM_MODEL", "claude-3-5-haiku-latest"),
+                "model": os.environ.get("VARUNOS_LLM_MODEL", "claude-haiku-4-5"),
                 "max_tokens": 350,
                 "system": system,
                 "messages": [{"role": "user", "content":
@@ -558,6 +563,106 @@ def _llm_or_template(question: str, ctx: dict, system: str) -> str:
         return narrate_template(question, ctx)
     except Exception:
         return narrate_template(question, ctx)
+
+
+# ---- Natural-language agent: act on plain English ------------------------
+
+class CoachActIn(BaseModel):
+    text: str
+
+
+def _match_food_id(term: str) -> Optional[str]:
+    """Best deterministic food-DB match for a plain term (e.g. 'eggs')."""
+    from varunos.core.diet import food_db
+    term = (term or "").strip().lower().rstrip("s")  # naive singularise
+    if not term:
+        return None
+    best = None
+    for fid, item in food_db().items():
+        name = item.name.lower()
+        if term in fid or term in name:
+            # prefer the shortest matching name (closest to the bare food)
+            if best is None or len(name) < best[1]:
+                best = (fid, len(name))
+    return best[0] if best else None
+
+
+@router.post("/v1/coach/act")
+def coach_act(payload: CoachActIn):
+    """The plain-language brain. Turns how a person actually types into an
+    action (log a set / weight / meal) OR a coaching answer — no commands.
+
+    Deterministic-first: the parser in `varunos/core/agent.py` decides the
+    intent with no LLM and no network. Only genuine questions fall through to
+    the coach narrator (which keeps the tier-only privacy gate)."""
+    from varunos.core.agent import (
+        parse_intent, split_food_terms,
+        LOG_WORKOUT, LOG_WEIGHT, LOG_MEAL,
+    )
+    uid = _user_id_from_default()
+    intent = parse_intent(payload.text)
+
+    # ---- log a bodyweight entry ----
+    if intent.action == LOG_WEIGHT:
+        kg = intent.fields["weight_kg"]
+        db.upsert_profile(uid, {"weight_kg": kg})
+        db.log_event(uid, "weight_logged", channel="agent", payload={"weight_kg": kg})
+        return {"action": "log_weight", "reply": f"Got it — updated your weight to {kg} kg.",
+                "fields": intent.fields}
+
+    # ---- log a workout set (with a simple weight-PR check) ----
+    if intent.action == LOG_WORKOUT:
+        ex = intent.fields["exercise"]
+        weight = float(intent.fields["weight_kg"])
+        reps = int(intent.fields["reps"])
+        # prior best weight for this exercise (last ~365d), before this set
+        since = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
+        prior = [s for s in db.list_sets_since(uid, since) if s["exercise_id"] == ex]
+        prev_best = max((s["weight_kg"] for s in prior), default=0.0)
+        wid = db.create_workout_log(uid, {"program": "freeform", "day_name": "Quick log",
+                                          "decision": "GREEN"})
+        db.add_set(uid, wid, ex, 1, weight, reps, None)
+        is_pr = weight > prev_best
+        db.log_event(uid, "workout_logged", channel="agent",
+                     payload={"exercise_id": ex, "weight_kg": weight, "reps": reps, "pr": is_pr})
+        nice = ex.replace("_", " ")
+        if is_pr:
+            reply = f"\U0001F389 New PR! {nice} {weight:g} kg × {reps}. Logged."
+        else:
+            reply = f"Logged: {nice} {weight:g} kg × {reps}."
+        return {"action": "log_workout", "reply": reply,
+                "fields": intent.fields, "pr": is_pr}
+
+    # ---- log a meal from a food phrase, via the deterministic food DB ----
+    if intent.action == LOG_MEAL:
+        from varunos.core.diet import food_macros
+        terms = split_food_terms(intent.fields.get("foods_text", ""))
+        logged, total = [], 0.0
+        for qty, term in terms:
+            fid = _match_food_id(term)
+            if not fid:
+                continue
+            m = food_macros(fid, portions=qty)
+            db.add_meal(uid, fid, qty, m["kcal"], m["p"], m["c"], m["f"], context="agent")
+            logged.append(f"{m['name']} ×{qty:g}")
+            total += m["kcal"]
+        if logged:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            db.log_event(uid, "meal_logged", channel="agent",
+                         payload={"items": logged, "kcal": total})
+            return {"action": "log_meal",
+                    "reply": "Logged: " + ", ".join(logged)
+                             + f". Today so far: {round(db.day_kcal(uid, today))} kcal.",
+                    "fields": {"items": logged}}
+        # nothing matched — tell the truth and let them use search
+        return {"action": "log_meal",
+                "reply": "I couldn't match those foods to the database. Try the "
+                         "Log → meal search, or a photo of the plate.",
+                "fields": intent.fields}
+
+    # ---- everything else is a question for the coach (tier-only gate) ----
+    out = coach_ask(CoachAskIn(question=intent.fields.get("text", payload.text)))
+    return {"action": "answer", "reply": out["answer"], "engine": out.get("engine")}
 
 
 # ---- Cloud wearable connectors (OAuth: Fitbit / Oura) --------------------
@@ -1399,6 +1504,52 @@ def momentum_today():
     uid = _user_id_from_default()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return _momentum_state(uid, today)
+
+
+@router.post("/v1/notify/test")
+def notify_test():
+    """Send a tiny Telegram smoke-test message."""
+    sent = notify.send_telegram("VarunOS is connected")
+    return {"configured": notify.telegram_configured(), "sent": sent}
+
+
+@router.post("/v1/momentum/push")
+def momentum_push():
+    """Push today's single best momentum event to Telegram once per day."""
+    uid = _user_id_from_default()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    prior = [
+        e for e in db.list_events(uid, kind="momentum_pushed", limit=20)
+        if (e.get("ts") or "").startswith(today)
+    ]
+    if prior:
+        return {
+            "pushed": False,
+            "already_pushed": True,
+            "configured": notify.telegram_configured(),
+            "event": prior[0].get("payload", {}).get("event"),
+        }
+
+    event = _momentum_state(uid, today)["best_event"]
+    if not event:
+        return {
+            "pushed": False,
+            "already_pushed": False,
+            "configured": notify.telegram_configured(),
+            "event": None,
+        }
+
+    text = f"{event['title']}\n{event['detail']}"
+    sent = notify.send_telegram(text)
+    db.log_event(uid, "momentum_pushed", channel="telegram",
+                 payload={"event": event, "sent": sent})
+    return {
+        "pushed": True,
+        "already_pushed": False,
+        "configured": notify.telegram_configured(),
+        "sent": sent,
+        "event": event,
+    }
 
 
 @router.get("/v1/avatar/state")

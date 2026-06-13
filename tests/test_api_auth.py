@@ -580,3 +580,44 @@ class TestWeek1Endpoints:
         body = r.json()
         assert body["workout_time_pref"] == "evening"
         assert body["greeting"].endswith("Varun")
+
+
+class TestCoachAct:
+    """The natural-language agent endpoint — plain English in, action out."""
+
+    def test_log_weight(self, client):
+        r = client.post("/v1/coach/act", json={"text": "I weigh 77 today"}, headers=_auth())
+        assert r.status_code == 200
+        body = r.json()
+        assert body["action"] == "log_weight"
+        assert "77" in body["reply"]
+        # profile actually updated
+        prof = client.get("/v1/user/profile", headers=_auth()).json()
+        assert float(prof["profile"]["weight_kg"]) == 77
+
+    def test_log_workout_and_pr(self, client):
+        r1 = client.post("/v1/coach/act", json={"text": "benched 100 for 5"}, headers=_auth())
+        assert r1.json()["action"] == "log_workout"
+        assert r1.json()["pr"] is True  # first time = PR
+        r2 = client.post("/v1/coach/act", json={"text": "bench 90 x 5"}, headers=_auth())
+        assert r2.json()["pr"] is False  # lighter than prior best
+
+    def test_question_routes_to_coach(self, client):
+        r = client.post("/v1/coach/act", json={"text": "what should I eat tonight?"},
+                        headers=_auth())
+        assert r.status_code == 200
+        assert r.json()["action"] == "answer"
+        assert len(r.json()["reply"]) > 0
+
+    def test_question_after_partial_profile(self, client):
+        # logging weight creates a weight-only profile; a follow-up question
+        # must not crash on null height/age (regression for bmr_mifflin None).
+        client.post("/v1/coach/act", json={"text": "I weigh 80 today"}, headers=_auth())
+        r = client.post("/v1/coach/act", json={"text": "how am I doing this week?"},
+                        headers=_auth())
+        assert r.status_code == 200
+        assert r.json()["action"] == "answer"
+
+    def test_requires_auth(self, client):
+        r = client.post("/v1/coach/act", json={"text": "hi"})
+        assert r.status_code in (401, 403)
