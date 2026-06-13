@@ -9,7 +9,10 @@ import { api, classifyExercise } from '../api.js';
 import { CountUp, useToast, stagger, rise } from '../components/ui.jsx';
 import { IconBody, IconTrend, IconFlame, IconBolt, IconSparkle } from '../components/Icons.jsx';
 
-const TWIN_DEMO_GLB = 'https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb';
+// Self-hosted demo avatar (Mixamo rig, from the three.js examples). Ready
+// Player Me shut down its public service on 2026-01-31 after the Netflix
+// acquisition, so the Twin must never depend on their CDN again.
+const TWIN_DEMO_GLB = '/models/twin-demo.glb';
 const ACTIONS = [
   { id: 'idle', label: 'Idle' },
   { id: 'squat', label: 'Squat' },
@@ -83,15 +86,28 @@ export default function Twin() {
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
 
-        const glbUrl = localStorage.getItem('varunos_avatar_url') || TWIN_DEMO_GLB;
-        const gltf = await new GLTFLoader().loadAsync(glbUrl);
+        // Saved custom avatars may be dead links now (RPM shut down its CDN
+        // 2026-01-31) — fall back to the bundled demo instead of erroring.
+        const savedUrl = localStorage.getItem('varunos_avatar_url');
+        let glbUrl = savedUrl || TWIN_DEMO_GLB;
+        let gltf;
+        try {
+          gltf = await new GLTFLoader().loadAsync(glbUrl);
+        } catch (err) {
+          if (!savedUrl) throw err;
+          localStorage.removeItem('varunos_avatar_url');
+          glbUrl = TWIN_DEMO_GLB;
+          gltf = await new GLTFLoader().loadAsync(glbUrl);
+        }
         if (dead) { renderer.dispose(); return; }
         const root = gltf.scene;
         scene.add(root);
 
+
         const bones = {};
         root.traverse((o) => { if (o.isBone) bones[o.name] = o; });
-        const B = (n) => bones[n] || null;
+        // RPM strips the Mixamo prefix; raw Mixamo/three.js rigs keep it.
+        const B = (n) => bones[n] || bones['mixamorig' + n] || bones['mixamorig:' + n] || null;
         const rig = {
           hips: B('Hips'), spine: B('Spine'), spine2: B('Spine2') || B('Spine1'),
           neck: B('Neck'), head: B('Head'),
@@ -101,9 +117,24 @@ export default function Twin() {
           lLeg: B('LeftLeg'), rLeg: B('RightLeg'),
           lFoot: B('LeftFoot'), rFoot: B('RightFoot'),
         };
+        // Mixamo rigs bind in a T-pose; lower the arms before capturing the
+        // rest pose so idle looks natural (RPM models already bind arms-down).
+        if (!bones['Hips'] && B('Hips')) {
+          rig.lArm && (rig.lArm.rotation.z -= 1.05);
+          rig.rArm && (rig.rArm.rotation.z += 1.05);
+        }
         const rest = {};
         for (const [k, b] of Object.entries(rig))
           if (b) rest[k] = { rot: b.rotation.clone(), pos: b.position.clone() };
+
+        // Auto-frame from the skeleton: bounding boxes lie for skinned meshes
+        // (bind-space bounds), but the head bone's world position is truth.
+        root.updateMatrixWorld(true);
+        const headPos = new THREE.Vector3();
+        (rig.head || root).getWorldPosition(headPos);
+        const h = Math.max(0.9, headPos.y * 1.12); // head sits ≈ 93% of height
+        camera.position.set(0, h * 0.6, h * 1.9);
+        camera.lookAt(0, h * 0.5, 0);
 
         const twin = { renderer, scene, camera, rig, rest, root, t: 0, raf: 0 };
         twinRef.current = twin;
@@ -331,13 +362,18 @@ export default function Twin() {
           Make it actually you
         </h3>
         <p className="meta" style={{ marginBottom: 12 }}>
-          Create a look-alike from a selfie at{' '}
-          <a href="https://readyplayer.me/avatar" target="_blank" rel="noreferrer" style={{ color: 'var(--mint)' }}>readyplayer.me</a>{' '}
-          (free, 2 min), copy the <b>.glb link</b>, paste it here.
+          Paste a link to any <b>Mixamo-rigged .glb</b> and the Twin becomes it.
+          Make a selfie look-alike at{' '}
+          <a href="https://avaturn.me" target="_blank" rel="noreferrer" style={{ color: 'var(--mint)' }}>avaturn.me</a>{' '}
+          (free, exports .glb with the right skeleton).
+        </p>
+        <p className="meta" style={{ marginBottom: 12, fontSize: 11, color: 'var(--mute)' }}>
+          Ready Player Me shut down on Jan 31, 2026 after the Netflix acquisition — old
+          readyplayer.me links no longer work, and any saved one falls back to the built-in avatar.
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input value={url} onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://models.readyplayer.me/….glb" style={{ flex: 1, fontSize: 13 }} />
+            placeholder="https://…/avatar.glb" style={{ flex: 1, fontSize: 13 }} />
           <button className="btn primary" onClick={saveUrl}>Use it</button>
         </div>
       </motion.div>

@@ -2809,7 +2809,8 @@
   // Animation is PROCEDURAL — we pose the standard RPM/Mixamo skeleton in code,
   // so there is no animation-asset pipeline at all. Muscle growth = bone scaling
   // driven by the deterministic avatar_level from the server.
-  const TWIN_DEMO_GLB = 'https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb';
+  // Self-hosted: RPM shut down its public CDN on 2026-01-31 (Netflix acquisition)
+  const TWIN_DEMO_GLB = '/models/twin-demo.glb';
   let twin = null;            // { THREE, scene, renderer, camera, bones, root, level }
   let twinMode = 'idle';
   let twinBooted = false;
@@ -2872,7 +2873,8 @@
       // Map the standard RPM/Mixamo bone names
       const bones = {};
       root.traverse(o => { if (o.isBone) bones[o.name] = o; });
-      const B = n => bones[n] || null;
+      // RPM strips the Mixamo prefix; raw Mixamo rigs (e.g. the demo) keep it
+      const B = n => bones[n] || bones['mixamorig' + n] || bones['mixamorig:' + n] || null;
       const rig = {
         hips: B('Hips'), spine: B('Spine'), spine2: B('Spine2') || B('Spine1'),
         neck: B('Neck'), head: B('Head'),
@@ -2882,6 +2884,11 @@
         lLeg: B('LeftLeg'), rLeg: B('RightLeg'),
         lFoot: B('LeftFoot'), rFoot: B('RightFoot'),
       };
+      // Mixamo rigs bind in a T-pose; lower the arms so idle looks natural
+      if (!bones['Hips'] && B('Hips')) {
+        rig.lArm && (rig.lArm.rotation.z += 1.05);
+        rig.rArm && (rig.rArm.rotation.z += -1.05);
+      }
       // Remember rest pose so every action is a delta from "standing"
       const rest = {};
       for (const [k, b] of Object.entries(rig))
