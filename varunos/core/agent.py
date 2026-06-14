@@ -170,6 +170,53 @@ def _extract_food_phrase(raw: str) -> str:
     return t
 
 
+# ---- LLM fallback: validate a model's structured extraction (pure) ----
+def _safe_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_int(v):
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
+def intent_from_extraction(d: dict | None) -> Intent:
+    """Turn an LLM's loose JSON extraction into a *validated* Intent.
+
+    The model may hallucinate or pick the wrong action, so every field is
+    range-checked here before we trust it. Anything that doesn't pass becomes a
+    plain question — we never log a value we can't vouch for. Pure + testable so
+    the safety guard doesn't depend on the network path that produced `d`.
+    """
+    d = d or {}
+    action = d.get("action")
+
+    if action == LOG_WEIGHT:
+        kg = _safe_float(d.get("weight_kg"))
+        if kg is not None and 25 <= kg <= 350:
+            return Intent(LOG_WEIGHT, {"weight_kg": round(kg, 1)}, 0.8)
+
+    elif action == LOG_WORKOUT:
+        ex = (d.get("exercise") or "").strip().lower().replace(" ", "_")
+        kg = _safe_float(d.get("weight_kg"))
+        reps = _safe_int(d.get("reps"))
+        if ex and kg is not None and reps and 0 < kg <= 1000 and 0 < reps <= 100:
+            return Intent(LOG_WORKOUT,
+                          {"exercise": ex, "weight_kg": round(kg, 1), "reps": reps}, 0.8)
+
+    elif action == LOG_MEAL:
+        foods = (d.get("foods_text") or "").strip()
+        if foods:
+            return Intent(LOG_MEAL, {"foods_text": foods}, 0.6)
+
+    return Intent(QUESTION, {}, 0.0)
+
+
 # ---- Food-term resolution helper (used by the API layer; pure) ----
 def split_food_terms(phrase: str) -> list[tuple[float, str]]:
     """Break 'two rotis, 3 eggs and a bowl of dal' into [(qty, term), ...].

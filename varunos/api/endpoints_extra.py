@@ -587,22 +587,12 @@ def _match_food_id(term: str) -> Optional[str]:
     return best[0] if best else None
 
 
-@router.post("/v1/coach/act")
-def coach_act(payload: CoachActIn):
-    """The plain-language brain. Turns how a person actually types into an
-    action (log a set / weight / meal) OR a coaching answer — no commands.
+def _dispatch_action(uid: str, intent) -> Optional[dict]:
+    """Execute a structured Intent. Returns a response dict for action intents,
+    or None for a question (the caller then routes to the coach narrator).
+    Shared by both the deterministic parse and the LLM-fallback path."""
+    from varunos.core.agent import split_food_terms, LOG_WORKOUT, LOG_WEIGHT, LOG_MEAL
 
-    Deterministic-first: the parser in `varunos/core/agent.py` decides the
-    intent with no LLM and no network. Only genuine questions fall through to
-    the coach narrator (which keeps the tier-only privacy gate)."""
-    from varunos.core.agent import (
-        parse_intent, split_food_terms,
-        LOG_WORKOUT, LOG_WEIGHT, LOG_MEAL,
-    )
-    uid = _user_id_from_default()
-    intent = parse_intent(payload.text)
-
-    # ---- log a bodyweight entry ----
     if intent.action == LOG_WEIGHT:
         kg = intent.fields["weight_kg"]
         db.upsert_profile(uid, {"weight_kg": kg})
@@ -610,7 +600,6 @@ def coach_act(payload: CoachActIn):
         return {"action": "log_weight", "reply": f"Got it — updated your weight to {kg} kg.",
                 "fields": intent.fields}
 
-    # ---- log a workout set (with a simple weight-PR check) ----
     if intent.action == LOG_WORKOUT:
         ex = intent.fields["exercise"]
         weight = float(intent.fields["weight_kg"])
@@ -626,14 +615,10 @@ def coach_act(payload: CoachActIn):
         db.log_event(uid, "workout_logged", channel="agent",
                      payload={"exercise_id": ex, "weight_kg": weight, "reps": reps, "pr": is_pr})
         nice = ex.replace("_", " ")
-        if is_pr:
-            reply = f"\U0001F389 New PR! {nice} {weight:g} kg × {reps}. Logged."
-        else:
-            reply = f"Logged: {nice} {weight:g} kg × {reps}."
-        return {"action": "log_workout", "reply": reply,
-                "fields": intent.fields, "pr": is_pr}
+        reply = (f"\U0001F389 New PR! {nice} {weight:g} kg × {reps}. Logged." if is_pr
+                 else f"Logged: {nice} {weight:g} kg × {reps}.")
+        return {"action": "log_workout", "reply": reply, "fields": intent.fields, "pr": is_pr}
 
-    # ---- log a meal from a food phrase, via the deterministic food DB ----
     if intent.action == LOG_MEAL:
         from varunos.core.diet import food_macros
         terms = split_food_terms(intent.fields.get("foods_text", ""))
@@ -654,15 +639,96 @@ def coach_act(payload: CoachActIn):
                     "reply": "Logged: " + ", ".join(logged)
                              + f". Today so far: {round(db.day_kcal(uid, today))} kcal.",
                     "fields": {"items": logged}}
-        # nothing matched — tell the truth and let them use search
         return {"action": "log_meal",
                 "reply": "I couldn't match those foods to the database. Try the "
                          "Log → meal search, or a photo of the plate.",
                 "fields": intent.fields}
 
-    # ---- everything else is a question for the coach (tier-only gate) ----
-    out = coach_ask(CoachAskIn(question=intent.fields.get("text", payload.text)))
-    return {"action": "answer", "reply": out["answer"], "engine": out.get("engine")}
+    return None  # question -> caller routes to the coach
+
+
+def _llm_extract_intent(text: str):
+    """Best-effort LLM fallback for phrasings the deterministic parser misses.
+
+    Asks the cheap model for a structured action, then runs it through the SAME
+    pure validator the tests cover — so a hallucinated or out-of-range value can
+    never become a logged entry. Returns a validated action Intent, or None
+    (network off, no key, parse failure, or low confidence -> let the coach
+    answer). Never raises."""
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return None
+    try:
+        import httpx, json as _json
+        from varunos.core.agent import intent_from_extraction, QUESTION
+        system = (
+            "You convert a short fitness/nutrition message into ONE JSON object and "
+            "nothing else: {\"action\": \"log_workout\"|\"log_weight\"|\"log_meal\"|\"none\", "
+            "\"exercise\": string, \"weight_kg\": number, \"reps\": integer, "
+            "\"foods_text\": string}. Use \"none\" for questions, greetings, or anything "
+            "that is not the user explicitly logging a set they did, their bodyweight, or a "
+            "meal they ate. Only fill fields you are certain about from the message. "
+            "NEVER invent numbers."
+        )
+        r = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": os.environ.get("VARUNOS_LLM_MODEL", "claude-haiku-4-5"),
+                  "max_tokens": 200, "system": system,
+                  "messages": [{"role": "user", "content": text[:500]}]},
+            timeout=20,
+        )
+        if r.status_code != 200:
+            return None
+        blocks = r.json().get("content", [])
+        raw = "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
+        if "{" not in raw:
+            return None
+        data = _json.loads(raw[raw.find("{"): raw.rfind("}") + 1])
+        intent = intent_from_extraction(data)
+        return intent if intent.action != QUESTION else None
+    except Exception:
+        return None
+
+
+@router.post("/v1/coach/act")
+def coach_act(payload: CoachActIn):
+    """The plain-language brain. Turns how a person actually types into an
+    action (log a set / weight / meal) OR a coaching answer — no commands.
+
+    Deterministic-first: the pure parser in `varunos/core/agent.py` handles the
+    common phrasings with no LLM and no network. Anything it can't classify
+    falls back to a validated LLM extraction (when a key is set), and only then
+    to the coach narrator — which keeps the tier-only privacy gate."""
+    from varunos.core.agent import parse_intent, QUESTION
+    uid = _user_id_from_default()
+
+    intent = parse_intent(payload.text)
+    # Fallback: a message the parser couldn't classify might still be an action
+    # phrased in a way we didn't anticipate. Try the validated LLM extractor.
+    if intent.action == QUESTION:
+        upgraded = _llm_extract_intent(payload.text)
+        if upgraded is not None:
+            intent = upgraded
+
+    # Execute actions defensively — a logging hiccup returns a friendly message,
+    # never a 500 in the user's face.
+    try:
+        resp = _dispatch_action(uid, intent)
+    except Exception:
+        return {"action": "error",
+                "reply": "I hit a snag logging that — give it another go, or use the Log tab."}
+    if resp is not None:
+        return resp
+
+    # Question -> the coach (tier-only gate). Coach has its own template fallback.
+    try:
+        out = coach_ask(CoachAskIn(question=payload.text))
+        return {"action": "answer", "reply": out["answer"], "engine": out.get("engine")}
+    except Exception:
+        return {"action": "answer",
+                "reply": "I'm having trouble thinking right now — try again in a moment."}
 
 
 # ---- Cloud wearable connectors (OAuth: Fitbit / Oura) --------------------

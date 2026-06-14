@@ -103,3 +103,41 @@ class TestFoodTerms:
 
     def test_empty(self):
         assert split_food_terms("") == []
+
+
+class TestExtractionValidator:
+    """The LLM-fallback guard: only confident, in-range extractions become actions."""
+
+    def test_valid_weight(self):
+        from varunos.core.agent import intent_from_extraction, LOG_WEIGHT
+        i = intent_from_extraction({"action": "log_weight", "weight_kg": 77})
+        assert i.action == LOG_WEIGHT and i.fields["weight_kg"] == 77
+
+    def test_valid_workout(self):
+        from varunos.core.agent import intent_from_extraction, LOG_WORKOUT
+        i = intent_from_extraction({"action": "log_workout", "exercise": "incline bench",
+                                    "weight_kg": 80, "reps": 6})
+        assert i.action == LOG_WORKOUT
+        assert i.fields["exercise"] == "incline_bench"
+        assert i.fields["reps"] == 6
+
+    def test_valid_meal(self):
+        from varunos.core.agent import intent_from_extraction, LOG_MEAL
+        i = intent_from_extraction({"action": "log_meal", "foods_text": "paneer and rice"})
+        assert i.action == LOG_MEAL
+
+    def test_out_of_range_weight_rejected(self):
+        from varunos.core.agent import intent_from_extraction, QUESTION
+        assert intent_from_extraction({"action": "log_weight", "weight_kg": 5000}).action == QUESTION
+
+    def test_hallucinated_missing_fields_rejected(self):
+        from varunos.core.agent import intent_from_extraction, QUESTION
+        assert intent_from_extraction({"action": "log_workout", "exercise": "bench",
+                                       "weight_kg": 100}).action == QUESTION
+
+    def test_none_and_garbage(self):
+        from varunos.core.agent import intent_from_extraction, QUESTION
+        assert intent_from_extraction(None).action == QUESTION
+        assert intent_from_extraction({"action": "none"}).action == QUESTION
+        assert intent_from_extraction({"action": "log_workout", "weight_kg": "lots",
+                                       "reps": "five", "exercise": "x"}).action == QUESTION

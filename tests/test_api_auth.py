@@ -500,7 +500,10 @@ class TestWeek1Endpoints:
         assert body["workout"]["decision"] == "GREEN"
 
     def test_wakeup_respects_readiness(self, client):
-        today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+        # The server stores/reads check-ins in UTC, so build "today" in UTC too —
+        # otherwise this flakes across the local/UTC date boundary.
+        import datetime as _dt
+        today = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
         client.post("/v1/logs/checkins", headers=_auth(), json={
             "date": today, "sleep_min": 300, "energy_1to5": 2,
             "soreness_1to5": 4, "mood_1to5": 2, "stress_1to5": 5})
@@ -615,6 +618,19 @@ class TestCoachAct:
         client.post("/v1/coach/act", json={"text": "I weigh 80 today"}, headers=_auth())
         r = client.post("/v1/coach/act", json={"text": "how am I doing this week?"},
                         headers=_auth())
+        assert r.status_code == 200
+        assert r.json()["action"] == "answer"
+
+    def test_no_llm_key_no_network(self, client, monkeypatch):
+        # With no ANTHROPIC_API_KEY, an unparseable message must fall straight
+        # to the deterministic coach narrator — never attempt a network call.
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        def _boom(*a, **k):
+            raise AssertionError("network call attempted without an LLM key")
+        import httpx
+        monkeypatch.setattr(httpx, "post", _boom)
+        r = client.post("/v1/coach/act",
+                        json={"text": "ramble that is not a clear log"}, headers=_auth())
         assert r.status_code == 200
         assert r.json()["action"] == "answer"
 
