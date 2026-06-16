@@ -1,9 +1,14 @@
-# VarunOS — Product Vision
+# Sarathi — Product Vision
+
+> **Sarathi** (सारथि) — *"the charioteer."* In the Bhagavad Gita, Krishna was Arjuna's
+> sārathi: he did not fight the war, he *steered* it — guiding the hero to his own victory.
+> In the chariot metaphor the body is the chariot, the senses the horses, the mind the
+> reins, and the charioteer the guiding intelligence. That is exactly what this product is.
 
 > **North Star:** Two things grow with you.
 > Your **Twin** (your body, made visible) and your **Hermes** (your coach, made personal) —
 > both backed by a **Health Vault** of memory you own forever.
-> VarunOS is the private AI health operating system that turns the data you already
+> Sarathi is the private AI health operating system that turns the data you already
 > generate into a living character you level up, a companion that knows you better every
 > day, and an open, lifelong record of you that never leaves your hands.
 
@@ -14,7 +19,7 @@ the build roadmap in `MASTER_PLAN_V3.md` executes against it.*
 
 ## 1. The one-liner
 
-**VarunOS — own your health. Talk to it, and watch yourself level up.**
+**Sarathi — own your health. Talk to it, and watch yourself level up.**
 
 A personal health OS that pulls from the wearables you already own, plans and logs your
 training, tracks your nutrition, remembers your entire journey as open files you own, and
@@ -39,7 +44,7 @@ health data never leaves your hands.
 
 Most fitness apps fail for the same reasons — and we kill all of them:
 
-| Why apps die | What VarunOS does |
+| Why apps die | What Sarathi does |
 |---|---|
 | **Logging is a chore** → people quit | You just *talk*; it logs for you. No forms. |
 | **Advice is generic** → no results | It reads your recovery from your wearable and adapts daily. |
@@ -117,7 +122,7 @@ pictures your progress.
   built-in **Local REST API + MCP server**, so "remembers everything about you" is backed
   by files you can open, read, and edit — not a black box.
 - **Two-way:** you journal feelings/notes/photos in Obsidian → Hermes reads them for richer
-  coaching; VarunOS writes structured progress back. The vault is your shared brain with
+  coaching; Sarathi writes structured progress back. The vault is your shared brain with
   your coach.
 - **The graph view is a signature visual** — seeing sleep nodes wire into PR nodes into
   Twin-level nodes is unique and demo-gold (use it in the film/deck).
@@ -127,7 +132,7 @@ pictures your progress.
 - **Reality flag:** Obsidian is a local app, not a server. Fits the **self-hosted / local**
   mode; for cloud users we ship a **"Download your Health Vault"** export (a `.zip` of
   `.md` files) so everyone owns a portable copy even without installing Obsidian. The
-  canonical store stays VarunOS's database (the truth); the vault is an open, human-readable
+  canonical store stays Sarathi's database (the truth); the vault is an open, human-readable
   mirror + memory layer — never a hard runtime dependency.
 
 ### Pillar 7 — Hermes, the companion that grows with you (the signature feature)
@@ -151,12 +156,12 @@ and gets to know you better every day:
 (model-agnostic, bring-your-own-key, 100+ AgentSkills, automates Telegram/WhatsApp/web).
 It's the perfect execution engine for Hermes because it runs **on the user's own box** —
 matching our "data never leaves you" promise.
-- We build **VarunOS AgentSkills**: fetch-and-sync wearables, log a set/meal, build the
+- We build **Sarathi AgentSkills**: fetch-and-sync wearables, log a set/meal, build the
   grocery cart, send the briefing, write to the Vault, pull a lab result, schedule a
   deload, etc.
 - Hermes *decides*; OpenClaw *does*. It also speaks MCP — the same protocol Obsidian's vault
   exposes — so the agent, the memory, and the automations all interconnect natively.
-- **Research note:** keep VarunOS's deterministic core as the truth layer; OpenClaw is
+- **Research note:** keep Sarathi's deterministic core as the truth layer; OpenClaw is
   orchestration only, wrapped behind our own interface so we're insulated from its churn.
 
 ### Pillar 9 — Private by design (the trust moat)
@@ -209,7 +214,7 @@ guessed.
 
 ## 6. Why we're different (the moat, in one table)
 
-| Every other fitness app | VarunOS |
+| Every other fitness app | Sarathi |
 |---|---|
 | You serve the app (manual logging) | You just talk — it logs for you |
 | Generic, static plans | Adapts to your recovery, daily |
