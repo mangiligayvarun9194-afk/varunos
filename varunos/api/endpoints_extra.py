@@ -47,7 +47,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, Response
 from pydantic import BaseModel, Field
 
 from varunos.auth import require_auth
@@ -729,6 +729,49 @@ def coach_act(payload: CoachActIn):
     except Exception:
         return {"action": "answer",
                 "reply": "I'm having trouble thinking right now — try again in a moment."}
+
+
+# ---- Health Vault: your story as open, linked Markdown you own ----------
+
+def _vault_files(uid: str):
+    from varunos.core.vault import build_vault
+    profile = db.get_profile(uid) or {}
+    since = (datetime.now(timezone.utc) - timedelta(days=3650)).isoformat()
+    sets = db.list_sets_since(uid, since)
+    meals = db.list_meals(uid)
+    return build_vault(profile, sets, meals), len(sets), len(meals)
+
+
+@router.get("/v1/vault/preview")
+def vault_preview():
+    """Stats + a sample note so the UI can show what the download contains."""
+    uid = _user_id_from_default()
+    files, n_sets, n_meals = _vault_files(uid)
+    return {
+        "files": len(files),
+        "days": sum(1 for p in files if p.startswith("days/")),
+        "exercises": sum(1 for p in files if p.startswith("exercises/")),
+        "sets": n_sets,
+        "meals": n_meals,
+        "sample": files.get("README.md", "")[:1400],
+    }
+
+
+@router.get("/v1/vault/export")
+def vault_export():
+    """Download the whole vault as a .zip of Markdown files the user owns."""
+    import io, zipfile
+    uid = _user_id_from_default()
+    files, _, _ = _vault_files(uid)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for path, content in files.items():
+            z.writestr(f"sarathi-health-vault/{path}", content)
+    db.log_event(uid, "vault_exported", channel="api", payload={"files": len(files)})
+    return Response(
+        content=buf.getvalue(), media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="sarathi-health-vault.zip"'},
+    )
 
 
 # ---- Cloud wearable connectors (OAuth: Fitbit / Oura) --------------------

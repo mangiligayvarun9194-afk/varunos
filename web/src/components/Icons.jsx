@@ -141,3 +141,14 @@ export const IconSparkle = (p) => (
     <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z" />
   </svg>
 );
+
+export const IconVault = (p) => (
+  <svg {...base} {...p}>
+    <path d="M5 8 12 4l7 4M5 8v8l7 4 7-4V8M12 12v8" />
+    <path d="M9 10.5 12 12l3-1.5" />
+  </svg>
+);
+
+export const IconDownload = (p) => (
+  <svg {...base} {...p}><path d="M12 4v11M7 11l5 5 5-5M5 20h14" /></svg>
+);

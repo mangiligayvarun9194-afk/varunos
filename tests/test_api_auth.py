@@ -637,3 +637,30 @@ class TestCoachAct:
     def test_requires_auth(self, client):
         r = client.post("/v1/coach/act", json={"text": "hi"})
         assert r.status_code in (401, 403)
+
+
+class TestHealthVault:
+    """The Health Vault export — your data as downloadable Markdown."""
+
+    def test_preview_empty(self, client):
+        r = client.get("/v1/vault/preview", headers=_auth())
+        assert r.status_code == 200
+        b = r.json()
+        assert b["files"] >= 2  # README + profile always
+        assert "Sarathi Health Vault" in b["sample"]
+
+    def test_export_after_logging(self, client):
+        # log a set via the agent, then the vault should contain it
+        client.post("/v1/coach/act", json={"text": "I benched 100 for 5"}, headers=_auth())
+        r = client.get("/v1/vault/export", headers=_auth())
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "application/zip"
+        assert "attachment" in r.headers.get("content-disposition", "")
+        import io, zipfile
+        z = zipfile.ZipFile(io.BytesIO(r.content))
+        names = z.namelist()
+        assert any("exercises/bench_press.md" in n for n in names)
+        assert any(n.endswith("README.md") for n in names)
+
+    def test_export_requires_auth(self, client):
+        assert client.get("/v1/vault/export").status_code in (401, 403)

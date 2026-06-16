@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, API_BASE, API_KEY, setConnection, getProfile, saveProfileLocal, makePairLink } from '../api.js';
 import { Sheet, useToast, stagger, rise } from '../components/ui.jsx';
-import { IconWatch, IconLock, IconLink, IconShield } from '../components/Icons.jsx';
+import { IconWatch, IconLock, IconLink, IconShield, IconVault, IconDownload } from '../components/Icons.jsx';
 
 export default function Settings({ onTab, onSetupPin }) {
   const toast = useToast();
@@ -20,6 +20,8 @@ export default function Settings({ onTab, onSetupPin }) {
   const [surv, setSurv] = useState(undefined);
   const [survAck, setSurvAck] = useState(false);
   const [survStatus, setSurvStatus] = useState(null);
+  const [vault, setVault] = useState(undefined);
+  const [dl, setDl] = useState(false);
 
   async function refreshSync() {
     try { setSync(await api('/v1/sync/status')); } catch (_) { setSync(null); }
@@ -27,7 +29,27 @@ export default function Settings({ onTab, onSetupPin }) {
   async function refreshConsent() {
     try { setSurv((await api('/v1/user/surveillance')).surveillance_on); } catch (_) { setSurv(null); }
   }
-  useEffect(() => { refreshSync(); refreshConsent(); }, []);
+  async function refreshVault() {
+    try { setVault(await api('/v1/vault/preview')); } catch (_) { setVault(null); }
+  }
+  useEffect(() => { refreshSync(); refreshConsent(); refreshVault(); }, []);
+
+  async function downloadVault() {
+    setDl(true);
+    try {
+      const r = await fetch(API_BASE + '/v1/vault/export',
+        { headers: API_KEY ? { Authorization: 'Bearer ' + API_KEY } : {} });
+      if (!r.ok) throw new Error('export failed');
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'sarathi-health-vault.zip';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast('Health Vault downloaded — it’s yours.');
+    } catch (e) { toast('Couldn’t export — try again.'); }
+    setDl(false);
+  }
 
   async function saveProfile() {
     const p = {
@@ -234,6 +256,30 @@ export default function Settings({ onTab, onSetupPin }) {
           <button className="btn ghost" onClick={() => setConsent(false)}>Disable</button>
         </div>
         {survStatus && <p className={survStatus.tone} style={{ marginTop: 8 }}>{survStatus.msg}</p>}
+      </motion.div>
+
+      <motion.div variants={rise} className="card">
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ color: 'var(--mint)' }}><IconVault width={17} height={17} /></span> Health Vault
+        </h3>
+        <p className="meta" style={{ marginBottom: 12 }}>
+          Your whole health story as open Markdown files you own forever — every day,
+          workout, and PR, cross-linked. Open it in Obsidian to see your graph, or keep it
+          anywhere. We never hold your data hostage.
+        </p>
+        {vault && !vault.error && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+            {[['Days', vault.days], ['Exercises', vault.exercises], ['Meals', vault.meals]].map(([k, v]) => (
+              <div key={k} style={{ textAlign: 'center', background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 12, padding: '10px 4px' }}>
+                <div className="mono" style={{ fontSize: 18, fontWeight: 700 }}>{v}</div>
+                <div style={{ fontSize: 9, color: 'var(--mute)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{k}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <button className="btn primary full" disabled={dl} onClick={downloadVault}>
+          <IconDownload width={16} height={16} /> {dl ? 'Preparing…' : 'Download your Health Vault'}
+        </button>
       </motion.div>
 
       <motion.div variants={rise} className="card">
