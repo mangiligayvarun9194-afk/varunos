@@ -1,5 +1,5 @@
 """
-Tests for the VarunOS PWA source files.
+Tests for the Sarathi PWA source files.
 
 These do not test the running browser app (that requires a headless
 browser + service worker, which is out of scope for the MVP). They
@@ -56,7 +56,7 @@ class TestPWAServedFromAPI:
             r = c.get("/")
             assert r.status_code == 200
             assert "text/html" in r.headers["content-type"]
-            assert "VarunOS" in r.text
+            assert "Sarathi" in r.text
 
     def test_manifest_served(self, monkeypatch):
         monkeypatch.setenv("VARUNOS_API_KEY", "test")
@@ -69,7 +69,7 @@ class TestPWAServedFromAPI:
             r = c.get("/manifest.json")
             assert r.status_code == 200
             m = r.json()
-            assert m["name"] == "VarunOS"
+            assert m["name"] == "Sarathi"
 
     def test_sw_served(self, monkeypatch):
         monkeypatch.setenv("VARUNOS_API_KEY", "test")
@@ -87,7 +87,7 @@ class TestPWAServedFromAPI:
 class TestManifest:
     def test_manifest_parses(self):
         m = json.loads(_read("manifest.json"))
-        assert m["name"] == "VarunOS"
+        assert m["name"] == "Sarathi"
         assert m["start_url"] == "/"
         assert m["display"] == "standalone"
 

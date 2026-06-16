@@ -84,7 +84,7 @@ export default function Settings({ onTab, onSetupPin }) {
   }
 
   function clearCache() {
-    if (!confirm('Clear all VarunOS data stored in this browser? (server data is untouched.)')) return;
+    if (!confirm('Clear all Sarathi data stored in this browser? (server data is untouched.)')) return;
     ['varunos_api', 'varunos_key', 'varunos_profile', 'varunos_checkin', 'varunos_onboarded',
       'varunos_surveillance_ack', 'varunos_pin', 'varunos_bio', 'varunos_pin_skipped',
       'varunos_paired', 'varunos_avatar_url', 'twin_last_ex'].forEach((k) => localStorage.removeItem(k));
@@ -160,7 +160,7 @@ export default function Settings({ onTab, onSetupPin }) {
         {showWatchHelp && (
           <div className="card" style={{ background: 'var(--surface-2)', marginTop: 12 }}>
             <h3 style={{ fontSize: 14 }}>iPhone / Apple Watch (2 min, one time)</h3>
-            <p className="meta" style={{ margin: '8px 0' }}>The free <b>Shortcuts</b> app reads Apple Health and posts to VarunOS each morning.</p>
+            <p className="meta" style={{ margin: '8px 0' }}>The free <b>Shortcuts</b> app reads Apple Health and posts to Sarathi each morning.</p>
             <ol className="meta" style={{ margin: '0 0 8px 18px', lineHeight: 1.9 }}>
               <li>Shortcuts → Automation → + → Time of Day → 7:00 AM</li>
               <li>Add <b>Get Health Sample</b> → HRV (most recent); repeat for RHR, Sleep, Steps</li>
@@ -176,7 +176,7 @@ export default function Settings({ onTab, onSetupPin }) {
 
       <motion.div variants={rise} className="card">
         <h3 style={{ marginBottom: 8 }}>Backend connection</h3>
-        <p className="meta" style={{ marginBottom: 8 }}>Where this app talks to the VarunOS API. Stored only in this browser.</p>
+        <p className="meta" style={{ marginBottom: 8 }}>Where this app talks to the Sarathi API. Stored only in this browser.</p>
         <F label="API base URL"><input style={{ width: 200, textAlign: 'left' }} value={connBase} onChange={(e) => setConnBase(e.target.value)} /></F>
         <F label="API key"><input style={{ width: 200, textAlign: 'left' }} type="password" value={connKey} onChange={(e) => setConnKey(e.target.value)} /></F>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -225,7 +225,7 @@ export default function Settings({ onTab, onSetupPin }) {
         <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', margin: '12px 0' }}>
           <input type="checkbox" checked={survAck} onChange={(e) => setSurvAck(e.target.checked)} style={{ width: 17, height: 17, marginTop: 2 }} />
           <span style={{ fontSize: 13, color: 'var(--dim)' }}>
-            I understand VarunOS is a personal-use educational tool, not a medical device, and risk
+            I understand Sarathi is a personal-use educational tool, not a medical device, and risk
             tiers are screening estimates, not diagnoses.
           </span>
         </label>

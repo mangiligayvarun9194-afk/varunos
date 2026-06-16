@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, MotionConfig } from 'framer-motion';
-import { API_BASE, API_KEY, healthCheck, getProfile } from './api.js';
+import { API_BASE, API_KEY, healthCheck, getProfile, setConnection } from './api.js';
 import { ToastProvider, Dock } from './components/ui.jsx';
+import { IconLock } from './components/Icons.jsx';
 import Lock from './screens/Lock.jsx';
 import Onboarding from './screens/Onboarding.jsx';
 import Today from './screens/Today.jsx';
@@ -22,10 +23,22 @@ export default function App() {
   const [tab, setTab] = useState('today');
   const [sheet, setSheet] = useState(null); // checkin | workout | meal | bp | glucose
   const [connected, setConnected] = useState(null);
+  const [authed, setAuthed] = useState(null); // null=checking, true=ok, false=bad/missing key
   const [tabEpoch, setTabEpoch] = useState(0); // remounts the active screen on revisit
+
+  async function checkAuth() {
+    try {
+      const r = await fetch(API_BASE + '/v1/auth/check',
+        { headers: API_KEY ? { Authorization: 'Bearer ' + API_KEY } : {} });
+      // Only gate on a definitive auth failure — never lock the user out on a
+      // network blip (that's the offline pill's job, not a full takeover).
+      setAuthed(!(r.status === 401 || r.status === 403));
+    } catch (_) { setAuthed(true); }
+  }
 
   useEffect(() => {
     healthCheck().then(setConnected);
+    checkAuth();
     const t = setInterval(() => healthCheck().then(setConnected), 30000);
     return () => clearInterval(t);
   }, []);
@@ -56,6 +69,16 @@ export default function App() {
     );
   }
 
+  // A bad or missing API key would make every call 401 and leave the app blank.
+  // Catch it and guide the user to connect — never show an empty screen.
+  if (authed === false) {
+    return (
+      <ToastProvider>
+        <ConnectScreen onConnected={() => location.reload()} />
+      </ToastProvider>
+    );
+  }
+
   const initial = getProfile().user_id?.charAt(0)?.toUpperCase() || 'V';
 
   return (
@@ -73,7 +96,7 @@ export default function App() {
           padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <h1 className="display" style={{ fontSize: 19, fontWeight: 700 }}>
-            Varun<span style={{ color: 'var(--mint)' }}>OS</span>
+            Sarathi
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{
@@ -115,5 +138,64 @@ export default function App() {
         <Dock tab={tab} onTab={openTab} />
       </ToastProvider>
     </MotionConfig>
+  );
+}
+
+function ConnectScreen({ onConnected }) {
+  const [base, setBase] = useState(API_BASE);
+  const [key, setKey] = useState(API_KEY);
+  const [status, setStatus] = useState(null);
+
+  async function connect() {
+    if (!key.trim()) { setStatus({ tone: 'err', msg: 'Paste your server API key to connect.' }); return; }
+    setStatus({ tone: 'meta', msg: 'Connecting…' });
+    try {
+      const r = await fetch(base.trim() + '/v1/auth/check',
+        { headers: { Authorization: 'Bearer ' + key.trim() } });
+      if (r.ok) {
+        setConnection(base.trim(), key.trim());
+        setStatus({ tone: 'ok', msg: 'Connected.' });
+        setTimeout(onConnected, 400);
+      } else if (r.status === 401 || r.status === 403) {
+        setStatus({ tone: 'err', msg: 'That key was rejected — check it and try again.' });
+      } else {
+        setStatus({ tone: 'err', msg: 'Unexpected response (' + r.status + ').' });
+      }
+    } catch (e) {
+      setStatus({ tone: 'err', msg: e.message + ' — is the server URL right?' });
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'var(--bg)', display: 'flex',
+      flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <div className="ambient" />
+      <div style={{ position: 'relative', width: '100%', maxWidth: 380 }}>
+        <div style={{ color: 'var(--mint)', display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+          <IconLock width={30} height={30} />
+        </div>
+        <h2 className="display" style={{ fontSize: 24, fontWeight: 700, textAlign: 'center' }}>
+          Connect to Sarathi
+        </h2>
+        <p className="meta" style={{ textAlign: 'center', margin: '6px 0 22px' }}>
+          Enter your server's address and API key. Stored only on this device.
+        </p>
+        <div className="field" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+          <label>Server URL</label>
+          <input style={{ width: '100%', textAlign: 'left' }} value={base}
+            onChange={(e) => setBase(e.target.value)} placeholder="https://your-server.onrender.com" />
+        </div>
+        <div className="field" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+          <label>API key</label>
+          <input style={{ width: '100%', textAlign: 'left' }} type="password" value={key}
+            onChange={(e) => setKey(e.target.value)} placeholder="your VARUNOS_API_KEY"
+            onKeyDown={(e) => e.key === 'Enter' && connect()} />
+        </div>
+        <button className="btn primary full" style={{ marginTop: 16 }} onClick={connect}>Connect</button>
+        {status && <p className={status.tone} style={{ textAlign: 'center', marginTop: 12 }}>{status.msg}</p>}
+      </div>
+    </div>
   );
 }

@@ -17,7 +17,7 @@
   history.replaceState(null, '', location.pathname + location.search);
 })();
 
-// When the app is served by the VarunOS server itself (Render or local
+// When the app is served by the Sarathi server itself (Render or local
 // uvicorn), same-origin is the right default. The localhost fallback only
 // matters for `vite dev`.
 const defaultBase = location.port === '5173' ? 'http://127.0.0.1:8000' : location.origin;

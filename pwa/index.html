@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>VarunOS — Personal AI Coach</title>
+<title>Sarathi — Personal AI Coach</title>
 <link rel="manifest" href="manifest.json">
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
@@ -17,7 +17,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
 <style>
   /* ================================================================
-     VarunOS Premium Design System v4
+     Sarathi Premium Design System v4
      Aurora glass aesthetic — gradient glows, glass surfaces, shimmer
      CTAs, display typography. Vanilla CSS, no framework, no build.
      ================================================================ */
@@ -596,7 +596,7 @@
 <!-- LOCK SCREEN (PIN / biometric gate over the device-stored key) -->
 <div id="lock-screen">
   <div id="lock-vee" style="margin-bottom:4px;"></div>
-  <h2 style="font-size:22px; font-weight:700;">Varun<span style="color:var(--accent)">OS</span></h2>
+  <h2 style="font-size:22px; font-weight:700;">Sarathi</h2>
   <p id="lock-title" style="color:var(--text-dim); font-size:14px;">Enter your PIN</p>
   <div class="pin-dots" id="pin-dots">
     <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
@@ -626,7 +626,7 @@
 <div id="onboard-overlay" style="display:none; position:fixed; inset:0; z-index:500; background: var(--bg); overflow-y:auto;">
   <div style="max-width: 560px; margin: 0 auto; padding: 32px 20px 80px;">
     <div id="onboard-step-1" class="onboard-step">
-      <h2 style="font-size:28px; margin-bottom: 12px;">Welcome to VarunOS</h2>
+      <h2 style="font-size:28px; margin-bottom: 12px;">Welcome to Sarathi</h2>
       <p style="color:var(--text-dim); margin-bottom: 24px;">
         Your personal AI coach operating system. Runs on YOUR server, stores data in
         YOUR SQLite file. Nothing leaves the box unless you share it.
@@ -642,7 +642,7 @@
     <div id="onboard-step-2" class="onboard-step" style="display:none;">
       <h2 style="font-size:24px; margin-bottom: 12px;">Connect to the API</h2>
       <p style="color:var(--text-dim); margin-bottom: 16px;">
-        Where is your VarunOS server running?
+        Where is your Sarathi server running?
       </p>
       <div style="background:rgba(110,231,183,0.07); border:1px solid rgba(110,231,183,0.2); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--text-dim); margin-bottom:16px;">
         💡 Already set up on another device? Open Settings → <b>Copy pairing link</b>
@@ -704,7 +704,7 @@
     <div id="onboard-step-4" class="onboard-step" style="display:none;">
       <h2 style="font-size:24px; margin-bottom: 12px;">Safety</h2>
       <p style="color:var(--text-dim); margin-bottom: 12px;">
-        VarunOS is a personal-use educational tool. It is not a medical device. Risk
+        Sarathi is a personal-use educational tool. It is not a medical device. Risk
         tiers are screening estimates, not diagnoses.
       </p>
       <p style="color:var(--text-dim); margin-bottom: 12px;">
@@ -761,7 +761,7 @@
 </div>
 
 <header class="topbar">
-  <h1>Varun<span>OS</span></h1>
+  <h1>Sarathi</h1>
   <div class="avatar" id="avatar">V</div>
 </header>
 
@@ -801,7 +801,7 @@
     </div>
 
     <div class="disclaimer" id="disclaimer-box">
-      <strong>VarunOS Health Surveillance is an educational risk-stratification tool, not a medical device.</strong> It does not diagnose, treat, cure, or prevent any disease. If you have symptoms, contact a licensed medical professional. In an emergency, call 911 / 108 / 112.
+      <strong>Sarathi Health Surveillance is an educational risk-stratification tool, not a medical device.</strong> It does not diagnose, treat, cure, or prevent any disease. If you have symptoms, contact a licensed medical professional. In an emergency, call 911 / 108 / 112.
     </div>
   </section>
 
@@ -1057,7 +1057,7 @@
 
     <div class="card">
       <h3>Backend connection</h3>
-      <p class="meta">Where this app talks to the VarunOS API. Stored only in this browser.</p>
+      <p class="meta">Where this app talks to the Sarathi API. Stored only in this browser.</p>
       <div class="form-grid">
         <div class="form-row">
           <label>API base URL</label>
@@ -1108,7 +1108,7 @@
         <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
           <input type="checkbox" id="s-consent-ack" style="margin-top:4px;">
           <span style="font-size:13px; color: var(--text-dim);">
-            I understand that VarunOS is a personal-use educational tool, not a medical
+            I understand that Sarathi is a personal-use educational tool, not a medical
             device, and that risk tiers are screening estimates, not diagnoses.
           </span>
         </label>
@@ -1122,7 +1122,7 @@
 
     <div class="card">
       <h3>Local data</h3>
-      <p class="meta">All VarunOS data is stored on your server's SQLite file. To remove
+      <p class="meta">All Sarathi data is stored on your server's SQLite file. To remove
         everything from this browser, use the button below. To wipe the server,
         delete <code>varunos.db</code> on the server.</p>
       <div style="display:flex; gap:8px; margin-top: 12px; flex-wrap: wrap;">
@@ -1296,8 +1296,8 @@
       if (!ok) return;
       const cred = await navigator.credentials.create({ publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: { name: 'VarunOS' },
-        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'varunos-user', displayName: 'VarunOS' },
+        rp: { name: 'Sarathi' },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'varunos-user', displayName: 'Sarathi' },
         pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
         authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
         timeout: 30000,
@@ -1457,7 +1457,7 @@
           <div class="card" style="border:2px dashed var(--border); text-align:center; padding:24px;">
             <div style="font-size:28px;">📈</div>
             <h3 style="font-size:15px; margin:8px 0;">Patterns appear after ~7 days</h3>
-            <p class="meta">Keep doing your check-ins or syncing your watch. VarunOS will start
+            <p class="meta">Keep doing your check-ins or syncing your watch. Sarathi will start
             spotting what raises your HRV, what hurts your sleep, and early warning signs —
             all from your own data.</p>
           </div>`;
@@ -2460,31 +2460,31 @@
         out += (meals.meals||[]).slice(0,5).map(m => `${m.ts?.slice(0,10)} · ${m.food_id.replace(/_/g,' ')} · ${Math.round(m.kcal)} kcal`).join('<br>') || '<em>None</em>';
         out += '<br><br><strong>Recent workouts:</strong><br>';
         out += (wk.workouts||[]).slice(0,3).map(w => `${w.ts?.slice(0,10)} · ${w.day_name} (${w.program}) · ${w.decision}`).join('<br>') || '<em>None</em>';
-        addChat('bot', 'VarunOS', out);
+        addChat('bot', 'Sarathi', out);
       } else if (text.match(/search\s+(.+)/)) {
         const q = text.match(/search\s+(.+)/)[1];
         const r = await api(`/v1/foods/search?q=${encodeURIComponent(q)}&limit=8`);
         if (r.results.length === 0) {
-          addChat('bot', 'VarunOS', `No foods found for "${q}". Try: chicken, paneer, roti, rice, dal, egg.`);
+          addChat('bot', 'Sarathi', `No foods found for "${q}". Try: chicken, paneer, roti, rice, dal, egg.`);
         } else {
           const items = r.results.map(f => `<strong>${f.name}</strong> — ${f.kcal} kcal · P${f.p} C${f.c} F${f.f}`).join('<br>');
-          addChat('bot', 'VarunOS', items);
+          addChat('bot', 'Sarathi', items);
         }
       } else if (text.includes('meal plan') || text.includes('plan')) {
         const r = await api('/v1/diet/plan', { method: 'POST', body: { template: 'indian_nonveg_4meal', n_days: 1 } });
         const meals = r.days[0].map(m => `<strong>${m.meal}:</strong> ${m.items.map(i => i.food_id.replace(/_/g,' ')).join(', ')}`).join('<br>');
-        addChat('bot', 'VarunOS', `Today's meal plan (Indian Non-Veg):<br><br>${meals}`);
+        addChat('bot', 'Sarathi', `Today's meal plan (Indian Non-Veg):<br><br>${meals}`);
       } else if (text.includes('programs') || text.includes('program')) {
         const r = await api('/v1/programs');
-        addChat('bot', 'VarunOS', `Available programs:<br>${r.programs.map(p => `• ${p}`).join('<br>')}`);
+        addChat('bot', 'Sarathi', `Available programs:<br>${r.programs.map(p => `• ${p}`).join('<br>')}`);
       } else {
         // Everything else → the Brain (LLM if configured, else deterministic)
         const r = await api('/v1/coach/ask', { method: 'POST', body: { question: text } });
         const badge = r.engine === 'llm' ? '' : '';
-        addChat('bot', 'VarunOS' + badge, r.answer.replace(/\n/g, '<br>'));
+        addChat('bot', 'Sarathi' + badge, r.answer.replace(/\n/g, '<br>'));
       }
     } catch (e) {
-      addChat('bot', 'VarunOS', `Error: ${e.message}`);
+      addChat('bot', 'Sarathi', `Error: ${e.message}`);
     }
   }
 
@@ -2493,7 +2493,7 @@
     if (action === 'workout') { addChat('user', 'You', 'Show workout'); handleCoachCommand('workout'); return; }
     if (action === 'doctor_share') {
       addChat('user', 'You', 'Generate doctor-share');
-      addChat('bot', 'VarunOS', 'Doctor-share data is available at <code>POST /v1/doctor/share</code>. CLI PDF: <code>PYTHONPATH=. python3 scripts/doctor_share_pdf.py</code>');
+      addChat('bot', 'Sarathi', 'Doctor-share data is available at <code>POST /v1/doctor/share</code>. CLI PDF: <code>PYTHONPATH=. python3 scripts/doctor_share_pdf.py</code>');
     }
   }
 
@@ -2570,7 +2570,7 @@
     setTimeout(() => location.reload(), 200);
   }
   function clearLocalCache() {
-    if (!confirm('Clear all VarunOS data stored in this browser? (server data is untouched.)')) return;
+    if (!confirm('Clear all Sarathi data stored in this browser? (server data is untouched.)')) return;
     ['varunos_api','varunos_key','varunos_profile','varunos_checkin','varunos_onboarded',
      'varunos_surveillance_ack','varunos_pin','varunos_bio','varunos_pin_skipped',
      'varunos_paired'].forEach(k => localStorage.removeItem(k));
@@ -2613,7 +2613,7 @@
     document.getElementById('watch-setup').innerHTML = `
       <div class="card" style="background:var(--bg-elev); margin-top:4px;">
         <h3 style="font-size:14px;">📲 iPhone / Apple Watch (2 min, one time)</h3>
-        <p class="meta" style="margin:8px 0;">The free <b>Shortcuts</b> app reads Apple Health and posts to VarunOS automatically each morning.</p>
+        <p class="meta" style="margin:8px 0;">The free <b>Shortcuts</b> app reads Apple Health and posts to Sarathi automatically each morning.</p>
         <ol class="meta" style="margin:0 0 8px 18px; line-height:1.9;">
           <li>Open <b>Shortcuts</b> → <b>Automation</b> → <b>+</b> → <b>Time of Day</b> → 7:00 AM</li>
           <li>Add action <b>Get Health Sample</b> → Heart Rate Variability (most recent)</li>

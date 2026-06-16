@@ -117,7 +117,7 @@ export default function Today({ onOpenSheet, onTab }) {
       </motion.div>
 
       <motion.div variants={rise} className="disclaimer">
-        <strong>VarunOS Health Surveillance is an educational risk-stratification tool, not a medical
+        <strong>Sarathi Health Surveillance is an educational risk-stratification tool, not a medical
         device.</strong> It does not diagnose, treat, cure, or prevent any disease. If you have symptoms,
         contact a licensed medical professional. In an emergency, call 911 / 108 / 112.
       </motion.div>

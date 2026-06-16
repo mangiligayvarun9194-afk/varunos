@@ -1,4 +1,4 @@
-// THE TWIN — the emotional center of VarunOS.
+// THE TWIN — the emotional center of Sarathi.
 // three.js + Ready Player Me GLB, PROCEDURAL skeleton animation (no asset
 // pipeline). Muscle growth = bone scaling driven by the deterministic
 // avatar_level from the server (30% volume · 20% streaks · 25% PRs · 25%

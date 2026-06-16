@@ -1,6 +1,6 @@
 {
-  "name": "VarunOS",
-  "short_name": "VarunOS",
+  "name": "Sarathi",
+  "short_name": "Sarathi",
   "description": "Personal AI Coach Operating System — your data, your server",
   "start_url": "/",
   "display": "standalone",

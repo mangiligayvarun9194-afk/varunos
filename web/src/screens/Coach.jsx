@@ -25,28 +25,28 @@ export default function Coach() {
         out += (meals.meals || []).slice(0, 5).map((m) => `${m.ts?.slice(0, 10)} · ${m.food_id.replace(/_/g, ' ')} · ${Math.round(m.kcal)} kcal`).join('\n') || 'None';
         out += '\n\nRecent workouts:\n';
         out += (wk.workouts || []).slice(0, 3).map((w) => `${w.ts?.slice(0, 10)} · ${w.day_name} (${w.program}) · ${w.decision}`).join('\n') || 'None';
-        add('bot', 'VarunOS', out);
+        add('bot', 'Sarathi', out);
       } else if (text.match(/search\s+(.+)/)) {
         const q = text.match(/search\s+(.+)/)[1];
         const r = await api(`/v1/foods/search?q=${encodeURIComponent(q)}&limit=8`);
-        add('bot', 'VarunOS', r.results.length === 0
+        add('bot', 'Sarathi', r.results.length === 0
           ? `No foods found for "${q}". Try: chicken, paneer, roti, rice, dal, egg.`
           : r.results.map((f) => `${f.name} — ${f.kcal} kcal · P${f.p} C${f.c} F${f.f}`).join('\n'));
       } else if (text.includes('meal plan') || text.includes('plan')) {
         const r = await api('/v1/diet/plan', { method: 'POST', body: { template: 'indian_nonveg_4meal', n_days: 1 } });
         const meals = r.days[0].map((m) => `${m.meal}: ${m.items.map((i) => i.food_id.replace(/_/g, ' ')).join(', ')}`).join('\n');
-        add('bot', 'VarunOS', `Today's meal plan (Indian Non-Veg):\n\n${meals}`);
+        add('bot', 'Sarathi', `Today's meal plan (Indian Non-Veg):\n\n${meals}`);
       } else if (text.includes('programs') || text.includes('program')) {
         const r = await api('/v1/programs');
-        add('bot', 'VarunOS', `Available programs:\n${r.programs.map((p) => `• ${p}`).join('\n')}`);
+        add('bot', 'Sarathi', `Available programs:\n${r.programs.map((p) => `• ${p}`).join('\n')}`);
       } else {
         // The natural-language agent: it can log a set/weight/meal from plain
         // English, or answer. No commands — just type how you'd say it.
         const r = await api('/v1/coach/act', { method: 'POST', body: { text } });
-        add('bot', 'VarunOS', r.reply);
+        add('bot', 'Sarathi', r.reply);
       }
     } catch (e) {
-      add('bot', 'VarunOS', `Error: ${e.message}`);
+      add('bot', 'Sarathi', `Error: ${e.message}`);
     }
   }
 
@@ -61,7 +61,7 @@ export default function Coach() {
   function quick(action) {
     if (action === 'doctor_share') {
       add('user', 'You', 'Generate doctor-share');
-      add('bot', 'VarunOS', 'Doctor-share data is available at POST /v1/doctor/share. CLI PDF: PYTHONPATH=. python3 scripts/doctor_share_pdf.py');
+      add('bot', 'Sarathi', 'Doctor-share data is available at POST /v1/doctor/share. CLI PDF: PYTHONPATH=. python3 scripts/doctor_share_pdf.py');
       return;
     }
     add('user', 'You', action === 'briefing' ? 'Show briefing' : 'Show workout');

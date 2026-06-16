@@ -13,8 +13,8 @@ export async function offerBiometric(toast) {
     if (!ok) return;
     const cred = await navigator.credentials.create({ publicKey: {
       challenge: crypto.getRandomValues(new Uint8Array(32)),
-      rp: { name: 'VarunOS' },
-      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'varunos-user', displayName: 'VarunOS' },
+      rp: { name: 'Sarathi' },
+      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'varunos-user', displayName: 'Sarathi' },
       pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
       authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
       timeout: 30000,
@@ -115,7 +115,7 @@ export default function Lock({ mode: initialMode, onUnlock }) {
         <IconLock width={30} height={30} />
       </motion.div>
       <h2 className="display" style={{ fontSize: 24, fontWeight: 700 }}>
-        Varun<span style={{ color: 'var(--mint)' }}>OS</span>
+        Sarathi
       </h2>
       <p style={{ color: 'var(--dim)', fontSize: 14 }}>{title}</p>
 

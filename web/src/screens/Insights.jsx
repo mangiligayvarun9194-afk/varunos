@@ -50,7 +50,7 @@ function Patterns({ r }) {
       <div className="card" style={{ borderStyle: 'dashed', textAlign: 'center', padding: 26 }}>
         <span style={{ color: 'var(--mute)' }}><IconPulse width={26} height={26} /></span>
         <h3 style={{ margin: '8px 0 4px', fontSize: 15 }}>Patterns appear after ~7 days</h3>
-        <p className="meta">Keep doing check-ins or syncing your watch. VarunOS spots what raises
+        <p className="meta">Keep doing check-ins or syncing your watch. Sarathi spots what raises
           your HRV, what hurts your sleep, and early warning signs — from your own data.</p>
       </div>
     );

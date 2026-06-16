@@ -77,7 +77,7 @@ export default function Onboarding({ defaultApi, defaultKey, onDone }) {
                 Your health,<br />running on <span style={{ color: 'var(--mint)' }}>your</span> server.
               </h2>
               <p className="meta" style={{ marginBottom: 10, fontSize: 14 }}>
-                VarunOS is a personal AI coach OS. Data lives in your SQLite file. Nothing
+                Sarathi is a personal AI coach OS. Data lives in your SQLite file. Nothing
                 leaves the box unless you share it.
               </p>
               <p className="meta" style={{ marginBottom: 28, fontSize: 14 }}>
@@ -146,7 +146,7 @@ export default function Onboarding({ defaultApi, defaultKey, onDone }) {
               <div style={{ color: 'var(--amber)', marginBottom: 14 }}><IconShield width={30} height={30} /></div>
               <h2 className="display" style={{ fontSize: 26, fontWeight: 700, marginBottom: 12 }}>Safety</h2>
               <p className="meta" style={{ marginBottom: 12 }}>
-                VarunOS is a personal-use educational tool, not a medical device. Risk tiers are
+                Sarathi is a personal-use educational tool, not a medical device. Risk tiers are
                 screening estimates, not diagnoses.
               </p>
               <p className="meta" style={{ marginBottom: 12 }}>
