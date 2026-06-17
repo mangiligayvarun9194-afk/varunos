@@ -1,7 +1,7 @@
 // Shared UI primitives: dock, sheet, ring, toast, confetti, pickers.
 import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { IconSun, IconPlus, IconBody, IconPulse, IconChat, IconGear, IconX } from './Icons.jsx';
+import { IconSun, IconPlus, IconBody, IconPulse, IconSparkle, IconGear, IconX } from './Icons.jsx';
 
 /* ---------------- Toast ---------------- */
 const ToastCtx = createContext(() => {});
@@ -62,7 +62,7 @@ const TABS = [
   { id: 'log', label: 'Log', Icon: IconPlus },
   { id: 'twin', label: 'Twin', Icon: IconBody },
   { id: 'insights', label: 'Insights', Icon: IconPulse },
-  { id: 'coach', label: 'Coach', Icon: IconChat },
+  { id: 'coach', label: 'Hermes', Icon: IconSparkle },
   { id: 'settings', label: 'Settings', Icon: IconGear },
 ];
 

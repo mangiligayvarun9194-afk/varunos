@@ -693,6 +693,34 @@ def _llm_extract_intent(text: str):
         return None
 
 
+_GOAL_CUES = ("my goal is", "i want to", "i'd like to", "i would like to",
+              "trying to", "i aim to", "help me", "i need to")
+_PREF_CUES = ("i prefer", "i like to", "i usually", "i always", "i hate", "i can't",
+              "i cannot", "i don't", "i avoid", "i'm vegetarian", "i am vegetarian",
+              "i'm vegan", "i am vegan")
+_STRUGGLE_CUES = ("i struggle with", "i keep", "i can never", "i always skip",
+                  "my problem is")
+
+
+def _capture_memory(uid: str, text: str) -> None:
+    """Deterministically remember a goal/preference/struggle the user states in
+    plain language. No LLM — just honest cue matching. Safe content only (the
+    user's own words), so nothing here can ever leak a raw biomarker."""
+    t = (text or "").strip()
+    low = t.lower()
+    if len(t) < 6 or len(t) > 280:
+        return
+    kind = None
+    if any(c in low for c in _STRUGGLE_CUES):
+        kind = "struggle"
+    elif any(c in low for c in _GOAL_CUES):
+        kind = "goal"
+    elif any(low.startswith(c) or f" {c}" in low for c in _PREF_CUES):
+        kind = "preference"
+    if kind:
+        db.add_memory(uid, kind, t, source="agent")
+
+
 @router.post("/v1/coach/act")
 def coach_act(payload: CoachActIn):
     """The plain-language brain. Turns how a person actually types into an
@@ -704,6 +732,13 @@ def coach_act(payload: CoachActIn):
     to the coach narrator — which keeps the tier-only privacy gate."""
     from varunos.core.agent import parse_intent, QUESTION
     uid = _user_id_from_default()
+
+    # Every turn grows the bond — this is how Hermes's mind levels up.
+    try:
+        db.bump_hermes_interaction(uid)
+        _capture_memory(uid, payload.text)
+    except Exception:
+        pass  # memory is best-effort; never block a reply on it
 
     intent = parse_intent(payload.text)
     # Fallback: a message the parser couldn't classify might still be an action
@@ -721,6 +756,13 @@ def coach_act(payload: CoachActIn):
         return {"action": "error",
                 "reply": "I hit a snag logging that — give it another go, or use the Log tab."}
     if resp is not None:
+        # A PR is a win worth remembering.
+        if resp.get("pr"):
+            try:
+                db.add_memory(uid, "win", resp.get("reply", "").lstrip("🎉 ").rstrip("."),
+                              source="agent")
+            except Exception:
+                pass
         return resp
 
     # Question -> the coach (tier-only gate). Coach has its own template fallback.
@@ -773,6 +815,185 @@ def vault_export():
         content=buf.getvalue(), media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="sarathi-health-vault.zip"'},
     )
+
+
+# ---- Hermes: the companion that grows with you --------------------------
+
+def _days_known(state: dict) -> int:
+    fs = state.get("first_seen")
+    if not fs:
+        return 0
+    try:
+        d0 = datetime.fromisoformat(fs).date()
+        return max(0, (datetime.now(timezone.utc).date() - d0).days)
+    except Exception:
+        return 0
+
+
+def _hermes_snapshot(uid: str) -> dict:
+    """Hermes's current mind: level, stage, unlocked skills, how it knows you."""
+    from varunos.core.hermes import hermes_level, hermes_stage, hermes_skills
+    state = db.get_hermes_state(uid)
+    mem_count = db.count_memories(uid)
+    days = _days_known(state)
+    level = hermes_level(
+        days_known=days,
+        interactions=state.get("interaction_count") or 0,
+        memories=mem_count,
+        briefings_seen=state.get("briefings_seen") or 0,
+    )
+    return {
+        "level": level,
+        "stage": hermes_stage(level),
+        "skills": hermes_skills(level),
+        "days_known": days,
+        "interactions": state.get("interaction_count") or 0,
+        "memories": mem_count,
+        "briefings_seen": state.get("briefings_seen") or 0,
+        "name": state.get("custom_name"),
+    }
+
+
+def _streak_weeks(uid: str) -> int:
+    from varunos.core.momentum import weekly_streak
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        return weekly_streak(db.list_workout_dates(uid, days=120), today)
+    except Exception:
+        return 0
+
+
+def _last_win(uid: str) -> Optional[str]:
+    """Most recent PR, phrased safely (no biomarkers)."""
+    for ev in db.list_events(uid, limit=50):
+        if ev.get("kind") == "workout_logged":
+            p = ev.get("payload") or {}
+            if isinstance(p, dict) and p.get("pr"):
+                ex = str(p.get("exercise_id", "")).replace("_", " ")
+                return f"{ex} {p.get('weight_kg')}kg × {p.get('reps')}".strip()
+    return None
+
+
+@router.get("/v1/hermes")
+def hermes_state_endpoint():
+    """Hermes's relationship state — the second growth bar (your coach's mind)."""
+    uid = _user_id_from_default()
+    return _hermes_snapshot(uid)
+
+
+class HermesNameIn(BaseModel):
+    name: str = ""
+
+
+@router.post("/v1/hermes/name")
+def hermes_set_name(payload: HermesNameIn):
+    uid = _user_id_from_default()
+    db.set_hermes_name(uid, payload.name)
+    return _hermes_snapshot(uid)
+
+
+@router.get("/v1/hermes/briefing")
+def hermes_briefing(part: Optional[str] = None):
+    """A proactive briefing — morning plan, midday nudge, or evening reflection.
+    Built deterministically from safe inputs; phrasing optionally polished by the
+    LLM (tier-only gate). Marks that you've shared a briefing (grows the bond)."""
+    from varunos.core.hermes import compose_briefing, briefing_text, part_of_day
+    uid = _user_id_from_default()
+
+    pod = part if part in ("morning", "midday", "evening") else \
+        part_of_day(datetime.now(timezone.utc).hour)
+
+    snap = _hermes_snapshot(uid)
+    profile = db.get_profile(uid) or {}
+    rd = readiness_today()
+    readiness = rd if rd.get("has_data") else None
+
+    composed = compose_briefing(
+        part_of_day=pod,
+        name=profile.get("name"),
+        readiness=readiness,
+        streak_weeks=_streak_weeks(uid),
+        memories=db.list_memories(uid, limit=20),
+        last_win=_last_win(uid),
+        level=snap["level"],
+    )
+    text = briefing_text(composed)
+
+    # Optional: let the LLM rephrase the SAME deterministic substance more warmly.
+    # It only ever sees the composed (safe) briefing — never raw biomarkers.
+    engine = "template"
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        voiced = _hermes_voice(composed, snap)
+        if voiced:
+            text, engine = voiced, "llm"
+
+    db.mark_briefing_seen(uid)
+    return {"briefing": composed, "text": text, "engine": engine,
+            "part_of_day": pod, "hermes": snap}
+
+
+def _hermes_voice(composed: dict, snap: dict) -> Optional[str]:
+    """Rephrase a composed briefing in Hermes's voice. Safe-context only."""
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return None
+    try:
+        import httpx, json as _json
+        stage = snap.get("stage", {}).get("title", "")
+        system = (
+            "You are Hermes, a warm, sharp personal health companion who travels "
+            "with the user day to day. Rephrase the given briefing parts into 2-4 "
+            "short, natural sentences in your own voice. Rules: never invent numbers "
+            "or facts beyond what's given; never give medical diagnoses; keep it "
+            f"encouraging and concise. Your relationship stage with them is '{stage}'."
+        )
+        r = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": os.environ.get("VARUNOS_LLM_MODEL", "claude-haiku-4-5"),
+                  "max_tokens": 220, "system": system,
+                  "messages": [{"role": "user", "content":
+                      "Briefing parts (safe, no raw values):\n" + _json.dumps(composed, indent=2)}]},
+            timeout=20)
+        if r.status_code == 200:
+            blocks = r.json().get("content", [])
+            txt = "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
+            return txt or None
+        return None
+    except Exception:
+        return None
+
+
+class MemoryIn(BaseModel):
+    kind: str = "fact"
+    text: str
+
+
+@router.get("/v1/hermes/memory")
+def hermes_list_memory():
+    uid = _user_id_from_default()
+    return {"memories": db.list_memories(uid, limit=100)}
+
+
+@router.post("/v1/hermes/memory")
+def hermes_add_memory(payload: MemoryIn):
+    uid = _user_id_from_default()
+    mid = db.add_memory(uid, payload.kind, payload.text, source="user")
+    if not mid:
+        raise HTTPException(status_code=400, detail="empty memory")
+    return {"id": mid, "memories": db.list_memories(uid, limit=100),
+            "hermes": _hermes_snapshot(uid)}
+
+
+@router.delete("/v1/hermes/memory/{memory_id}")
+def hermes_delete_memory(memory_id: int):
+    uid = _user_id_from_default()
+    ok = db.delete_memory(uid, memory_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="memory not found")
+    return {"deleted": memory_id, "memories": db.list_memories(uid, limit=100)}
 
 
 # ---- Cloud wearable connectors (OAuth: Fitbit / Oura) --------------------

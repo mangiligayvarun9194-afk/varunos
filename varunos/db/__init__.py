@@ -245,6 +245,30 @@ def _migrate(c: sqlite3.Connection) -> None:
         created_at  TEXT,
         PRIMARY KEY (user_id, name)
     );
+
+    -- Hermes companion: the things it remembers about you. SAFE content only —
+    -- short user-stated strings (goals, preferences, wins), never raw biomarkers.
+    CREATE TABLE IF NOT EXISTS hermes_memory (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    TEXT,
+        kind       TEXT,    -- goal | preference | fact | win | struggle
+        text       TEXT,
+        source     TEXT,    -- user | agent | system
+        created_at TEXT,
+        last_seen  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS ix_hermes_mem_user ON hermes_memory(user_id, created_at);
+
+    -- Hermes relationship state: how long you've known each other, how much
+    -- you've talked. Drives the "coach's mind grows" level (second growth bar).
+    CREATE TABLE IF NOT EXISTS hermes_state (
+        user_id          TEXT PRIMARY KEY,
+        first_seen       TEXT,
+        interaction_count INTEGER DEFAULT 0,
+        briefings_seen   INTEGER DEFAULT 0,
+        last_briefing_at TEXT,
+        custom_name      TEXT
+    );
     """)
     # Additive migrations for wearable sync (idempotent; ALTER only if missing)
     _ensure_columns(c, "daily_checkin", {
@@ -607,6 +631,98 @@ def list_custom_programs(user_id: str) -> list[str]:
         "SELECT name FROM custom_program WHERE user_id=? ORDER BY name", (user_id,)
     ).fetchall()
     return [r["name"] for r in rows]
+
+
+# ========== HERMES (companion memory + relationship state) ==========
+
+_HERMES_KINDS = {"goal", "preference", "fact", "win", "struggle"}
+
+
+def add_memory(user_id: str, kind: str, text: str, source: str = "user") -> int:
+    """Remember one short, safe fact about the user. De-dupes on (kind, text)
+    so re-stating a goal refreshes it instead of piling up duplicates."""
+    kind = kind if kind in _HERMES_KINDS else "fact"
+    text = (text or "").strip()[:280]
+    if not text:
+        return 0
+    with transaction() as c:
+        existing = c.execute(
+            "SELECT id FROM hermes_memory WHERE user_id=? AND kind=? AND lower(text)=lower(?)",
+            (user_id, kind, text),
+        ).fetchone()
+        if existing:
+            c.execute("UPDATE hermes_memory SET last_seen=? WHERE id=?", (_now(), existing["id"]))
+            return existing["id"]
+        cur = c.execute(
+            "INSERT INTO hermes_memory (user_id, kind, text, source, created_at, last_seen) "
+            "VALUES (?,?,?,?,?,?)",
+            (user_id, kind, text, source, _now(), _now()),
+        )
+        return cur.lastrowid
+
+
+def list_memories(user_id: str, kind: str | None = None, limit: int = 50) -> list[dict]:
+    if kind:
+        rows = conn().execute(
+            "SELECT * FROM hermes_memory WHERE user_id=? AND kind=? ORDER BY created_at DESC LIMIT ?",
+            (user_id, kind, limit),
+        ).fetchall()
+    else:
+        rows = conn().execute(
+            "SELECT * FROM hermes_memory WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_memory(user_id: str, memory_id: int) -> bool:
+    """Forget one memory. Hermes forgets what you ask it to — your data, your call."""
+    with transaction() as c:
+        cur = c.execute("DELETE FROM hermes_memory WHERE user_id=? AND id=?",
+                        (user_id, memory_id))
+        return cur.rowcount > 0
+
+
+def count_memories(user_id: str) -> int:
+    row = conn().execute("SELECT COUNT(*) AS n FROM hermes_memory WHERE user_id=?",
+                         (user_id,)).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def get_hermes_state(user_id: str) -> dict:
+    """The relationship state, seeding a fresh row on first contact."""
+    row = conn().execute("SELECT * FROM hermes_state WHERE user_id=?", (user_id,)).fetchone()
+    if not row:
+        with transaction() as c:
+            c.execute("INSERT INTO hermes_state (user_id, first_seen, interaction_count, "
+                      "briefings_seen) VALUES (?,?,0,0)", (user_id, _now()))
+        row = conn().execute("SELECT * FROM hermes_state WHERE user_id=?", (user_id,)).fetchone()
+    return dict(row)
+
+
+def bump_hermes_interaction(user_id: str, n: int = 1) -> dict:
+    """Count a conversation turn — this is how Hermes's mind grows."""
+    get_hermes_state(user_id)  # ensure the row exists
+    with transaction() as c:
+        c.execute("UPDATE hermes_state SET interaction_count = interaction_count + ? "
+                  "WHERE user_id=?", (n, user_id))
+    return get_hermes_state(user_id)
+
+
+def mark_briefing_seen(user_id: str) -> dict:
+    get_hermes_state(user_id)
+    with transaction() as c:
+        c.execute("UPDATE hermes_state SET briefings_seen = briefings_seen + 1, "
+                  "last_briefing_at=? WHERE user_id=?", (_now(), user_id))
+    return get_hermes_state(user_id)
+
+
+def set_hermes_name(user_id: str, name: str) -> dict:
+    get_hermes_state(user_id)
+    with transaction() as c:
+        c.execute("UPDATE hermes_state SET custom_name=? WHERE user_id=?",
+                  ((name or "").strip()[:40] or None, user_id))
+    return get_hermes_state(user_id)
 
 
 # ========== MEAL LOG ==========

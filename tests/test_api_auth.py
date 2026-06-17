@@ -172,6 +172,74 @@ class TestWearableSyncRobustness:
         assert client.get("/v1/sync/status", headers=_auth()).json()["connected"] is False
 
 
+class TestHermes:
+    """Hermes v1 — the companion that grows with you."""
+
+    def test_fresh_hermes_is_newcomer(self, client):
+        r = client.get("/v1/hermes", headers=_auth())
+        assert r.status_code == 200
+        b = r.json()
+        assert b["level"] == 0
+        assert b["stage"]["name"] == "newcomer"
+        assert b["memories"] == 0
+
+    def test_briefing_works_with_no_data(self, client):
+        r = client.get("/v1/hermes/briefing?part=morning", headers=_auth())
+        assert r.status_code == 200
+        b = r.json()
+        assert b["part_of_day"] == "morning"
+        assert b["briefing"]["greeting"].startswith("Good morning")
+        assert b["text"]  # always returns a friendly paragraph
+        assert b["engine"] == "template"  # no LLM key in tests
+
+    def test_evening_briefing_has_reflection(self, client):
+        r = client.get("/v1/hermes/briefing?part=evening", headers=_auth())
+        assert r.json()["briefing"]["reflection_prompt"] is not None
+
+    def test_briefing_reflects_synced_readiness(self, client):
+        client.post("/v1/sync/wearable", headers=_auth(), json={
+            "hrv_ms": 70, "rhr_bpm": 50, "sleep_hours": 8})
+        b = client.get("/v1/hermes/briefing?part=morning", headers=_auth()).json()
+        assert "readiness" in b["text"].lower()
+
+    def test_add_list_delete_memory(self, client):
+        a = client.post("/v1/hermes/memory", headers=_auth(),
+                        json={"kind": "goal", "text": "deadlift 200kg"})
+        assert a.status_code == 200
+        mid = a.json()["id"]
+        lst = client.get("/v1/hermes/memory", headers=_auth()).json()["memories"]
+        assert any(m["text"] == "deadlift 200kg" and m["kind"] == "goal" for m in lst)
+        d = client.delete(f"/v1/hermes/memory/{mid}", headers=_auth())
+        assert d.status_code == 200
+        assert client.get("/v1/hermes/memory", headers=_auth()).json()["memories"] == []
+
+    def test_memory_dedupes(self, client):
+        client.post("/v1/hermes/memory", headers=_auth(), json={"kind": "goal", "text": "run 5k"})
+        client.post("/v1/hermes/memory", headers=_auth(), json={"kind": "goal", "text": "Run 5k"})
+        assert len(client.get("/v1/hermes/memory", headers=_auth()).json()["memories"]) == 1
+
+    def test_conversation_grows_hermes(self, client):
+        before = client.get("/v1/hermes", headers=_auth()).json()["interactions"]
+        client.post("/v1/coach/act", headers=_auth(), json={"text": "how am I doing today?"})
+        after = client.get("/v1/hermes", headers=_auth()).json()["interactions"]
+        assert after == before + 1
+
+    def test_goal_is_remembered_from_chat(self, client):
+        client.post("/v1/coach/act", headers=_auth(),
+                    json={"text": "my goal is to lose 5 kg by August"})
+        mems = client.get("/v1/hermes/memory", headers=_auth()).json()["memories"]
+        assert any(m["kind"] == "goal" for m in mems)
+
+    def test_pr_is_remembered_as_win(self, client):
+        client.post("/v1/coach/act", headers=_auth(), json={"text": "I benched 100 for 5"})
+        mems = client.get("/v1/hermes/memory", headers=_auth()).json()["memories"]
+        assert any(m["kind"] == "win" for m in mems)
+
+    def test_set_name(self, client):
+        r = client.post("/v1/hermes/name", headers=_auth(), json={"name": "Sage"})
+        assert r.json()["name"] == "Sage"
+
+
 # ---- Auth enforcement -----------------------------------------------------
 
 class TestAuthRequired:
