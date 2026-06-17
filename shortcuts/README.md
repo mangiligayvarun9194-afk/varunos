@@ -43,6 +43,37 @@ Shortcut covers almost every wearable.
 That's it. Every morning at 7am your readiness is computed before you wake up.
 Open the app (or the widget) to see today's GREEN / YELLOW / RED.
 
+> **Tip — copy the exact values, don't type them.** Open the app →
+> **Settings → Smartwatch sync → Set up auto-sync**. It shows three **Copy**
+> buttons pre-filled with *your* server URL, your `Authorization` header, and the
+> JSON body — so there's nothing to mistype.
+
+### ✅ Verify it works (before you trust it)
+
+In the app: **Settings → Smartwatch sync → Test connection**. This does a real
+round-trip to the server with `dry_run` (it validates auth + reachability +
+parsing and returns your readiness) **without writing anything** to your history.
+A green `✓ Connection OK — would sync 4 metrics…` means the pipe is solid.
+
+### Why this never breaks (built to be forgiving)
+
+The `/v1/sync/wearable` endpoint is deliberately tolerant of real-world Health
+data, so the automation runs smooth instead of silently failing:
+
+- **Units & strings are fine** — `"65 ms"`, `"7.5 hr"`, `"8,041 steps"` all parse.
+  You don't need "Get Numbers from Input" if it's awkward; send the sample as-is.
+- **Missing metrics never fail the sync** — if a sensor has no reading that day
+  (`""` / `"No Data"`), that field is skipped and the rest still syncs.
+- **Lists & dictionaries are handled** — if a Health action returns a list of
+  samples, the most recent numeric one is used.
+- **Bad readings can't poison your trends** — physiologically impossible values
+  (e.g. HRV 9999 ms) are dropped instead of corrupting your rolling baselines.
+- **Re-running is safe** — syncing the same day twice merges, it never duplicates.
+
+The server always replies with a clear receipt, e.g.
+`{"ok": true, "received": ["HRV","RHR","Sleep","Steps"], "message": "Synced 4 metrics…"}`,
+so you (or a Shortcut "Show Notification" step) can confirm exactly what landed.
+
 ### Don't have a wearable?
 Use **Settings → Connect your smartwatch → Enter manually**, or just do the
 6-tap morning check-in. Both produce a real readiness score.

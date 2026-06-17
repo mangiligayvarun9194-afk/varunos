@@ -108,6 +108,70 @@ class TestWearableSync:
         assert "wellness" in r["components"]
 
 
+class TestWearableSyncRobustness:
+    """The Apple Health Shortcut sends messy real-world data. The ingest must
+    tolerate strings, units, empties, lists and junk — never 400 — and drop bad
+    readings instead of poisoning baselines."""
+
+    def test_strings_with_units_are_parsed(self, client):
+        r = client.post("/v1/sync/wearable", headers=_auth(), json={
+            "source": "apple_health", "hrv_ms": "65 ms", "rhr_bpm": "54 bpm",
+            "sleep_hours": "7.5 hr", "steps": "8,041 steps"})
+        assert r.status_code == 200
+        b = r.json()
+        assert b["ok"] is True
+        assert set(["HRV", "RHR", "Sleep", "Steps"]).issubset(set(b["received"]))
+        assert b["readiness"]["overall"] > 0
+
+    def test_empty_and_nodata_become_none_not_error(self, client):
+        r = client.post("/v1/sync/wearable", headers=_auth(), json={
+            "hrv_ms": "", "rhr_bpm": "No Data", "sleep_hours": None,
+            "steps": "-", "spo2": "n/a"})
+        assert r.status_code == 200
+        b = r.json()
+        assert b["synced"] is True
+        assert b["received"] == []          # nothing usable, but no crash
+        assert b["ok"] is False
+
+    def test_list_payload_takes_a_sample(self, client):
+        # "Get Health Sample" can return a list; we take the most recent numeric
+        r = client.post("/v1/sync/wearable", headers=_auth(), json={
+            "hrv_ms": [58, 61, 64], "rhr_bpm": ["52 bpm"]})
+        assert r.status_code == 200
+        assert "HRV" in r.json()["received"]
+        assert "RHR" in r.json()["received"]
+
+    def test_out_of_range_values_are_dropped(self, client):
+        # A glitchy 9999 ms HRV / 5 bpm RHR must not be stored as real data
+        r = client.post("/v1/sync/wearable", headers=_auth(), json={
+            "hrv_ms": 9999, "rhr_bpm": 5, "sleep_hours": 99, "spo2": 250})
+        assert r.status_code == 200
+        assert r.json()["received"] == []
+
+    def test_message_is_human_readable(self, client):
+        r = client.post("/v1/sync/wearable", headers=_auth(), json={
+            "hrv_ms": 62, "rhr_bpm": 53, "sleep_hours": 7.8, "steps": 9000})
+        msg = r.json()["message"]
+        assert "Synced" in msg and "Readiness" in msg
+
+    def test_dict_value_shape_is_parsed(self, client):
+        r = client.post("/v1/sync/wearable", headers=_auth(), json={
+            "hrv_ms": {"value": 60, "unit": "ms"}, "steps": {"qty": 7200}})
+        assert r.status_code == 200
+        assert "HRV" in r.json()["received"] and "Steps" in r.json()["received"]
+
+    def test_dry_run_validates_but_persists_nothing(self, client):
+        r = client.post("/v1/sync/wearable", headers=_auth(), json={
+            "dry_run": True, "hrv_ms": 62, "rhr_bpm": 53, "sleep_hours": 7.5,
+            "steps": 8200})
+        assert r.status_code == 200
+        b = r.json()
+        assert b["ok"] is True and b["dry_run"] is True and b["synced"] is False
+        assert b["readiness"]["overall"] > 0
+        # nothing was written — status stays disconnected
+        assert client.get("/v1/sync/status", headers=_auth()).json()["connected"] is False
+
+
 # ---- Auth enforcement -----------------------------------------------------
 
 class TestAuthRequired:

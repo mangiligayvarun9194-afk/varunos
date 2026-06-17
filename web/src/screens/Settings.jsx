@@ -22,6 +22,40 @@ export default function Settings({ onTab, onSetupPin }) {
   const [survStatus, setSurvStatus] = useState(null);
   const [vault, setVault] = useState(undefined);
   const [dl, setDl] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
+  // Exact, copy-paste-ready building blocks for the Shortcut — always reflect THIS
+  // device's real backend URL + key, so there's nothing for the user to guess.
+  const SYNC_URL = API_BASE + '/v1/sync/wearable';
+  const SYNC_BODY = '{"source":"apple_health","hrv_ms":[HRV],"rhr_bpm":[RHR],"sleep_hours":[Sleep],"steps":[Steps]}';
+
+  async function copyText(text, label) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast((label || 'Copied') + ' copied');
+    } catch (_) { toast('Copy failed — long-press to select'); }
+  }
+
+  // "Test connection": a real round-trip with dry_run, so it proves auth +
+  // reachability + parsing + readiness without writing anything to history.
+  async function testSync() {
+    setTesting(true); setTestResult(null);
+    try {
+      const r = await api('/v1/sync/wearable', { method: 'POST', body: {
+        dry_run: true, source: 'apple_health',
+        hrv_ms: 62, rhr_bpm: 53, sleep_hours: 7.5, steps: 8200,
+      } });
+      setTestResult({ tone: r.ok ? 'ok' : 'warn',
+        msg: r.ok ? '✓ ' + r.message : '⚠ ' + (r.message || 'No data parsed') });
+    } catch (e) {
+      const m = String(e && e.message || e);
+      setTestResult({ tone: 'err', msg: /401|403/.test(m)
+        ? '✕ Auth failed — check your API key under “Backend connection” below.'
+        : '✕ Couldn’t reach the API — check the base URL and your connection.' });
+    }
+    setTesting(false);
+  }
 
   async function refreshSync() {
     try { setSync(await api('/v1/sync/status')); } catch (_) { setSync(null); }
@@ -177,21 +211,32 @@ export default function Settings({ onTab, onSetupPin }) {
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           <button className="btn primary" onClick={() => setShowWatchHelp(!showWatchHelp)}>Set up auto-sync</button>
+          <button className="btn ghost" onClick={testSync} disabled={testing}>{testing ? 'Testing…' : 'Test connection'}</button>
           <button className="btn ghost" onClick={() => setManualOpen(true)}>Enter manually</button>
         </div>
+        {testResult && <p className={testResult.tone} style={{ marginTop: 8 }}>{testResult.msg}</p>}
         {showWatchHelp && (
           <div className="card" style={{ background: 'var(--surface-2)', marginTop: 12 }}>
             <h3 style={{ fontSize: 14 }}>iPhone / Apple Watch (2 min, one time)</h3>
-            <p className="meta" style={{ margin: '8px 0' }}>The free <b>Shortcuts</b> app reads Apple Health and posts to Sarathi each morning.</p>
+            <p className="meta" style={{ margin: '8px 0' }}>The free <b>Shortcuts</b> app reads Apple Health and posts to Sarathi each morning. Tap a button below to copy each value exactly — nothing to type.</p>
             <ol className="meta" style={{ margin: '0 0 8px 18px', lineHeight: 1.9 }}>
-              <li>Shortcuts → Automation → + → Time of Day → 7:00 AM</li>
-              <li>Add <b>Get Health Sample</b> → HRV (most recent); repeat for RHR, Sleep, Steps</li>
-              <li>Add <b>Get Contents of URL</b>: <code>{API_BASE}/v1/sync/wearable</code>, POST,
-                header <code>Authorization: Bearer YOUR_KEY</code>,
-                body <code>{'{"source":"apple_health","hrv_ms":[HRV],"rhr_bpm":[RHR],"sleep_hours":[Sleep],"steps":[Steps]}'}</code></li>
-              <li>Turn off "Ask Before Running" → Done</li>
+              <li>Open <b>Shortcuts</b> → <b>Automation</b> tab → <b>+</b> → <b>Time of Day</b> → 7:00 AM, Daily → <b>Run Immediately</b></li>
+              <li>Add action <b>Find Health Samples</b> → HRV, sort Latest, Limit 1. Repeat for Resting Heart Rate, Sleep Analysis, Steps.</li>
+              <li>Add <b>Get Contents of URL</b> and fill it in with the copied values below (Method <b>POST</b>):</li>
             </ol>
-            <p className="meta">Full recipe: <code>shortcuts/README.md</code> in the repo.</p>
+            <div style={{ display: 'grid', gap: 6, margin: '8px 0' }}>
+              <CopyRow label="URL" hint={SYNC_URL} onCopy={() => copyText(SYNC_URL, 'Sync URL')} />
+              <CopyRow label="Header" hint={'Authorization: Bearer ' + (API_KEY ? API_KEY.slice(0, 6) + '…' : 'YOUR_KEY')}
+                onCopy={() => copyText('Bearer ' + (API_KEY || 'YOUR_KEY'), 'Authorization')} />
+              <CopyRow label="Request Body (JSON)" hint={SYNC_BODY}
+                onCopy={() => copyText(SYNC_BODY, 'JSON body')} />
+            </div>
+            <p className="meta" style={{ margin: '8px 0' }}>In the body, replace each <code>[HRV]</code>/<code>[RHR]</code>/<code>[Sleep]</code>/<code>[Steps]</code> with the matching <b>Find Health Samples</b> variable (the “Magic Variable”). Units don’t matter — Sarathi parses them.</p>
+            <ol className="meta" style={{ margin: '0 0 8px 18px', lineHeight: 1.9 }} start="4">
+              <li>Header → <b>Request Body: JSON</b>; add field <code>Authorization</code> with the copied Header value.</li>
+              <li>Turn off <b>Ask Before Running</b> → <b>Done</b>. Then tap <b>Test connection</b> above to confirm.</li>
+            </ol>
+            <p className="meta">Full illustrated recipe + Siri (“Hey Siri, sync my health”): <code>shortcuts/README.md</code>.</p>
           </div>
         )}
       </motion.div>
@@ -296,6 +341,22 @@ export default function Settings({ onTab, onSetupPin }) {
         <ManualSync onDone={() => { setManualOpen(false); refreshSync(); onTab('today'); }} />
       </Sheet>
     </motion.div>
+  );
+}
+
+// One copy-to-clipboard row: a label, the exact value (truncated for display),
+// and a Copy button — so the user never mistypes the URL, header or JSON body.
+function CopyRow({ label, hint, onCopy }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)',
+      border: '1px solid var(--line)', borderRadius: 10, padding: '8px 10px' }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="meta" style={{ fontSize: 11, color: 'var(--mute)' }}>{label}</div>
+        <code style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden',
+          textOverflow: 'ellipsis', fontSize: 12 }}>{hint}</code>
+      </div>
+      <button className="btn ghost" style={{ flexShrink: 0, padding: '6px 12px', fontSize: 12 }} onClick={onCopy}>Copy</button>
+    </div>
   );
 }
 

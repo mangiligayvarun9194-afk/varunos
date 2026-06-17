@@ -47,8 +47,9 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
+import re
 from fastapi import APIRouter, Depends, HTTPException, Body, Query, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from varunos.auth import require_auth
 from varunos.core import (
@@ -870,14 +871,59 @@ def connect_callback(provider: str, payload: OAuthCallbackIn):
 
 # ---- Wearable sync (Apple Health Shortcut / Fitbit / Oura / Whoop / Garmin) ----
 
+def _coerce_number(v):
+    """Turn whatever Apple Health / a Shortcut sends into a clean float, or None.
+
+    Health Shortcuts are messy in the wild: numbers arrive as strings, with units
+    appended ("65 ms", "7.5 hr", "8,041 steps"), as the literal text the "Get
+    Health Sample" action returns ("No Data", empty), as a list of samples, or as
+    a dict with a `value` key. A senior ingest tolerates all of it instead of
+    rejecting the whole sync — partial data is still useful data.
+    """
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        f = float(v)
+        return f if f == f and f not in (float("inf"), float("-inf")) else None  # drop NaN/inf
+    if isinstance(v, (list, tuple)):
+        for x in reversed(list(v)):          # prefer the most recent sample
+            c = _coerce_number(x)
+            if c is not None:
+                return c
+        return None
+    if isinstance(v, dict):
+        for k in ("value", "v", "qty", "quantity", "amount"):
+            if k in v:
+                return _coerce_number(v[k])
+        return None
+    s = str(v).strip().lower().replace(",", "")
+    if s in ("", "null", "none", "nil", "-", "—", "n/a", "na", "nan", "no data", "nodata"):
+        return None
+    m = re.search(r"-?\d+(?:\.\d+)?", s)      # first number anywhere in the string
+    return float(m.group()) if m else None
+
+
+# Plausible physiological ranges. Anything outside is treated as a bad reading and
+# dropped (-> None) so one glitchy sample can never poison the rolling baselines.
+_WEARABLE_RANGES = {
+    "hrv_ms": (1, 500), "rhr_bpm": (20, 240), "sleep_hours": (0, 24),
+    "sleep_minutes": (0, 1440), "sleep_deep_pct": (0, 100), "sleep_rem_pct": (0, 100),
+    "sleep_efficiency_pct": (0, 100), "steps": (0, 250000), "active_kcal": (0, 30000),
+    "spo2": (0, 100), "weight_kg": (1, 600),
+}
+
+
 class WearableSyncIn(BaseModel):
     """Normalized payload from ANY wearable source.
 
     Apple Health Shortcut, Fitbit, Oura, Whoop and Garmin all map onto this.
-    Every field is optional — send whatever the source provides.
+    Every field is optional — send whatever the source provides. Numeric fields are
+    coerced from strings/units/lists and range-checked, so a real-world Shortcut
+    payload never 400s; bad values are simply dropped.
     """
     date: Optional[str] = None
     source: str = "apple_health"
+    dry_run: bool = False                       # validate + echo, persist nothing
     hrv_ms: Optional[float] = None              # overnight HRV (SDNN/rMSSD)
     rhr_bpm: Optional[float] = None             # resting heart rate
     sleep_hours: Optional[float] = None
@@ -889,6 +935,38 @@ class WearableSyncIn(BaseModel):
     active_kcal: Optional[float] = None
     spo2: Optional[float] = None
     weight_kg: Optional[float] = None
+
+    @field_validator(
+        "hrv_ms", "rhr_bpm", "sleep_hours", "sleep_minutes", "sleep_deep_pct",
+        "sleep_rem_pct", "sleep_efficiency_pct", "steps", "active_kcal", "spo2",
+        "weight_kg", mode="before",
+    )
+    @classmethod
+    def _clean_numbers(cls, v):
+        return _coerce_number(v)
+
+    @field_validator("date", "source", mode="before")
+    @classmethod
+    def _clean_strings(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
+
+    @model_validator(mode="after")
+    def _range_check(self):
+        for field, (lo, hi) in _WEARABLE_RANGES.items():
+            val = getattr(self, field)
+            if val is not None and not (lo <= val <= hi):
+                setattr(self, field, None)
+        # ints stay ints for the columns that expect them
+        if self.steps is not None:
+            self.steps = int(round(self.steps))
+        if self.sleep_minutes is not None:
+            self.sleep_minutes = int(round(self.sleep_minutes))
+        if self.source is None:
+            self.source = "apple_health"
+        return self
 
 
 @router.post("/v1/sync/wearable")
@@ -915,37 +993,40 @@ def sync_wearable(payload: WearableSyncIn):
     if payload.rhr_bpm and not rhr_base:
         rhr_base = payload.rhr_bpm
 
-    db.merge_checkin(uid, date, {
-        "hrv_today_ms": payload.hrv_ms,
-        "hrv_7d_baseline_ms": hrv_base,
-        "rhr_today_bpm": payload.rhr_bpm,
-        "rhr_30d_baseline_bpm": rhr_base,
-        "sleep_min": sleep_min,
-        "sleep_deep_pct": payload.sleep_deep_pct,
-        "sleep_rem_pct": payload.sleep_rem_pct,
-        "sleep_eff_pct": payload.sleep_efficiency_pct,
-        "steps": payload.steps,
-        "active_kcal": payload.active_kcal,
-        "spo2": payload.spo2,
-        "wearable_source": payload.source,
-        "synced_at": _now(),
-    })
-    if payload.weight_kg:
-        db.upsert_profile(uid, {"weight_kg": payload.weight_kg})
+    # dry_run = "Test connection": validate, parse and compute readiness, but write
+    # nothing — so a user can confirm the pipe works without polluting their history.
+    if not payload.dry_run:
+        db.merge_checkin(uid, date, {
+            "hrv_today_ms": payload.hrv_ms,
+            "hrv_7d_baseline_ms": hrv_base,
+            "rhr_today_bpm": payload.rhr_bpm,
+            "rhr_30d_baseline_bpm": rhr_base,
+            "sleep_min": sleep_min,
+            "sleep_deep_pct": payload.sleep_deep_pct,
+            "sleep_rem_pct": payload.sleep_rem_pct,
+            "sleep_eff_pct": payload.sleep_efficiency_pct,
+            "steps": payload.steps,
+            "active_kcal": payload.active_kcal,
+            "spo2": payload.spo2,
+            "wearable_source": payload.source,
+            "synced_at": _now(),
+        })
+        if payload.weight_kg:
+            db.upsert_profile(uid, {"weight_kg": payload.weight_kg})
 
-    db.log_event(uid, "wearable_synced", channel=payload.source, payload={
-        "hrv": payload.hrv_ms, "rhr": payload.rhr_bpm, "sleep_min": sleep_min,
-        "steps": payload.steps,
-    })
+        db.log_event(uid, "wearable_synced", channel=payload.source, payload={
+            "hrv": payload.hrv_ms, "rhr": payload.rhr_bpm, "sleep_min": sleep_min,
+            "steps": payload.steps,
+        })
 
     # Also append to the canonical event spine (idempotent per source+kind+day)
     _ev_ts = f"{date}T00:00:00+00:00"
-    for kind, val, unit in [
+    for kind, val, unit in ([] if payload.dry_run else [
         ("hrv", payload.hrv_ms, "ms"), ("rhr", payload.rhr_bpm, "bpm"),
         ("sleep", sleep_min, "min"), ("steps", payload.steps, "count"),
         ("active_kcal", payload.active_kcal, "kcal"), ("spo2", payload.spo2, "%"),
         ("weight", payload.weight_kg, "kg"),
-    ]:
+    ]):
         if val is not None:
             db.add_health_event(uid, kind, {"v": val}, source=payload.source,
                                 ts=_ev_ts, unit=unit)
@@ -974,8 +1055,30 @@ def sync_wearable(payload: WearableSyncIn):
         hrv_today_ms=payload.hrv_ms, hrv_baseline_ms=hrv_base,
         rhr_today_bpm=payload.rhr_bpm, rhr_baseline_bpm=rhr_base,
     )
+
+    # Self-describing receipt: tell the client exactly which metrics landed, so a
+    # Shortcut or "Test connection" button can show "✓ HRV, RHR, Sleep, Steps".
+    _metric_map = {
+        "HRV": payload.hrv_ms, "RHR": payload.rhr_bpm, "Sleep": sleep_min,
+        "Steps": payload.steps, "Active kcal": payload.active_kcal,
+        "SpO₂": payload.spo2, "Weight": payload.weight_kg,
+    }
+    received = [k for k, v in _metric_map.items() if v is not None]
+    rd = readiness.get("overall") if isinstance(readiness, dict) else None
+    band = readiness.get("color") if isinstance(readiness, dict) else None
+    if received:
+        verb = "Connection OK — would sync" if payload.dry_run else "Synced"
+        msg = f"{verb} {len(received)} metrics: {', '.join(received)}."
+        if rd is not None:
+            msg += f" Readiness {rd}{(' ' + str(band).upper()) if band else ''}."
+    else:
+        msg = ("No usable metrics in this payload — check the Shortcut is reading "
+               "real Health samples (not 'No Data').")
     return {
-        "synced": True, "date": date, "source": payload.source,
+        "synced": not payload.dry_run, "ok": bool(received), "dry_run": payload.dry_run,
+        "date": date, "source": payload.source,
+        "received": received, "metrics_count": len(received),
+        "message": msg,
         "baselines": {"hrv_7d": hrv_base, "rhr_30d": rhr_base},
         "readiness": readiness,
         "disclaimer": DISCLAIMER,
