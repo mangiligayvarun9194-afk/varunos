@@ -5,7 +5,7 @@ no LLM. Mirrors the philosophy of the avatar (Twin) growth tests.
 """
 from varunos.core.hermes import (
     hermes_level, hermes_stage, hermes_skills, compose_briefing,
-    briefing_text, part_of_day,
+    briefing_text, part_of_day, parse_goal, goal_progress, observations,
 )
 
 
@@ -121,3 +121,69 @@ class TestPartOfDay:
         assert part_of_day(14) == "midday"
         assert part_of_day(21) == "evening"
         assert part_of_day(2) == "evening"
+
+
+class TestParseGoal:
+    def test_strength_goal_with_deadline(self):
+        g = parse_goal("my goal is to deadlift 180kg by December")
+        assert g["kind"] == "strength" and g["exercise"] == "deadlift"
+        assert g["target_kg"] == 180 and g["deadline_month"] == 12
+
+    def test_bench_alias_maps_to_exercise_id(self):
+        g = parse_goal("I want to bench 100 kg")
+        assert g["exercise"] == "bench_press" and g["target_kg"] == 100
+
+    def test_weight_loss_goal(self):
+        g = parse_goal("I want to lose 5kg")
+        assert g["kind"] == "weight" and g["direction"] == "lose" and g["amount_kg"] == 5
+
+    def test_non_goal_returns_none(self):
+        assert parse_goal("what should I eat tonight?") is None
+        assert parse_goal("") is None
+
+
+class TestGoalProgress:
+    def test_strength_in_progress(self):
+        g = parse_goal("squat 140kg by June")
+        p = goal_progress(g, current_kg=120, month=4)
+        assert p["achieved"] is False
+        assert "120" in p["text"] and "140" in p["text"] and "20kg to go" in p["text"]
+        assert p["months_left"] == 2
+
+    def test_strength_achieved(self):
+        g = parse_goal("bench 100kg")
+        p = goal_progress(g, current_kg=105)
+        assert p["achieved"] is True and "🎉" in p["text"]
+
+    def test_no_data_is_zero_not_crash(self):
+        g = parse_goal("deadlift 200kg")
+        p = goal_progress(g, current_kg=None)
+        assert p["current_kg"] == 0 and p["pct"] == 0
+
+
+class TestObservations:
+    def test_ranks_goal_first_then_warnings(self):
+        obs = observations(goal_lines=["Deadlift goal: 120/180kg"],
+                           warnings=["HRV dropped sharply"], limit=4)
+        assert obs[0]["kind"] == "goal"
+        assert any(o["kind"] == "warning" for o in obs)
+
+    def test_empty_when_nothing_specific(self):
+        # The whole point: no hollow filler. Nothing real -> nothing said.
+        assert observations() == []
+
+    def test_memory_recall_gated_by_level(self):
+        mems = [{"kind": "struggle", "text": "skipping leg day"}]
+        low = observations(memories=mems, level=5)
+        high = observations(memories=mems, level=50)
+        assert not any(o["kind"] == "recall" for o in low)
+        assert any("leg day" in o["text"] for o in high)
+
+    def test_stale_training_nudge(self):
+        obs = observations(last_workout_days=6)
+        assert any("6 days" in o["text"] for o in obs)
+
+    def test_dedupes_and_caps(self):
+        obs = observations(goal_lines=["same"], correlations=["same"], streak_weeks=3, limit=2)
+        texts = [o["text"] for o in obs]
+        assert len(texts) == len(set(texts)) and len(obs) <= 2

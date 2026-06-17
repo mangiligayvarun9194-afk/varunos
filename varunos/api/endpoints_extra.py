@@ -956,6 +956,71 @@ def _last_win(uid: str) -> Optional[str]:
     return None
 
 
+def _best_weight_for(uid: str, exercise_id: str) -> Optional[float]:
+    """Heaviest weight ever logged for one exercise — fuels goal progress."""
+    since = (datetime.now(timezone.utc) - timedelta(days=3650)).isoformat()
+    best = None
+    for s in db.list_sets_since(uid, since):
+        if s.get("exercise_id") == exercise_id and s.get("weight_kg") is not None:
+            best = max(best or 0, float(s["weight_kg"]))
+    return best
+
+
+def _days_since_last_workout(uid: str) -> Optional[int]:
+    dates = db.list_workout_dates(uid, days=120)
+    if not dates:
+        return None
+    try:
+        last = max(datetime.fromisoformat(d).date() if "T" not in d else
+                   datetime.fromisoformat(d).date() for d in
+                   [x[:10] for x in dates])
+        return (datetime.now(timezone.utc).date() - last).days
+    except Exception:
+        return None
+
+
+def _hermes_observations(uid: str, snap: dict) -> list[dict]:
+    """The specific, true things Hermes can say right now — goal progress,
+    patterns from the insights engine, memory recall. Pure-core does the ranking;
+    this just gathers the (already safe) inputs. Never fabricates."""
+    from varunos.core.hermes import parse_goal, goal_progress, observations
+    from varunos.core.insights import build_insights
+
+    memories = db.list_memories(uid, limit=30)
+    month = datetime.now(timezone.utc).month
+
+    # Goal progress for any goal we can actually measure.
+    goal_lines: list[str] = []
+    for m in memories:
+        if m.get("kind") != "goal":
+            continue
+        g = parse_goal(m.get("text", ""))
+        if not g:
+            continue
+        cur = _best_weight_for(uid, g["exercise"]) if g["kind"] == "strength" else None
+        p = goal_progress(g, current_kg=cur, month=month)
+        if p.get("text"):
+            goal_lines.append(p["text"])
+
+    # Patterns from the existing insights engine (titles only — already safe).
+    try:
+        ins = build_insights(_build_daily_features(uid))
+    except Exception:
+        ins = {}
+    warnings = [a.get("title") for a in ins.get("anomalies", []) if a.get("title")]
+    correlations = [c.get("title") for c in ins.get("correlations", []) if c.get("title")]
+
+    return observations(
+        goal_lines=goal_lines,
+        warnings=warnings,
+        correlations=correlations,
+        memories=memories,
+        last_workout_days=_days_since_last_workout(uid),
+        streak_weeks=_streak_weeks(uid),
+        level=snap.get("level", 0),
+    )
+
+
 @router.get("/v1/hermes")
 def hermes_state_endpoint():
     """Hermes's relationship state — the second growth bar (your coach's mind)."""
@@ -972,6 +1037,14 @@ def hermes_set_name(payload: HermesNameIn):
     uid = _user_id_from_default()
     db.set_hermes_name(uid, payload.name)
     return _hermes_snapshot(uid)
+
+
+@router.get("/v1/hermes/observations")
+def hermes_observations():
+    """The specific things Hermes has noticed — goal progress, patterns, recall.
+    Read-only; doesn't count as a briefing."""
+    uid = _user_id_from_default()
+    return {"observations": _hermes_observations(uid, _hermes_snapshot(uid))}
 
 
 @router.get("/v1/hermes/briefing")
@@ -999,7 +1072,13 @@ def hermes_briefing(part: Optional[str] = None):
         last_win=_last_win(uid),
         level=snap["level"],
     )
+    # What Hermes actually noticed — goal progress, patterns, recall. This is the
+    # wedge: specific memory instead of generic advice.
+    obs = _hermes_observations(uid, snap)
+    composed["observations"] = [o["text"] for o in obs]
     text = briefing_text(composed)
+    if obs:
+        text += " " + obs[0]["text"]
 
     # Optional: let the LLM rephrase the SAME deterministic substance more warmly.
     # It only ever sees the composed (safe) briefing — never raw biomarkers.
@@ -1012,7 +1091,7 @@ def hermes_briefing(part: Optional[str] = None):
 
     db.mark_briefing_seen(uid)
     return {"briefing": composed, "text": text, "engine": engine,
-            "part_of_day": pod, "hermes": snap}
+            "observations": obs, "part_of_day": pod, "hermes": snap}
 
 
 def _hermes_voice(composed: dict, snap: dict) -> Optional[str]:

@@ -209,3 +209,154 @@ def part_of_day(hour: int) -> str:
     if 12 <= hour < 18:
         return "midday"
     return "evening"
+
+
+# ============================================================================
+# Hermes v2 — memory that *notices*. Deterministic goal tracking + a ranked
+# "observations" engine, so Hermes references your actual history and goals
+# instead of generic advice. All pure: data in -> safe strings out, no I/O/LLM.
+# This is the wedge: every competitor's AI coach is hated for being forgetful.
+# ============================================================================
+
+import re as _re
+
+# Plain-language lift names -> the exercise_id the logger stores.
+_LIFT_ALIASES = {
+    "deadlift": "deadlift", "dead lift": "deadlift",
+    "bench": "bench_press", "bench press": "bench_press",
+    "squat": "squat", "back squat": "squat",
+    "overhead press": "overhead_press", "ohp": "overhead_press", "press": "overhead_press",
+    "row": "barbell_row", "barbell row": "barbell_row",
+    "pull up": "pull_up", "pullup": "pull_up", "chin up": "pull_up",
+    "clean": "power_clean", "snatch": "snatch",
+}
+
+_MONTHS = {m: i for i, m in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july",
+     "august", "september", "october", "november", "december"], start=1)}
+
+
+def parse_goal(text: str) -> Optional[dict]:
+    """Extract a structured target from a plain-language goal, or None.
+
+    Handles two shapes Hermes can actually track:
+      - a strength target:  "deadlift 180kg by December" ->
+        {kind: strength, exercise: deadlift, target_kg: 180, deadline_month: 12}
+      - a bodyweight target: "lose 5 kg" / "get to 75kg" ->
+        {kind: weight, ...}
+    Honest by design: only returns a goal it can measure against logged data.
+    """
+    if not text:
+        return None
+    t = text.lower()
+
+    # deadline month, if any ("by december")
+    deadline_month = None
+    m = _re.search(r"by\s+([a-z]+)", t)
+    if m and m.group(1) in _MONTHS:
+        deadline_month = _MONTHS[m.group(1)]
+
+    # weight (bodyweight) goals
+    wt = _re.search(r"(lose|drop|cut)\s+(\d+(?:\.\d+)?)\s*kg", t)
+    if wt:
+        return {"kind": "weight", "direction": "lose", "amount_kg": float(wt.group(2)),
+                "deadline_month": deadline_month}
+    wt2 = _re.search(r"(?:get to|reach|hit)\s+(\d+(?:\.\d+)?)\s*kg(?!\s*[x×])", t)
+    if wt2 and not any(a in t for a in _LIFT_ALIASES):
+        return {"kind": "weight", "direction": "target", "target_kg": float(wt2.group(2)),
+                "deadline_month": deadline_month}
+
+    # strength goals: a known lift + a kg number
+    for alias, exid in _LIFT_ALIASES.items():
+        if alias in t:
+            num = _re.search(r"(\d+(?:\.\d+)?)\s*kg", t) or _re.search(rf"{alias}\D*(\d+(?:\.\d+)?)", t)
+            if num:
+                return {"kind": "strength", "exercise": exid, "alias": alias,
+                        "target_kg": float(num.group(1)), "deadline_month": deadline_month}
+    return None
+
+
+def goal_progress(goal: dict, *, current_kg: Optional[float] = None,
+                  month: Optional[int] = None) -> dict:
+    """Honest progress for a parsed goal. No fabricated 'pace' — just the real
+    gap, a percentage, and whether it's achieved, plus months-left if dated."""
+    out = {"kind": goal.get("kind"), "achieved": False, "text": None}
+    months_left = None
+    if goal.get("deadline_month") and month:
+        months_left = (goal["deadline_month"] - month) % 12
+        out["months_left"] = months_left
+
+    if goal["kind"] == "strength":
+        target = goal["target_kg"]
+        cur = current_kg or 0
+        out["target_kg"], out["current_kg"] = target, cur
+        out["pct"] = round(100 * cur / target) if target else 0
+        if cur >= target:
+            out["achieved"] = True
+            out["text"] = f"You hit your {goal['alias']} goal of {_num(target)}kg. 🎉"
+        else:
+            gap = round(target - cur, 1)
+            base = (f"{goal['alias'].capitalize()} goal: {_num(cur)} / {_num(target)}kg "
+                    f"({out['pct']}%) — {_num(gap)}kg to go")
+            out["text"] = base + (f", ~{months_left} month(s) left." if months_left else ".")
+        return out
+
+    if goal["kind"] == "weight":
+        if goal.get("direction") == "lose":
+            out["text"] = f"Goal: lose {_num(goal['amount_kg'])}kg" + (
+                f" by {list(_MONTHS)[goal['deadline_month'] - 1].capitalize()}." if goal.get("deadline_month") else ".")
+        else:
+            out["text"] = f"Goal: reach {_num(goal.get('target_kg'))}kg."
+        return out
+    return out
+
+
+def _num(v) -> str:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    return str(int(f)) if f == int(f) else f"{f:g}"
+
+
+def observations(
+    *,
+    goal_lines: Optional[list[str]] = None,
+    warnings: Optional[list[str]] = None,
+    correlations: Optional[list[str]] = None,
+    memories: Optional[list[dict]] = None,
+    last_workout_days: Optional[int] = None,
+    streak_weeks: int = 0,
+    readiness_trend: Optional[str] = None,  # "down" | "up" | None
+    level: int = 0,
+    limit: int = 4,
+) -> list[dict]:
+    """Rank the specific, true things Hermes can say right now. Each item:
+    {text, kind}. Generic filler is deliberately excluded — if we have nothing
+    specific, we return an empty list rather than something hollow."""
+    out: list[dict] = []
+    for g in (goal_lines or []):
+        out.append({"kind": "goal", "text": g})
+    for w in (warnings or [])[:2]:
+        out.append({"kind": "warning", "text": w})
+    if last_workout_days is not None and last_workout_days >= 4:
+        out.append({"kind": "nudge",
+                    "text": f"It's been {last_workout_days} days since your last logged session."})
+    if readiness_trend == "down":
+        out.append({"kind": "warning", "text": "Your readiness has been trending down — protect your sleep."})
+    for c in (correlations or [])[:1]:
+        out.append({"kind": "pattern", "text": c})
+    # Memory recall only once Hermes is attuned enough to have earned it.
+    if level >= 20:
+        struggle = next((m for m in (memories or []) if m.get("kind") == "struggle"), None)
+        if struggle:
+            out.append({"kind": "recall", "text": f"You told me you struggle with: {struggle['text']}."})
+    if streak_weeks >= 2:
+        out.append({"kind": "win", "text": f"You're on a {streak_weeks}-week training streak — keep it alive."})
+    # de-dupe by text, cap
+    seen, ranked = set(), []
+    for o in out:
+        if o["text"] not in seen:
+            seen.add(o["text"])
+            ranked.append(o)
+    return ranked[:limit]

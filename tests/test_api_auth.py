@@ -239,6 +239,26 @@ class TestHermes:
         r = client.post("/v1/hermes/name", headers=_auth(), json={"name": "Sage"})
         assert r.json()["name"] == "Sage"
 
+    def test_observations_track_a_goal_against_logged_lifts(self, client):
+        # Tell Hermes a goal, log a lift, and it should report real progress.
+        client.post("/v1/coach/act", headers=_auth(),
+                    json={"text": "my goal is to bench 120kg"})
+        client.post("/v1/coach/act", headers=_auth(), json={"text": "I benched 100 for 5"})
+        obs = client.get("/v1/hermes/observations", headers=_auth()).json()["observations"]
+        goal_obs = [o for o in obs if o["kind"] == "goal"]
+        assert goal_obs, "expected a goal observation"
+        assert "120" in goal_obs[0]["text"] and "100" in goal_obs[0]["text"]
+
+    def test_observations_empty_for_blank_user(self, client):
+        # No memory, no history -> no hollow filler.
+        assert client.get("/v1/hermes/observations", headers=_auth()).json()["observations"] == []
+
+    def test_briefing_includes_observations(self, client):
+        client.post("/v1/coach/act", headers=_auth(), json={"text": "my goal is to squat 150kg"})
+        b = client.get("/v1/hermes/briefing", headers=_auth()).json()
+        assert "observations" in b
+        assert any("squat" in o["text"].lower() for o in b["observations"])
+
 
 class TestAccounts:
     """Multi-user accounts — the public-launch foundation. The non-negotiable

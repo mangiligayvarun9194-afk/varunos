@@ -16,6 +16,7 @@ export default function Coach() {
   const [hermes, setHermes] = useState(null);
   const [brief, setBrief] = useState(null);
   const [part, setPart] = useState('morning');
+  const [obs, setObs] = useState([]);
   const [mems, setMems] = useState([]);
   const [memOpen, setMemOpen] = useState(false);
   const [newMem, setNewMem] = useState('');
@@ -29,6 +30,9 @@ export default function Coach() {
   async function loadMems() {
     try { setMems((await api('/v1/hermes/memory')).memories || []); } catch (_) {}
   }
+  async function loadObs() {
+    try { setObs((await api('/v1/hermes/observations')).observations || []); } catch (_) {}
+  }
   async function loadBriefing(p) {
     try {
       const b = await api(`/v1/hermes/briefing?part=${p}`);
@@ -41,7 +45,7 @@ export default function Coach() {
     const h = new Date().getHours();
     const p = h < 12 ? 'morning' : h < 18 ? 'midday' : 'evening';
     setPart(p);
-    loadHermes(); loadMems(); loadBriefing(p);
+    loadHermes(); loadMems(); loadObs(); loadBriefing(p);
   }, []);
 
   function switchPart(p) { setPart(p); loadBriefing(p); }
@@ -93,7 +97,7 @@ export default function Coach() {
         // or answers — and quietly grows Hermes's memory of you.
         const r = await api('/v1/coach/act', { method: 'POST', body: { text } });
         add('bot', name, r.reply);
-        loadHermes(); loadMems();  // an exchange may have taught Hermes something
+        loadHermes(); loadMems(); loadObs();  // an exchange may have taught Hermes something
       }
     } catch (e) {
       add('bot', name, `Error: ${e.message}`);
@@ -162,6 +166,26 @@ export default function Coach() {
           </>
         ) : <p className="meta">Putting your briefing together…</p>}
       </motion.div>
+
+      {/* What Hermes noticed — goal progress, patterns, recall (the wedge) */}
+      {obs.length > 0 && (
+        <motion.div variants={rise} className="card">
+          <h3 style={{ fontSize: 15, marginBottom: 10 }}>{name} noticed</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {obs.map((o, i) => {
+              const tone = o.kind === 'warning' ? 'var(--amber)'
+                : o.kind === 'win' ? 'var(--green)'
+                : o.kind === 'goal' ? 'var(--cyan)' : 'var(--mint)';
+              return (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 99, background: tone, marginTop: 7, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13.5, lineHeight: 1.5 }}>{o.text}</span>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* What Hermes remembers about you — yours to see and forget */}
       <motion.div variants={rise} className="card">
