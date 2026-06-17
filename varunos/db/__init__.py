@@ -269,6 +269,30 @@ def _migrate(c: sqlite3.Connection) -> None:
         last_briefing_at TEXT,
         custom_name      TEXT
     );
+
+    -- Multi-user accounts (the public-launch foundation). All health data is
+    -- already keyed by user_id everywhere; these tables add real identities so
+    -- each account's data is isolated. Passwords are stored only as a salted
+    -- PBKDF2 hash — never plaintext.
+    CREATE TABLE IF NOT EXISTS account (
+        user_id     TEXT PRIMARY KEY,
+        email       TEXT UNIQUE,
+        password    TEXT,            -- pbkdf2$iters$salt$hash, never plaintext
+        name        TEXT,
+        created_at  TEXT,
+        last_login  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS ix_account_email ON account(lower(email));
+
+    -- Opaque session tokens. We store only the SHA-256 of the token, so a DB
+    -- leak can't be replayed as a live session.
+    CREATE TABLE IF NOT EXISTS session (
+        token_hash  TEXT PRIMARY KEY,
+        user_id     TEXT,
+        created_at  TEXT,
+        expires_at  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS ix_session_user ON session(user_id);
     """)
     # Additive migrations for wearable sync (idempotent; ALTER only if missing)
     _ensure_columns(c, "daily_checkin", {
@@ -723,6 +747,74 @@ def set_hermes_name(user_id: str, name: str) -> dict:
         c.execute("UPDATE hermes_state SET custom_name=? WHERE user_id=?",
                   ((name or "").strip()[:40] or None, user_id))
     return get_hermes_state(user_id)
+
+
+# ========== ACCOUNTS & SESSIONS (multi-user) ==========
+
+def create_account(user_id: str, email: str, password_hash: str, name: str = "") -> dict:
+    """Create a new account. Raises ValueError if the email is already taken."""
+    email = (email or "").strip().lower()
+    with transaction() as c:
+        exists = c.execute("SELECT 1 FROM account WHERE lower(email)=?", (email,)).fetchone()
+        if exists:
+            raise ValueError("email already registered")
+        c.execute(
+            "INSERT INTO account (user_id, email, password, name, created_at) "
+            "VALUES (?,?,?,?,?)",
+            (user_id, email, password_hash, (name or "").strip(), _now()),
+        )
+    return {"user_id": user_id, "email": email, "name": name}
+
+
+def get_account_by_email(email: str) -> dict | None:
+    row = conn().execute("SELECT * FROM account WHERE lower(email)=?",
+                         ((email or "").strip().lower(),)).fetchone()
+    return dict(row) if row else None
+
+
+def get_account(user_id: str) -> dict | None:
+    row = conn().execute("SELECT * FROM account WHERE user_id=?", (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def touch_last_login(user_id: str) -> None:
+    with transaction() as c:
+        c.execute("UPDATE account SET last_login=? WHERE user_id=?", (_now(), user_id))
+
+
+def create_session(token_hash: str, user_id: str, expires_at: str) -> None:
+    with transaction() as c:
+        c.execute(
+            "INSERT INTO session (token_hash, user_id, created_at, expires_at) "
+            "VALUES (?,?,?,?) ON CONFLICT(token_hash) DO UPDATE SET "
+            "user_id=excluded.user_id, expires_at=excluded.expires_at",
+            (token_hash, user_id, _now(), expires_at),
+        )
+
+
+def user_id_for_session(token_hash: str) -> str | None:
+    """Resolve a (hashed) session token to a user_id, honoring expiry."""
+    row = conn().execute(
+        "SELECT user_id, expires_at FROM session WHERE token_hash=?", (token_hash,)
+    ).fetchone()
+    if not row:
+        return None
+    if row["expires_at"] and row["expires_at"] < _now():
+        return None
+    return row["user_id"]
+
+
+def delete_session(token_hash: str) -> bool:
+    with transaction() as c:
+        cur = c.execute("DELETE FROM session WHERE token_hash=?", (token_hash,))
+        return cur.rowcount > 0
+
+
+def purge_expired_sessions() -> int:
+    with transaction() as c:
+        cur = c.execute("DELETE FROM session WHERE expires_at IS NOT NULL AND expires_at < ?",
+                        (_now(),))
+        return cur.rowcount
 
 
 # ========== MEAL LOG ==========

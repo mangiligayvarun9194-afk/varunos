@@ -48,9 +48,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
 import re
-from fastapi import APIRouter, Depends, HTTPException, Body, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, Response, Request
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from varunos import auth as auth_mod
 from varunos.auth import require_auth
 from varunos.core import (
     DISCLAIMER, safe_action_label, is_medical_claim, redact_medical_claim,
@@ -68,13 +69,94 @@ from varunos import notify
 
 
 router = APIRouter(dependencies=[Depends(require_auth)])
+# Public router: signup + login have no prior credential, so they skip require_auth.
+public_router = APIRouter()
+
+
+# ---- Multi-user accounts (signup / login / logout / me) -------------------
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+class SignupIn(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+def _issue_session(uid: str) -> str:
+    """Mint a session token, store only its hash, return the plaintext once."""
+    token = auth_mod.new_session_token()
+    db.create_session(auth_mod.hash_token(token), uid, auth_mod.session_expiry_iso())
+    return token
+
+
+@public_router.post("/v1/auth/signup")
+def auth_signup(payload: SignupIn):
+    email = (payload.email or "").strip().lower()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Enter a valid email address.")
+    if len(payload.password or "") < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    uid = auth_mod.new_user_id()
+    try:
+        db.create_account(uid, email, auth_mod.hash_password(payload.password),
+                          name=payload.name)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="That email is already registered.")
+    if payload.name:
+        db.upsert_profile(uid, {"name": payload.name.strip(), "user_id": uid})
+    token = _issue_session(uid)
+    db.log_event(uid, "account_created", channel="auth")
+    return {"token": token, "user": {"user_id": uid, "email": email, "name": payload.name}}
+
+
+@public_router.post("/v1/auth/login")
+def auth_login(payload: LoginIn):
+    acc = db.get_account_by_email(payload.email or "")
+    if not acc or not auth_mod.verify_password(payload.password or "", acc.get("password") or ""):
+        # Same message either way — don't reveal whether the email exists.
+        raise HTTPException(status_code=401, detail="Wrong email or password.")
+    db.touch_last_login(acc["user_id"])
+    token = _issue_session(acc["user_id"])
+    return {"token": token,
+            "user": {"user_id": acc["user_id"], "email": acc["email"], "name": acc.get("name")}}
+
+
+@router.post("/v1/auth/logout")
+def auth_logout(request: Request):
+    token = auth_mod.extract_token(request)
+    if token:
+        db.delete_session(auth_mod.hash_token(token))
+    return {"ok": True}
+
+
+@router.get("/v1/auth/me")
+def auth_me():
+    uid = _user_id_from_default()
+    acc = db.get_account(uid)
+    if acc:
+        return {"user_id": uid, "email": acc.get("email"), "name": acc.get("name"),
+                "account": True}
+    # Legacy owner (authenticated by the shared key) has no account row.
+    return {"user_id": uid, "email": None, "name": None, "account": False}
 
 
 # ---- Helper ---------------------------------------------------------------
 
 def _user_id_from_default() -> str:
-    """MVP: single-user mode. Replace with auth-resolved user_id later."""
-    return os.environ.get("VARUNOS_USER_ID", "default")
+    """The authenticated user for this request.
+
+    Resolves to the per-account user_id set by require_auth (multi-user), or the
+    env owner when called outside an authed request (CLI/tests). Every endpoint
+    that calls this is therefore automatically scoped to the logged-in account."""
+    from varunos.auth import current_user_id
+    return current_user_id()
 
 
 def _now() -> str:

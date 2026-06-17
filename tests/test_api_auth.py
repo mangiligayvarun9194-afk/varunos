@@ -240,6 +240,77 @@ class TestHermes:
         assert r.json()["name"] == "Sage"
 
 
+class TestAccounts:
+    """Multi-user accounts — the public-launch foundation. The non-negotiable
+    property is isolation: one account can NEVER see another's health data."""
+
+    def _signup(self, client, email, pw="password123", name=""):
+        r = client.post("/v1/auth/signup", json={"email": email, "password": pw, "name": name})
+        assert r.status_code == 200, r.text
+        return r.json()["token"]
+
+    def _bearer(self, token):
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_signup_returns_token_and_user(self, client):
+        r = client.post("/v1/auth/signup", json={"email": "a@x.com", "password": "password123", "name": "Ann"})
+        assert r.status_code == 200
+        b = r.json()
+        assert b["token"] and b["user"]["email"] == "a@x.com" and b["user"]["name"] == "Ann"
+
+    def test_signup_rejects_bad_email_and_short_password(self, client):
+        assert client.post("/v1/auth/signup", json={"email": "nope", "password": "password123"}).status_code == 400
+        assert client.post("/v1/auth/signup", json={"email": "b@x.com", "password": "short"}).status_code == 400
+
+    def test_duplicate_email_409(self, client):
+        client.post("/v1/auth/signup", json={"email": "dup@x.com", "password": "password123"})
+        r = client.post("/v1/auth/signup", json={"email": "DUP@x.com", "password": "password123"})
+        assert r.status_code == 409
+
+    def test_login_and_wrong_password(self, client):
+        client.post("/v1/auth/signup", json={"email": "c@x.com", "password": "password123"})
+        ok = client.post("/v1/auth/login", json={"email": "c@x.com", "password": "password123"})
+        assert ok.status_code == 200 and ok.json()["token"]
+        bad = client.post("/v1/auth/login", json={"email": "c@x.com", "password": "WRONG"})
+        assert bad.status_code == 401
+
+    def test_session_token_authenticates_real_endpoints(self, client):
+        tok = self._signup(client, "d@x.com")
+        r = client.get("/v1/auth/me", headers=self._bearer(tok))
+        assert r.status_code == 200 and r.json()["email"] == "d@x.com" and r.json()["account"] is True
+
+    def test_cross_user_isolation(self, client):
+        # The whole ballgame: A's workout must be invisible to B.
+        a = self._signup(client, "alice@x.com")
+        b = self._signup(client, "bob@x.com")
+        client.post("/v1/coach/act", headers=self._bearer(a), json={"text": "I benched 100 for 5"})
+        a_wk = client.get("/v1/logs/workouts", headers=self._bearer(a)).json()["workouts"]
+        b_wk = client.get("/v1/logs/workouts", headers=self._bearer(b)).json()["workouts"]
+        assert len(a_wk) == 1
+        assert len(b_wk) == 0  # B cannot see A's data
+
+    def test_memory_is_isolated(self, client):
+        a = self._signup(client, "mem-a@x.com")
+        b = self._signup(client, "mem-b@x.com")
+        client.post("/v1/hermes/memory", headers=self._bearer(a), json={"kind": "goal", "text": "A secret goal"})
+        assert len(client.get("/v1/hermes/memory", headers=self._bearer(a)).json()["memories"]) == 1
+        assert len(client.get("/v1/hermes/memory", headers=self._bearer(b)).json()["memories"]) == 0
+
+    def test_logout_invalidates_token(self, client):
+        tok = self._signup(client, "e@x.com")
+        assert client.get("/v1/auth/me", headers=self._bearer(tok)).status_code == 200
+        client.post("/v1/auth/logout", headers=self._bearer(tok))
+        assert client.get("/v1/auth/me", headers=self._bearer(tok)).status_code == 401
+
+    def test_legacy_api_key_still_works(self, client):
+        # The original single-user device + every existing test must keep working.
+        r = client.get("/v1/auth/me", headers=_auth())
+        assert r.status_code == 200 and r.json()["account"] is False  # owner, no account row
+
+    def test_bad_session_token_rejected(self, client):
+        assert client.get("/v1/auth/me", headers=self._bearer("not-a-real-token")).status_code == 401
+
+
 # ---- Auth enforcement -----------------------------------------------------
 
 class TestAuthRequired:

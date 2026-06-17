@@ -48,7 +48,7 @@ from varunos.core.surveillance import (
 from varunos.auth import require_auth, configured as auth_configured
 from varunos import db
 
-from varunos.api.endpoints_extra import router as extra_router
+from varunos.api.endpoints_extra import router as extra_router, public_router
 
 
 # ---- App + middleware -----------------------------------------------------
@@ -79,7 +79,8 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Mount the extra endpoints router (auth-required by default in the router)
+# Public auth routes (signup/login) first, then the auth-required router.
+app.include_router(public_router)
 app.include_router(extra_router)
 
 

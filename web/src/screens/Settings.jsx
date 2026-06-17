@@ -24,6 +24,7 @@ export default function Settings({ onTab, onSetupPin }) {
   const [dl, setDl] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [me, setMe] = useState(null);
 
   // Exact, copy-paste-ready building blocks for the Shortcut — always reflect THIS
   // device's real backend URL + key, so there's nothing for the user to guess.
@@ -66,7 +67,10 @@ export default function Settings({ onTab, onSetupPin }) {
   async function refreshVault() {
     try { setVault(await api('/v1/vault/preview')); } catch (_) { setVault(null); }
   }
-  useEffect(() => { refreshSync(); refreshConsent(); refreshVault(); }, []);
+  useEffect(() => {
+    refreshSync(); refreshConsent(); refreshVault();
+    api('/v1/auth/me').then(setMe).catch(() => setMe(null));
+  }, []);
 
   async function downloadVault() {
     setDl(true);
@@ -113,6 +117,13 @@ export default function Settings({ onTab, onSetupPin }) {
         ? { tone: 'ok', msg: 'Connected & saved.' }
         : { tone: 'err', msg: `HTTP ${r.status} — check key.` });
     } catch (e) { setConnStatus({ tone: 'err', msg: e.message }); }
+  }
+
+  async function logout() {
+    if (!confirm('Log out of Sarathi on this device?')) return;
+    try { await api('/v1/auth/logout', { method: 'POST' }); } catch (_) {}
+    ['varunos_key', 'varunos_onboarded', 'varunos_paired'].forEach((k) => localStorage.removeItem(k));
+    setTimeout(() => location.reload(), 150);
   }
 
   async function setConsent(on) {
@@ -325,6 +336,16 @@ export default function Settings({ onTab, onSetupPin }) {
         <button className="btn primary full" disabled={dl} onClick={downloadVault}>
           <IconDownload width={16} height={16} /> {dl ? 'Preparing…' : 'Download your Health Vault'}
         </button>
+      </motion.div>
+
+      <motion.div variants={rise} className="card">
+        <h3 style={{ marginBottom: 8 }}>Account</h3>
+        {me?.account
+          ? <div className="row"><span className="lbl">Signed in as</span><span className="val">{me.email}</span></div>
+          : <p className="meta" style={{ marginBottom: 4 }}>Connected with a self-hosted API key (owner mode).</p>}
+        <div style={{ marginTop: 12 }}>
+          <button className="btn ghost full" onClick={logout}>Log out</button>
+        </div>
       </motion.div>
 
       <motion.div variants={rise} className="card">
