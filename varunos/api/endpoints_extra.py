@@ -1942,7 +1942,7 @@ def momentum_today():
 @router.post("/v1/notify/test")
 def notify_test():
     """Send a tiny Telegram smoke-test message."""
-    sent = notify.send_telegram("VarunOS is connected")
+    sent = notify.send_telegram("Sarathi is connected")
     return {"configured": notify.telegram_configured(), "sent": sent}
 
 
