@@ -87,10 +87,16 @@ app.include_router(extra_router)
 
 @app.get("/healthz")
 def healthz():
+    # `commit` is the truth about what's actually deployed. Render injects
+    # RENDER_GIT_COMMIT automatically; locally it's "dev". This is how you tell at
+    # a glance whether prod is current — never trust a hand-maintained version str.
+    commit = (os.environ.get("RENDER_GIT_COMMIT")
+              or os.environ.get("GIT_COMMIT") or "dev")
     return {
         "status": "ok",
         "ts": datetime.now(timezone.utc).isoformat(),
         "version": "2.1.1",
+        "commit": commit[:12],
         "auth_configured": auth_configured(),
         "cors_origins": _allowed_origins,
     }
