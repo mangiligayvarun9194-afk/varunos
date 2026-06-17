@@ -88,7 +88,7 @@ def test_notify_test_reports_configured_and_sent(monkeypatch):
     monkeypatch.setenv("VARUNOS_USER_ID", "test-user")
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token-123")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat-456")
-    monkeypatch.setattr("varunos.notify.send_telegram", lambda text: text == "VarunOS is connected")
+    monkeypatch.setattr("varunos.notify.send_telegram", lambda text: text == "Sarathi is connected")
 
     from varunos import db
     from varunos.api.server import app
