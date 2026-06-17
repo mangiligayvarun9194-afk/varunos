@@ -2085,7 +2085,44 @@ def _momentum_state(uid: str, today: str) -> dict:
         "volume_trend_pct_per_week": round(trend_pct, 1),
         "days_since_pr": days_since_pr,
         "avatar": mo.avatar_stage(level),
+        "muscles": _muscle_growth(all_sets, level),
     }
+
+
+_MUSCLE_KEYWORDS = {
+    "legs": ("squat", "leg", "lunge", "deadlift", "rdl", "calf", "glute", "hip"),
+    "chest": ("bench", "chest", "fly", "dip", "push_up", "pushup"),
+    "back": ("row", "pull", "lat", "chin", "deadlift"),
+    "shoulders": ("overhead", "ohp", "shoulder", "lateral", "raise", "press"),
+    "arms": ("curl", "tricep", "extension", "pushdown", "skull"),
+    "core": ("plank", "crunch", "ab", "situp", "leg_raise"),
+}
+
+
+def _muscle_growth(all_sets: list[dict], level: int) -> dict:
+    """Per-muscle growth 0-100. Overall level scaled by how much of your training
+    volume hit each group, so the group you train most visibly grows most.
+    No data -> the level spread evenly (honest, never fabricated emphasis)."""
+    groups = list(_MUSCLE_KEYWORDS)
+    vol = {g: 0.0 for g in groups}
+    for s in all_sets:
+        if not (s.get("weight_kg") and s.get("reps")):
+            continue
+        ex = (s.get("exercise_id") or "").lower()
+        v = s["weight_kg"] * s["reps"]
+        for g, kws in _MUSCLE_KEYWORDS.items():
+            if any(k in ex for k in kws):
+                vol[g] += v
+    total = sum(vol.values())
+    out = {}
+    for g in groups:
+        if total <= 0:
+            out[g] = level
+        else:
+            share = vol[g] / total              # 0..1 of total volume
+            emphasis = 0.55 + min(1.0, share * len(groups)) * 0.45  # 0.55..1.0
+            out[g] = round(min(100, level * emphasis))
+    return out
 
 
 @router.get("/v1/logs/sets/last")
@@ -2166,7 +2203,8 @@ def avatar_state():
     st = _momentum_state(uid, today)
     return {"avatar": st["avatar"], "streak_weeks": st["streak_weeks"],
             "volume_trend_pct_per_week": st["volume_trend_pct_per_week"],
-            "days_since_pr": st["days_since_pr"]}
+            "days_since_pr": st["days_since_pr"], "muscles": st["muscles"],
+            "consistency_4w": st["consistency_4w"]}
 
 
 # ---- Wake-up: the one call the Today screen makes in the morning -------------

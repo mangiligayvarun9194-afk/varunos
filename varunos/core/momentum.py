@@ -175,7 +175,15 @@ def avatar_stage(level: int) -> dict:
     for i, (cut, n, l) in enumerate(stages):
         if level >= cut:
             name, label, idx = n, l, i
-    return {"stage": idx + 1, "name": name, "label": label, "level": level}
+    cur_cut = stages[idx][0]
+    next_at = stages[idx + 1][0] if idx + 1 < len(stages) else None
+    if next_at is None:
+        progress = 1.0
+    else:
+        span = next_at - cur_cut
+        progress = round((level - cur_cut) / span, 3) if span else 1.0
+    return {"stage": idx + 1, "of": len(stages), "name": name, "label": label,
+            "level": level, "next_at": next_at, "stage_progress": progress}
 
 
 # ---- Assembly ----------------------------------------------------------------
