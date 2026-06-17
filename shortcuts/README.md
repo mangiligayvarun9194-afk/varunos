@@ -1,8 +1,8 @@
-# VarunOS — Smartwatch Auto-Sync & Siri Shortcuts
+# Sarathi — Smartwatch Auto-Sync & Siri Shortcuts
 
 ## ⌚ Auto-sync your watch every morning (the important one)
 
-VarunOS reads HRV, resting heart rate, sleep and steps from **Apple Health**
+Sarathi reads HRV, resting heart rate, sleep and steps from **Apple Health**
 and computes your readiness automatically — no taps. Apple Health already
 aggregates data from Apple Watch, **and** from Fitbit / Oura / Whoop / Garmin
 if you have their apps installed (they write into Apple Health). So this one
@@ -57,11 +57,11 @@ These have official REST APIs. Server-side OAuth connectors are on the roadmap
 
 ---
 
-# VarunOS Siri Shortcuts Setup
+# Sarathi Siri Shortcuts Setup
 
 ## Quick setup (2 minutes)
 
-### 1. "Hey Siri, VarunOS status"
+### 1. "Hey Siri, Sarathi status"
 1. Open **Shortcuts** app on iPhone
 2. Tap **+** → **Add Action** → search "Get Contents of URL"
 3. URL: `http://<your-server>:8000/v1/state/snapshot`
@@ -75,7 +75,7 @@ These have official REST APIs. Server-side OAuth connectors are on the roadmap
    }
    ```
 7. Add **Speak Text** action with: "Readiness [Get Dictionary Value for overall from readiness]. [Get Dictionary Value for color from readiness] day."
-8. Name it "VarunOS Status" and add to Siri
+8. Name it "Sarathi Status" and add to Siri
 
 ### 2. "Hey Siri, log meal" (voice input)
 1. New Shortcut → **Ask for Input** (text, prompt: "What did you eat?")
@@ -98,10 +98,10 @@ These have official REST APIs. Server-side OAuth connectors are on the roadmap
    - **Kitchen tag**: "Log meal" shortcut
    - **Gym tag**: "Show workout" shortcut  
    - **Bathroom tag**: "Log BP" shortcut
-   - **Bedside tag**: "VarunOS status" shortcut
+   - **Bedside tag**: "Sarathi status" shortcut
 
 ### 5. iOS Widget
 1. Long-press home screen → **+** → search "Shortcuts"
-2. Add the "VarunOS Status" shortcut as a widget
+2. Add the "Sarathi Status" shortcut as a widget
 3. Or: open `http://<server>:8000` in Safari → Share → **Add to Home Screen**
-   This installs the PWA as a standalone app icon with the VarunOS icon.
+   This installs the PWA as a standalone app icon with the Sarathi icon.
