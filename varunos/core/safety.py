@@ -21,7 +21,7 @@ import re
 from typing import Literal
 
 DISCLAIMER = (
-    "VarunOS Health Surveillance is an educational risk-stratification tool, "
+    "Sarathi Health Surveillance is an educational risk-stratification tool, "
     "not a medical device. It does not diagnose, treat, cure, or prevent any disease. "
     "All outputs are risk tiers computed from validated screening tools and the data you provide. "
     "If you have symptoms, an emergency, or any health concern, contact a licensed medical professional. "
