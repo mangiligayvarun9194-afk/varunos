@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, getProfile } from '../api.js';
 import { Ring, CountUp, stagger, rise, confettiBurst } from '../components/ui.jsx';
-import { IconBarbell, IconFork, IconArrow, IconSparkle, IconMoon } from '../components/Icons.jsx';
+import { IconBarbell, IconFork, IconArrow, IconSparkle, IconMoon, IconWatch } from '../components/Icons.jsx';
 
 const SRC_LABELS = { apple_health: 'Apple Health', fitbit: 'Fitbit', oura: 'Oura', whoop: 'Whoop', garmin: 'Garmin' };
 const COMP_NAMES = { sleep: 'Sleep', wellness: 'Wellness', hrv: 'HRV', rhr: 'RHR', load: 'Load', trend: 'Trend' };
@@ -16,6 +16,7 @@ export default function Today({ onOpenSheet, onTab }) {
   const [wake, setWake] = useState(undefined); // undefined=loading, null=unreachable
   const [diet, setDiet] = useState(null);
   const [consumed, setConsumed] = useState(0);
+  const [sync, setSync] = useState(undefined);
 
   useEffect(() => {
     let on = true;
@@ -26,6 +27,8 @@ export default function Today({ onOpenSheet, onTab }) {
         setWake(wk);
         if (wk.momentum?.kind === 'pr') confettiBurst();
       } catch (_) { if (on) setWake(null); }
+      try { const s = await api('/v1/sync/status'); if (on) setSync(s); }
+      catch (_) { if (on) setSync(null); }
       try {
         const p = getProfile();
         const d = await api('/v1/diet/calc', { method: 'POST', body: {
@@ -87,6 +90,13 @@ export default function Today({ onOpenSheet, onTab }) {
         {wake === null && (
           <div className="card"><p className="err">Server unreachable — check Settings → Backend connection.</p></div>
         )}
+      </motion.div>
+
+      {/* your readings — everything synced from the watch, in one place */}
+      <motion.div variants={rise}>
+        <div className="micro">Your readings</div>
+        {sync === undefined && <div className="skel" style={{ height: 120, borderRadius: 18 }} />}
+        {sync !== undefined && <ReadingsCard sync={sync} onConnect={() => onTab('settings')} />}
       </motion.div>
 
       {/* risk tiers */}
@@ -158,6 +168,84 @@ function ReadinessHero({ r }) {
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
+function ReadingsCard({ sync, onConnect }) {
+  // Not connected / nothing synced yet → honest empty state, never fake numbers.
+  if (!sync || !sync.connected || !sync.today) {
+    return (
+      <div className="card" style={{ padding: 20, borderStyle: 'dashed', textAlign: 'center' }}>
+        <span style={{ color: 'var(--mute)' }}><IconWatch width={26} height={26} /></span>
+        <h3 style={{ margin: '10px 0 4px', fontSize: 15 }}>No watch data yet today</h3>
+        <p className="meta" style={{ marginBottom: 14 }}>
+          Connect Apple Health and your HRV, sleep, heart rate and steps show up here every morning.
+        </p>
+        <button className="btn primary" onClick={onConnect}>Set up auto-sync</button>
+      </div>
+    );
+  }
+
+  const t = sync.today;
+  const base = sync.baselines || {};
+  const src = SRC_LABELS[sync.source] || 'Synced';
+  const sleepH = t.sleep_min ? (t.sleep_min / 60) : null;
+
+  // delta vs baseline → a small trend hint. For HRV higher is better; for RHR lower is better.
+  const trend = (val, baseline, higherBetter) => {
+    if (val == null || baseline == null) return null;
+    const d = val - baseline;
+    if (Math.abs(d) < (baseline * 0.02)) return { sym: '→', tone: 'var(--mute)', txt: 'steady' };
+    const good = higherBetter ? d > 0 : d < 0;
+    return { sym: d > 0 ? '↑' : '↓', tone: good ? 'var(--green)' : 'var(--amber)',
+             txt: `${d > 0 ? '+' : ''}${Math.round(d)} vs base` };
+  };
+
+  const tiles = [
+    { k: 'HRV', v: t.hrv_ms != null ? Math.round(t.hrv_ms) : null, u: 'ms', tr: trend(t.hrv_ms, base.hrv_ms, true) },
+    { k: 'Resting HR', v: t.rhr_bpm != null ? Math.round(t.rhr_bpm) : null, u: 'bpm', tr: trend(t.rhr_bpm, base.rhr_bpm, false) },
+    { k: 'Sleep', v: sleepH != null ? sleepH.toFixed(1) : null, u: 'h',
+      sub: [t.sleep_deep_pct != null ? `${Math.round(t.sleep_deep_pct)}% deep` : null,
+            t.sleep_rem_pct != null ? `${Math.round(t.sleep_rem_pct)}% REM` : null].filter(Boolean).join(' · ') },
+    { k: 'Steps', v: t.steps != null ? t.steps.toLocaleString() : null, u: '' },
+    { k: 'Active', v: t.active_kcal != null ? Math.round(t.active_kcal) : null, u: 'kcal' },
+    { k: 'SpO₂', v: t.spo2 != null ? Math.round(t.spo2) : null, u: '%' },
+    { k: 'Weight', v: t.weight_kg != null ? (+t.weight_kg).toFixed(1) : null, u: 'kg' },
+  ].filter((x) => x.v != null);
+
+  return (
+    <div className="card" style={{ padding: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h3 className="display" style={{ fontSize: 15, fontWeight: 650, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: 'var(--mint)' }}><IconWatch width={17} height={17} /></span>
+          {src}
+        </h3>
+        <span style={{ fontSize: 11, color: 'var(--mute)' }}>{timeAgo(sync.last_sync)}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {tiles.map((x) => (
+          <div key={x.k} style={{ background: 'var(--surface-2)', border: '1px solid var(--line)',
+            borderRadius: 12, padding: '10px 10px' }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--mute)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{x.k}</div>
+            <div className="mono" style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>
+              {x.v}<span style={{ fontSize: 10, color: 'var(--mute)', marginLeft: 2 }}>{x.u}</span>
+            </div>
+            {x.tr && <div style={{ fontSize: 10, color: x.tr.tone, marginTop: 1 }}>{x.tr.sym} {x.tr.txt}</div>}
+            {x.sub && <div style={{ fontSize: 10, color: 'var(--mute)', marginTop: 1 }}>{x.sub}</div>}
+          </div>
+        ))}
       </div>
     </div>
   );

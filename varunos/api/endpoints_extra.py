@@ -1308,12 +1308,16 @@ def sync_wearable(payload: WearableSyncIn):
 
 @router.get("/v1/sync/status")
 def sync_status():
-    """When did we last sync, from what, and what's the latest snapshot."""
+    """When did we last sync, from what, and the full latest readings snapshot —
+    everything the in-app 'Your readings' view shows, with baselines so the UI can
+    render trend arrows (today vs your rolling baseline)."""
     uid = _user_id_from_default()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     ci = db.get_checkin(uid, today)
+    profile = db.get_profile(uid) or {}
     if not ci or not ci.get("synced_at"):
-        return {"connected": False, "last_sync": None, "source": None}
+        return {"connected": False, "last_sync": None, "source": None,
+                "weight_kg": profile.get("weight_kg")}
     return {
         "connected": True,
         "last_sync": ci.get("synced_at"),
@@ -1322,9 +1326,17 @@ def sync_status():
             "hrv_ms": ci.get("hrv_today_ms"),
             "rhr_bpm": ci.get("rhr_today_bpm"),
             "sleep_min": ci.get("sleep_min"),
+            "sleep_deep_pct": ci.get("sleep_deep_pct"),
+            "sleep_rem_pct": ci.get("sleep_rem_pct"),
+            "sleep_eff_pct": ci.get("sleep_eff_pct"),
             "steps": ci.get("steps"),
             "active_kcal": ci.get("active_kcal"),
             "spo2": ci.get("spo2"),
+            "weight_kg": profile.get("weight_kg"),
+        },
+        "baselines": {
+            "hrv_ms": ci.get("hrv_7d_baseline_ms"),
+            "rhr_bpm": ci.get("rhr_30d_baseline_bpm"),
         },
     }
 
