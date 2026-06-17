@@ -15,8 +15,10 @@ const TWIN_DEMO_GLB = '/models/twin-demo.glb';
 const ACTIONS = [
   { id: 'idle', label: 'Idle' },
   { id: 'squat', label: 'Squat' },
+  { id: 'deadlift', label: 'Deadlift' },
   { id: 'press', label: 'Press' },
   { id: 'curl', label: 'Curl' },
+  { id: 'row', label: 'Row' },
   { id: 'celebrate', label: 'PR!' },
 ];
 // Each stage gets its own aura hue — the body literally changes colour as it ascends.
@@ -25,6 +27,53 @@ const MUSCLES = [
   ['arms', 'Arms'], ['chest', 'Chest'], ['back', 'Back'],
   ['shoulders', 'Shoulders'], ['legs', 'Legs'], ['core', 'Core'],
 ];
+
+// ---- Exercise biomechanics -------------------------------------------------
+// A pose-based rep engine. For each lift: `grip` = constant joint offsets that
+// hold the setup (radians, added to the model's rest pose); `pose(p)` = the
+// moving joints, where p is contraction 0..1 (0 = start/extended, 1 = bottom or
+// peak squeeze). `tempo` is real lifting cadence in seconds — `up` = time to the
+// contracted position, `down` = time back. `bar:true` shows the barbell, which
+// the hands physically carry (placed between the hand bones each frame). The
+// joint angles below are tuned to anatomically plausible range of motion.
+const smoothstep = (u) => { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); };
+
+function repPhase(t, tempo) {
+  // segment order: rest (at p=0) → up (0→1, concentric) → hold (at 1) → down (1→0)
+  const total = tempo.rest + tempo.up + tempo.hold + tempo.down;
+  let x = t % total;
+  if (x < tempo.rest) return 0;
+  x -= tempo.rest;
+  if (x < tempo.up) return smoothstep(x / tempo.up);
+  x -= tempo.up;
+  if (x < tempo.hold) return 1;
+  x -= tempo.hold;
+  if (x < tempo.down) return 1 - smoothstep(x / tempo.down);
+  return 0;
+}
+
+const EXdata = {
+  squat: { bar: true, glow: 'legs', tempo: { up: 1.3, hold: 0.25, down: 1.6, rest: 0.5 },
+    grip: { lArm: { x: -1.4 }, rArm: { x: -1.4 }, lFore: { x: -1.7 }, rFore: { x: -1.7 } },
+    pose: (p) => ({ hipsY: -0.46 * p, spine: { x: 0.30 * p }, spine2: { x: 0.10 * p },
+      lUpLeg: { x: -1.55 * p }, rUpLeg: { x: -1.55 * p }, lLeg: { x: 1.95 * p }, rLeg: { x: 1.95 * p },
+      lFoot: { x: -0.55 * p }, rFoot: { x: -0.55 * p } }) },
+  deadlift: { bar: true, glow: 'back', tempo: { up: 1.2, hold: 0.2, down: 1.5, rest: 0.45 },
+    grip: { lArm: { x: 0.05 }, rArm: { x: 0.05 } },
+    pose: (p) => ({ hipsY: -0.16 * p, spine: { x: 0.95 * p }, spine2: { x: 0.22 * p }, neck: { x: -0.4 * p },
+      lUpLeg: { x: -0.55 * p }, rUpLeg: { x: -0.55 * p }, lLeg: { x: 0.7 * p }, rLeg: { x: 0.7 * p } }) },
+  press: { bar: true, glow: 'shoulders', tempo: { up: 1.0, hold: 0.3, down: 1.3, rest: 0.35 },
+    pose: (p) => ({ lArm: { x: -1.25 - 1.75 * p }, rArm: { x: -1.25 - 1.75 * p },
+      lFore: { x: -1.5 + 1.42 * p }, rFore: { x: -1.5 + 1.42 * p }, spine: { x: -0.05 * p } }) },
+  curl: { bar: true, glow: 'arms', tempo: { up: 0.9, hold: 0.35, down: 1.1, rest: 0.3 },
+    grip: { lArm: { x: -0.22 }, rArm: { x: -0.22 } },
+    pose: (p) => ({ lFore: { x: -0.15 - 2.05 * p }, rFore: { x: -0.15 - 2.05 * p } }) },
+  row: { bar: true, glow: 'back', tempo: { up: 0.85, hold: 0.35, down: 1.1, rest: 0.3 },
+    grip: { spine: { x: 0.85 }, spine2: { x: 0.22 }, neck: { x: -0.5 },
+      lUpLeg: { x: -0.32 }, rUpLeg: { x: -0.32 }, lLeg: { x: 0.42 }, rLeg: { x: 0.42 } },
+    pose: (p) => ({ lFore: { x: -0.25 - 1.25 * p }, rFore: { x: -0.25 - 1.25 * p },
+      lArm: { x: 0.1 - 0.55 * p }, rArm: { x: 0.1 - 0.55 * p } }) },
+};
 
 export default function Twin() {
   const toast = useToast();
@@ -160,6 +209,7 @@ export default function Twin() {
           neck: B('Neck'), head: B('Head'),
           lArm: B('LeftArm'), rArm: B('RightArm'),
           lFore: B('LeftForeArm'), rFore: B('RightForeArm'),
+          lHand: B('LeftHand'), rHand: B('RightHand'),
           lUpLeg: B('LeftUpLeg'), rUpLeg: B('RightUpLeg'),
           lLeg: B('LeftLeg'), rLeg: B('RightLeg'),
           lFoot: B('LeftFoot'), rFoot: B('RightFoot'),
@@ -185,6 +235,31 @@ export default function Twin() {
         rig.spine2 && rig.spine2.scale.set(chest, 1 + g * 0.06, chest);
         for (const k of ['lUpLeg', 'rUpLeg']) rig[k] && rig[k].scale.setScalar(leg);
 
+        // Barbell — a real loaded bar the hands carry (placed between the hand
+        // bones each frame via forward kinematics), so it racks/hangs/presses
+        // correctly per lift. Plates scale up a touch with level.
+        const plateR = 0.15 + g * 0.05;
+        const bar = new THREE.Group();
+        const metal = new THREE.MeshStandardMaterial({ color: 0xcdd6e4, metalness: 0.9, roughness: 0.28 });
+        const plateMat = new THREE.MeshStandardMaterial({ color: 0x0d1320, metalness: 0.5, roughness: 0.55 });
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.5, 18), metal);
+        shaft.rotation.z = Math.PI / 2; bar.add(shaft);
+        for (const sx of [-0.6, -0.52, 0.52, 0.6]) {
+          const pl = new THREE.Mesh(new THREE.CylinderGeometry(plateR, plateR, 0.045, 28), plateMat);
+          pl.rotation.z = Math.PI / 2; pl.position.x = sx; bar.add(pl);
+        }
+        bar.visible = false; scene.add(bar);
+
+        // Motion trail — traces the bar path, fading from the stage colour.
+        const TN = 46;
+        const tp = new Float32Array(TN * 3), tc = new Float32Array(TN * 3);
+        const tgeo = new THREE.BufferGeometry();
+        tgeo.setAttribute('position', new THREE.BufferAttribute(tp, 3));
+        tgeo.setAttribute('color', new THREE.BufferAttribute(tc, 3));
+        const trail = new THREE.Line(tgeo, new THREE.LineBasicMaterial({
+          vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        trail.frustumCulled = false; trail.visible = false; scene.add(trail);
+
         // Optional UnrealBloom for a premium glow — degrade gracefully if missing.
         let composer = null;
         try {
@@ -199,8 +274,23 @@ export default function Twin() {
         } catch (_) { composer = null; }
 
         const twin = { renderer, composer, scene, camera, rig, rest, root, aura, amat,
-          spd, rings, auraColor, auraTarget, t: 0, raf: 0 };
+          spd, rings, auraColor, baseAura: auraTarget, bar, trail, tp, tc, TN,
+          camRad: h * 1.9, camY: h * 0.62, camLookY: h * 0.5,
+          _X: new THREE.Vector3(1, 0, 0), _l: new THREE.Vector3(), _r: new THREE.Vector3(),
+          lastMode: null, t: 0, raf: 0 };
         twinRef.current = twin;
+
+        // Apply a set of {joint:{x,y,z}} (or hipsY) offsets onto the rest pose.
+        const applyOffsets = (offs) => {
+          for (const k in offs) {
+            if (k === 'hipsY') { if (rig.hips) rig.hips.position.y += offs[k]; continue; }
+            const b = rig[k]; if (!b) continue;
+            const v = offs[k];
+            if (v.x) b.rotation.x += v.x;
+            if (v.y) b.rotation.y += v.y;
+            if (v.z) b.rotation.z += v.z;
+          }
+        };
 
         const loop = () => {
           twin.raf = requestAnimationFrame(loop);
@@ -213,24 +303,9 @@ export default function Twin() {
           const breathe = Math.sin(t * 1.8) * 0.5 + 0.5;
           if (rig.spine2) rig.spine2.rotation.x += breathe * 0.025;
           const m = modeRef.current;
-          if (m === 'squat') {
-            const d = (1 - Math.cos(t * 2.4)) / 2;
-            if (rig.hips) rig.hips.position.y -= d * 0.34;
-            for (const k of ['lUpLeg', 'rUpLeg']) rig[k] && (rig[k].rotation.x += -d * 1.25);
-            for (const k of ['lLeg', 'rLeg']) rig[k] && (rig[k].rotation.x += d * 1.85);
-            for (const k of ['lFoot', 'rFoot']) rig[k] && (rig[k].rotation.x += -d * 0.6);
-            for (const k of ['lArm', 'rArm']) rig[k] && (rig[k].rotation.x += -d * 1.15);
-            if (rig.spine) rig.spine.rotation.x += d * 0.3;
-          } else if (m === 'press') {
-            const d = (1 - Math.cos(t * 2.6)) / 2;
-            for (const k of ['lArm', 'rArm']) rig[k] && (rig[k].rotation.x += -1.1 - d * 1.4);
-            for (const k of ['lFore', 'rFore']) rig[k] && (rig[k].rotation.x += -(1 - d) * 1.5);
-            if (rig.spine2) rig.spine2.rotation.x += -d * 0.06;
-          } else if (m === 'curl') {
-            const d = (1 - Math.cos(t * 3.0)) / 2;
-            for (const k of ['lFore', 'rFore']) rig[k] && (rig[k].rotation.x += -d * 2.0);
-            for (const k of ['lArm', 'rArm']) rig[k] && (rig[k].rotation.x += -0.15);
-          } else if (m === 'celebrate') {
+          const ex = EXdata[m];
+          let p = 0;
+          if (m === 'celebrate') {
             const hop = Math.abs(Math.sin(t * 5));
             if (rig.hips) rig.hips.position.y += hop * 0.07;
             for (const k of ['lArm', 'rArm']) {
@@ -239,14 +314,43 @@ export default function Twin() {
               rig[k].rotation.z += (k === 'lArm' ? -0.4 : 0.4) * (0.7 + 0.3 * Math.sin(t * 5));
             }
             if (rig.head) rig.head.rotation.z += Math.sin(t * 5) * 0.08;
+          } else if (ex) {
+            // a controlled rep: grip holds the setup, pose(p) drives the motion
+            p = repPhase(t, ex.tempo);
+            if (ex.grip) applyOffsets(ex.grip);
+            applyOffsets(ex.pose(p));
           } else {
+            // idle: relaxed breathing sway + subtle weight shift
             for (const k of ['lArm', 'rArm']) rig[k] && (rig[k].rotation.z += (k === 'lArm' ? -1 : 1) * Math.sin(t * 1.8) * 0.02);
+            if (rig.hips) rig.hips.position.x += Math.sin(t * 0.9) * 0.012;
           }
-          root.rotation.y = Math.sin(t * 0.25) * 0.22;
+
+          // Barbell tracks the hands via forward kinematics + a fading motion trail.
+          root.updateMatrixWorld(true);
+          const showBar = !!(ex && ex.bar && rig.lHand && rig.rHand);
+          twin.bar.visible = showBar; twin.trail.visible = showBar;
+          if (showBar) {
+            rig.lHand.getWorldPosition(twin._l);
+            rig.rHand.getWorldPosition(twin._r);
+            const mx = (twin._l.x + twin._r.x) / 2, my = (twin._l.y + twin._r.y) / 2, mz = (twin._l.z + twin._r.z) / 2;
+            twin.bar.position.set(mx, my, mz);
+            const ax = twin._r.clone().sub(twin._l);
+            if (ax.lengthSq() > 1e-5) twin.bar.quaternion.setFromUnitVectors(twin._X, ax.normalize());
+            const { tp, tc, TN } = twin;
+            if (twin.lastMode !== m) for (let i = 0; i < TN; i++) { tp[i*3]=mx; tp[i*3+1]=my; tp[i*3+2]=mz; }
+            for (let i = TN - 1; i > 0; i--) { tp[i*3]=tp[(i-1)*3]; tp[i*3+1]=tp[(i-1)*3+1]; tp[i*3+2]=tp[(i-1)*3+2]; }
+            tp[0]=mx; tp[1]=my; tp[2]=mz;
+            const c = twin.auraColor;
+            for (let i = 0; i < TN; i++) { const a = (1 - i / TN) ** 1.5; tc[i*3]=c.r*a; tc[i*3+1]=c.g*a; tc[i*3+2]=c.b*a; }
+            twin.trail.geometry.attributes.position.needsUpdate = true;
+            twin.trail.geometry.attributes.color.needsUpdate = true;
+          }
+          twin.lastMode = m;
 
           // --- VFX ---
-          // aura: ease opacity in, drift embers up, recycle.
-          twin.amat.opacity += (twin.auraTarget - twin.amat.opacity) * 0.04;
+          // aura swells at peak contraction — the effort glow.
+          twin.auraTarget = twin.baseAura + p * 0.3;
+          twin.amat.opacity += (twin.auraTarget - twin.amat.opacity) * 0.06;
           const arr = twin.aura.geometry.attributes.position.array;
           for (let i = 0; i < arr.length / 3; i++) {
             arr[i * 3 + 1] += twin.spd[i];
@@ -254,13 +358,17 @@ export default function Twin() {
           }
           twin.aura.geometry.attributes.position.needsUpdate = true;
           twin.aura.rotation.y = t * 0.3;
-          // ground rings: expanding pulses.
           twin.rings.forEach((r) => {
-            const p = (t * 0.35 + r.phase) % 1;
-            const s = 1 + p * 1.8;
+            const rp = (t * 0.35 + r.phase) % 1;
+            const s = 1 + rp * 1.8;
             r.m.scale.set(s, s, s);
-            r.m.material.opacity = (1 - p) * (0.35 + g * 0.4);
+            r.m.material.opacity = (1 - rp) * (0.35 + g * 0.4);
           });
+
+          // cinematic camera orbit — keeps the figure forward, reveals depth.
+          const orb = Math.sin(t * 0.16) * 0.42;
+          twin.camera.position.set(Math.sin(orb) * twin.camRad, twin.camY, Math.cos(orb) * twin.camRad);
+          twin.camera.lookAt(0, twin.camLookY, 0);
 
           (twin.composer || twin.renderer).render(scene, camera);
         };
@@ -388,17 +496,18 @@ export default function Twin() {
         </AnimatePresence>
       </motion.div>
 
-      {/* action pills */}
+      {/* action pills (scroll horizontally — the Twin performs each lift) */}
       <motion.div variants={rise} style={{
         display: 'flex', gap: 6, margin: '12px 0', background: 'var(--surface)',
         border: '1px solid var(--line)', borderRadius: 16, padding: 5,
+        overflowX: 'auto', scrollbarWidth: 'none',
       }}>
         {ACTIONS.map((a) => {
           const active = mode === a.id;
           return (
             <button key={a.id} onClick={() => setAction(a.id)} style={{
-              position: 'relative', flex: 1, background: 'none', border: 'none', cursor: 'pointer',
-              padding: '10px 4px', borderRadius: 12, fontSize: 13, fontWeight: 650,
+              position: 'relative', flex: '0 0 auto', background: 'none', border: 'none', cursor: 'pointer',
+              padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap',
               fontFamily: 'var(--font-display)', color: active ? '#04150e' : 'var(--dim)', transition: 'color 0.18s',
             }}>
               {active && (
