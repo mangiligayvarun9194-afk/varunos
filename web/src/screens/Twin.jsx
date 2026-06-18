@@ -54,14 +54,16 @@ function repPhase(t, tempo) {
 
 const EXdata = {
   squat: { bar: true, glow: 'legs', tempo: { up: 1.3, hold: 0.25, down: 1.6, rest: 0.5 },
-    grip: { lArm: { x: -1.4 }, rArm: { x: -1.4 }, lFore: { x: -1.7 }, rFore: { x: -1.7 } },
-    pose: (p) => ({ hipsY: -0.46 * p, spine: { x: 0.30 * p }, spine2: { x: 0.10 * p },
+    // front rack: elbows up, bar on front delts; hips sit back, knees track, to parallel
+    grip: { lArm: { x: -1.55 }, rArm: { x: -1.55 }, lFore: { x: -2.15 }, rFore: { x: -2.15 } },
+    pose: (p) => ({ hipsY: -0.46 * p, hipsZ: 0.06 * p, spine: { x: 0.24 * p }, spine2: { x: 0.08 * p },
       lUpLeg: { x: -1.55 * p }, rUpLeg: { x: -1.55 * p }, lLeg: { x: 1.95 * p }, rLeg: { x: 1.95 * p },
       lFoot: { x: -0.55 * p }, rFoot: { x: -0.55 * p } }) },
   deadlift: { bar: true, glow: 'back', tempo: { up: 1.2, hold: 0.2, down: 1.5, rest: 0.45 },
+    // hip hinge with a flat/neutral spine; arms hang straight; drive to full lockout
     grip: { lArm: { x: 0.05 }, rArm: { x: 0.05 } },
-    pose: (p) => ({ hipsY: -0.16 * p, spine: { x: 0.95 * p }, spine2: { x: 0.22 * p }, neck: { x: -0.4 * p },
-      lUpLeg: { x: -0.55 * p }, rUpLeg: { x: -0.55 * p }, lLeg: { x: 0.7 * p }, rLeg: { x: 0.7 * p } }) },
+    pose: (p) => ({ hipsY: -0.16 * p, hipsZ: 0.04 * p, spine: { x: 0.95 * p }, spine2: { x: 0.12 * p }, neck: { x: -0.3 * p },
+      lUpLeg: { x: -0.5 * p }, rUpLeg: { x: -0.5 * p }, lLeg: { x: 0.72 * p }, rLeg: { x: 0.72 * p } }) },
   press: { bar: true, glow: 'shoulders', tempo: { up: 1.0, hold: 0.3, down: 1.3, rest: 0.35 },
     pose: (p) => ({ lArm: { x: -1.25 - 1.75 * p }, rArm: { x: -1.25 - 1.75 * p },
       lFore: { x: -1.5 + 1.42 * p }, rFore: { x: -1.5 + 1.42 * p }, spine: { x: -0.05 * p } }) },
@@ -73,6 +75,17 @@ const EXdata = {
       lUpLeg: { x: -0.32 }, rUpLeg: { x: -0.32 }, lLeg: { x: 0.42 }, rLeg: { x: 0.42 } },
     pose: (p) => ({ lFore: { x: -0.25 - 1.25 * p }, rFore: { x: -0.25 - 1.25 * p },
       lArm: { x: 0.1 - 0.55 * p }, rArm: { x: 0.1 - 0.55 * p } }) },
+};
+
+// Muscle activation per lift (ExRx target + key synergists). Each node is
+// [bone, [worldOffsetXYZ]] — a glowing blob is placed there and brightens as the
+// figure contracts, so the anatomically correct muscles light up.
+const MUSCLE_NODES = {
+  squat:    [['lUpLeg', [0, -0.18, 0.07]], ['rUpLeg', [0, -0.18, 0.07]], ['hips', [0, -0.02, -0.06]]],   // quads + glutes
+  deadlift: [['spine', [0, 0.05, -0.08]], ['hips', [0, -0.02, -0.06]], ['lUpLeg', [0, -0.2, -0.06]], ['rUpLeg', [0, -0.2, -0.06]]], // erectors + glutes + hamstrings
+  press:    [['lArm', [0.04, 0.02, 0.05]], ['rArm', [-0.04, 0.02, 0.05]], ['lFore', [0, -0.05, -0.04]], ['rFore', [0, -0.05, -0.04]]], // delts + triceps
+  curl:     [['lArm', [0.03, -0.04, 0.06]], ['rArm', [-0.03, -0.04, 0.06]]],                              // biceps
+  row:      [['spine2', [0, 0.04, -0.09]], ['lArm', [0.05, 0, -0.05]], ['rArm', [-0.05, 0, -0.05]]],      // lats + rear delts
 };
 
 export default function Twin() {
@@ -146,11 +159,13 @@ export default function Twin() {
         const stageIdx = Math.min(4, Math.max(0, (stats?.avatar?.stage ?? 1) - 1));
         const auraColor = new THREE.Color(STAGE_HEX[stageIdx] || '#2ee6a8');
 
-        scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x182030, 1.1));
-        const key = new THREE.DirectionalLight(0xffffff, 1.5);
-        key.position.set(1.5, 3, 2.5); scene.add(key);
-        const rim = new THREE.DirectionalLight(auraColor.getHex(), 0.7 + g * 1.6);
-        rim.position.set(-2, 1.5, -2); scene.add(rim);
+        scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x10161f, 1.0));
+        const key = new THREE.DirectionalLight(0xfff3e2, 1.9);
+        key.position.set(1.8, 3.2, 2.5); scene.add(key);
+        const rim = new THREE.DirectionalLight(auraColor.getHex(), 1.1 + g * 1.8);
+        rim.position.set(-2.2, 1.8, -1.8); scene.add(rim);
+        const fill = new THREE.DirectionalLight(0x7da2ff, 0.5);
+        fill.position.set(-1, 0.5, 3); scene.add(fill);
 
         // Glowing floor disc + concentric pulse rings.
         const floor = new THREE.Mesh(
@@ -200,6 +215,15 @@ export default function Twin() {
         }
         if (dead) { renderer.dispose(); return; }
         const root = gltf.scene; scene.add(root);
+        // Restyle to a sleek "digital twin": a dark sculpted surface with a faint
+        // accent glow the bloom catches — premium, not a default flat mannequin.
+        root.traverse((o) => {
+          if (o.isMesh) {
+            o.material = new THREE.MeshStandardMaterial({
+              color: 0x1b2334, metalness: 0.45, roughness: 0.42,
+              emissive: auraColor, emissiveIntensity: 0.10 });
+          }
+        });
 
         const bones = {};
         root.traverse((o) => { if (o.isBone) bones[o.name] = o; });
@@ -260,6 +284,26 @@ export default function Twin() {
           vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
         trail.frustumCulled = false; trail.visible = false; scene.add(trail);
 
+        // Soft radial texture, reused for the muscle-activation glows and the
+        // grounding contact shadow.
+        const _cv = document.createElement('canvas'); _cv.width = _cv.height = 64;
+        const _cx = _cv.getContext('2d');
+        const _grd = _cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        _grd.addColorStop(0, 'rgba(255,255,255,1)');
+        _grd.addColorStop(0.35, 'rgba(255,255,255,0.5)');
+        _grd.addColorStop(1, 'rgba(255,255,255,0)');
+        _cx.fillStyle = _grd; _cx.fillRect(0, 0, 64, 64);
+        const softTex = new THREE.CanvasTexture(_cv);
+        const glows = [];
+        for (let i = 0; i < 4; i++) {
+          const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: auraColor,
+            blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+          s.scale.setScalar(0.4); s.visible = false; scene.add(s); glows.push(s);
+        }
+        const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.55, 40),
+          new THREE.MeshBasicMaterial({ map: softTex, color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false }));
+        shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; scene.add(shadow);
+
         // Optional UnrealBloom for a premium glow — degrade gracefully if missing.
         let composer = null;
         try {
@@ -274,16 +318,17 @@ export default function Twin() {
         } catch (_) { composer = null; }
 
         const twin = { renderer, composer, scene, camera, rig, rest, root, aura, amat,
-          spd, rings, auraColor, baseAura: auraTarget, bar, trail, tp, tc, TN,
+          spd, rings, auraColor, baseAura: auraTarget, bar, trail, tp, tc, TN, glows,
           camRad: h * 1.9, camY: h * 0.62, camLookY: h * 0.5,
           _X: new THREE.Vector3(1, 0, 0), _l: new THREE.Vector3(), _r: new THREE.Vector3(),
-          lastMode: null, t: 0, raf: 0 };
+          _g: new THREE.Vector3(), lastMode: null, t: 0, raf: 0 };
         twinRef.current = twin;
 
         // Apply a set of {joint:{x,y,z}} (or hipsY) offsets onto the rest pose.
         const applyOffsets = (offs) => {
           for (const k in offs) {
             if (k === 'hipsY') { if (rig.hips) rig.hips.position.y += offs[k]; continue; }
+            if (k === 'hipsZ') { if (rig.hips) rig.hips.position.z += offs[k]; continue; }
             const b = rig[k]; if (!b) continue;
             const v = offs[k];
             if (v.x) b.rotation.x += v.x;
@@ -346,6 +391,20 @@ export default function Twin() {
             twin.trail.geometry.attributes.color.needsUpdate = true;
           }
           twin.lastMode = m;
+
+          // Muscle activation — the ExRx target/synergist muscles glow, brightening
+          // as the figure contracts (an "x-ray" of what each lift works).
+          const nodes = MUSCLE_NODES[m];
+          twin.glows.forEach((s, i) => {
+            const node = nodes && nodes[i];
+            const bone = node && rig[node[0]];
+            if (!bone) { s.visible = false; return; }
+            bone.getWorldPosition(twin._g);
+            s.position.set(twin._g.x + node[1][0], twin._g.y + node[1][1], twin._g.z + node[1][2]);
+            s.visible = true;
+            s.material.opacity = 0.18 + p * 0.82;
+            s.scale.setScalar(0.32 + p * 0.16);
+          });
 
           // --- VFX ---
           // aura swells at peak contraction — the effort glow.
