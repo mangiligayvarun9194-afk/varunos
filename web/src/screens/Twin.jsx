@@ -151,6 +151,9 @@ export default function Twin() {
         renderer.setSize(W, H);
         renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
+        // Cinematic grading — ACES filmic curve gives the premium, filmic look.
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
         stage.appendChild(renderer.domElement);
 
         // Level (0..1) drives every VFX intensity.
@@ -158,6 +161,15 @@ export default function Twin() {
         try { g = (levelRef.current || 0) / 100; } catch (_) {}
         const stageIdx = Math.min(4, Math.max(0, (stats?.avatar?.stage ?? 1) - 1));
         const auraColor = new THREE.Color(STAGE_HEX[stageIdx] || '#2ee6a8');
+
+        // Image-based lighting — a real environment so the iridescent/chrome
+        // material has true reflections (the single biggest realism upgrade).
+        try {
+          const { RoomEnvironment } = await import('three/examples/jsm/environments/RoomEnvironment.js');
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          const roomEnv = new RoomEnvironment(renderer);
+          scene.environment = pmrem.fromScene(roomEnv, 0.04).texture;
+        } catch (_) { /* no IBL — material still lit by the lights below */ }
 
         scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x10161f, 1.0));
         const key = new THREE.DirectionalLight(0xfff3e2, 1.9);
@@ -169,8 +181,9 @@ export default function Twin() {
 
         // Glowing floor disc + concentric pulse rings.
         const floor = new THREE.Mesh(
-          new THREE.CircleGeometry(1.1, 48),
-          new THREE.MeshBasicMaterial({ color: 0x0c1424, transparent: true, opacity: 0.9 }));
+          new THREE.CircleGeometry(1.3, 64),
+          new THREE.MeshStandardMaterial({ color: 0x070b12, metalness: 0.95, roughness: 0.18,
+            envMapIntensity: 0.7 }));
         floor.rotation.x = -Math.PI / 2; scene.add(floor);
         const rings = [];
         for (let k = 0; k < 3; k++) {
@@ -219,9 +232,11 @@ export default function Twin() {
         // accent glow the bloom catches — premium, not a default flat mannequin.
         root.traverse((o) => {
           if (o.isMesh) {
-            o.material = new THREE.MeshStandardMaterial({
-              color: 0x1b2334, metalness: 0.45, roughness: 0.42,
-              emissive: auraColor, emissiveIntensity: 0.10 });
+            o.material = new THREE.MeshPhysicalMaterial({
+              color: 0x0d1320, metalness: 0.92, roughness: 0.30,
+              clearcoat: 1.0, clearcoatRoughness: 0.22,
+              iridescence: 1.0, iridescenceIOR: 1.32, iridescenceThicknessRange: [120, 500],
+              envMapIntensity: 1.15, emissive: auraColor, emissiveIntensity: 0.06 });
           }
         });
 
