@@ -11,7 +11,7 @@ import { api, classifyExercise } from '../api.js';
 import { CountUp, useToast, stagger, rise, confettiBurst } from '../components/ui.jsx';
 import { IconBody, IconTrend, IconFlame, IconBolt, IconSparkle } from '../components/Icons.jsx';
 
-const TWIN_DEMO_GLB = '/models/twin-demo.glb';
+const TWIN_DEMO_GLB = '/models/twin-custom.glb';
 const ACTIONS = [
   { id: 'idle', label: 'Idle' },
   { id: 'squat', label: 'Squat' },
@@ -228,23 +228,31 @@ export default function Twin() {
         }
         if (dead) { renderer.dispose(); return; }
         const root = gltf.scene; scene.add(root);
-        // Restyle to a sleek "digital twin": a dark sculpted surface with a faint
-        // accent glow the bloom catches — premium, not a default flat mannequin.
+        // Keep the model's real PBR skin/textures — just let them catch the
+        // environment reflections for a premium, grounded look.
         root.traverse((o) => {
-          if (o.isMesh) {
-            o.material = new THREE.MeshPhysicalMaterial({
-              color: 0x0d1320, metalness: 0.92, roughness: 0.30,
-              clearcoat: 1.0, clearcoatRoughness: 0.22,
-              iridescence: 1.0, iridescenceIOR: 1.32, iridescenceThicknessRange: [120, 500],
-              envMapIntensity: 1.15, emissive: auraColor, emissiveIntensity: 0.06 });
+          if (o.isMesh && o.material) {
+            o.material.envMapIntensity = 1.0;
+            o.material.needsUpdate = true;
           }
         });
 
         const bones = {};
         root.traverse((o) => { if (o.isBone) bones[o.name] = o; });
-        const B = (n) => bones[n] || bones['mixamorig' + n] || bones['mixamorig:' + n] || null;
+        // Tolerant bone lookup: tries exact, mixamo-prefixed, and case-insensitive,
+        // across several candidate names (rigs vary: Spine2 vs Spine02, Neck vs neck).
+        const lc = {}; for (const k in bones) lc[k.toLowerCase()] = bones[k];
+        const B = (...cands) => {
+          for (const n of cands) {
+            const hit = bones[n] || bones['mixamorig' + n] || bones['mixamorig:' + n]
+              || lc[n.toLowerCase()] || lc[('mixamorig' + n).toLowerCase()];
+            if (hit) return hit;
+          }
+          return null;
+        };
         const rig = {
-          hips: B('Hips'), spine: B('Spine'), spine2: B('Spine2') || B('Spine1'),
+          hips: B('Hips'), spine: B('Spine', 'Spine01'),
+          spine2: B('Spine2', 'Spine1', 'Spine02', 'Spine01'),
           neck: B('Neck'), head: B('Head'),
           lArm: B('LeftArm'), rArm: B('RightArm'),
           lFore: B('LeftForeArm'), rFore: B('RightForeArm'),
@@ -261,12 +269,25 @@ export default function Twin() {
         for (const [k, b] of Object.entries(rig))
           if (b) rest[k] = { rot: b.rotation.clone(), pos: b.position.clone() };
 
+        // Normalize ANY model to ~1.8 m tall, feet on the floor, centered on X/Z —
+        // so the camera and all VFX line up regardless of the source model's
+        // native scale, origin, or units (Meshy/Avaturn/Mixamo all differ).
         root.updateMatrixWorld(true);
-        const headPos = new THREE.Vector3();
-        (rig.head || root).getWorldPosition(headPos);
-        const h = Math.max(0.9, headPos.y * 1.12);
-        camera.position.set(0, h * 0.6, h * 1.9);
-        camera.lookAt(0, h * 0.5, 0);
+        let box = new THREE.Box3().setFromObject(root);
+        let size = box.getSize(new THREE.Vector3());
+        if (size.y > 0.0001) {
+          root.scale.multiplyScalar(1.8 / size.y);
+          root.updateMatrixWorld(true);
+          box = new THREE.Box3().setFromObject(root);
+        }
+        const center = box.getCenter(new THREE.Vector3());
+        root.position.x -= center.x;
+        root.position.z -= center.z;
+        root.position.y -= box.min.y;     // feet to floor (y=0)
+        root.updateMatrixWorld(true);
+        const h = 1.8;
+        camera.position.set(0, h * 0.62, h * 1.85);
+        camera.lookAt(0, h * 0.52, 0);
 
         // Growth: scale bones by avatar_level.
         const arm = 1 + g * 0.45, chest = 1 + g * 0.22, leg = 1 + g * 0.25;
