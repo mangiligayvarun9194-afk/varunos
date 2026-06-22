@@ -43,10 +43,14 @@ export default function Library({ onTab }) {
         <button className="btn ghost" style={{ padding: '6px 10px' }} onClick={() => onTab('log')} aria-label="Back">
           <IconBack width={18} height={18} />
         </button>
-        <div>
+        <div style={{ flex: 1 }}>
           <h2 className="display" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1 }}>Form Library</h2>
           <p className="meta">Correct form, range of motion & cues — every lift</p>
         </div>
+        <button className="btn primary" style={{ flexShrink: 0, padding: '8px 13px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+          onClick={() => onTab('formcoach')} aria-label="Open camera form coach">
+          <IconBody width={16} height={16} /> Coach me
+        </button>
       </motion.div>
 
       {/* search */}
