@@ -35,16 +35,19 @@ export default function FormCoach({ onTab }) {
   const [exId, setExId] = useState('squat');
   const [status, setStatus] = useState('idle'); // idle | loading | running | error
   const [err, setErr] = useState('');
-  const [hud, setHud] = useState({ reps: 0, goodReps: 0, phase: 'up', angle: null });
+  const [hud, setHud] = useState({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
   const [flash, setFlash] = useState(null);
+  const [guide, setGuide] = useState(null);   // "step into frame" coaching
+  const lastRef = useRef({ hud: '', guide: '' });
 
   const ex = EXERCISES[exId];
 
   // Switching exercise resets the set.
   useEffect(() => {
     engineRef.current.set(exId);
-    setHud({ reps: 0, goodReps: 0, phase: 'up', angle: null });
-    setFlash(null);
+    setHud({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
+    setFlash(null); setGuide(null);
+    lastRef.current = { hud: '', guide: '' };
   }, [exId]);
 
   // Auto-clear the feedback banner.
@@ -104,22 +107,33 @@ export default function FormCoach({ onTab }) {
     const marker = markerRef.current;
     if (!v || !marker) return;
     if (v.readyState >= 2) {
+      const now = performance.now();
       let res = null;
-      try { res = marker.detectForVideo(v, performance.now()); } catch (_) {}
+      try { res = marker.detectForVideo(v, now); } catch (_) {}
       const pts = res && res.landmarks && res.landmarks[0];
-      draw(pts);
-      if (pts) {
-        const r = engineRef.current.update(pts);
-        if (r) {
-          setHud({ reps: r.reps, goodReps: r.goodReps, phase: r.phase, angle: r.angle });
-          if (r.event) setFlash(r.event);
+      const r = engineRef.current.update(pts, now);
+      draw(pts, r);
+      if (r) {
+        // Throttle React state to only fire when something actually changes.
+        const key = `${r.reps}|${r.goodReps}|${r.phase}|${r.angle}|${r.valid}`;
+        if (key !== lastRef.current.hud) {
+          lastRef.current.hud = key;
+          setHud({ reps: r.reps, goodReps: r.goodReps, phase: r.phase, angle: r.angle, valid: r.valid });
         }
+        const g = r.valid ? null : guideFor(r.reason);
+        if (g !== lastRef.current.guide) { lastRef.current.guide = g; setGuide(g); }
+        if (r.event) setFlash(r.event);
       }
     }
     rafRef.current = requestAnimationFrame(loop);
   }
 
-  function draw(pts) {
+  function guideFor(reason) {
+    if (reason === 'out-of-frame') return 'Move back — keep your whole body in frame';
+    return 'Step into frame so your full body is visible';
+  }
+
+  function draw(pts, r) {
     const cv = canvasRef.current;
     const v = videoRef.current;
     if (!cv || !v) return;
@@ -128,8 +142,10 @@ export default function FormCoach({ onTab }) {
     const g = cv.getContext('2d');
     g.clearRect(0, 0, w, h);
     if (!pts) return;
+    // Red when the pose isn't trackable (not counting), else phase-tinted.
+    const valid = r ? r.valid : true;
     const phase = engineRef.current.phase;
-    const col = phase === 'down' ? '#4cc9f0' : '#2ee6a8';
+    const col = !valid ? '#f87171' : phase === 'down' ? '#4cc9f0' : '#2ee6a8';
     // bones
     g.lineWidth = Math.max(3, w / 160);
     g.strokeStyle = col;
@@ -203,11 +219,22 @@ export default function FormCoach({ onTab }) {
                 </div>
               )}
             </div>
-            {hud.angle != null && (
+            {hud.valid && hud.angle != null && (
               <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(4,6,11,0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, padding: '6px 10px', fontSize: 12, color: 'var(--dim)' }}>
                 {hud.angle}° · {hud.phase === 'down' ? 'lowering' : 'ready'}
               </div>
             )}
+            {/* live "get in frame" guidance — shown while the pose can't be tracked */}
+            <AnimatePresence>
+              {guide && (
+                <motion.div key={guide} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', textAlign: 'center',
+                    background: 'rgba(4,6,11,0.7)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '12px 18px',
+                    color: '#fca5a5', fontSize: 14, fontWeight: 600, maxWidth: '80%' }}>
+                  {guide}
+                </motion.div>
+              )}
+            </AnimatePresence>
             <AnimatePresence>
               {flash && (
                 <motion.div key={flash.msg + hud.reps} initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}
