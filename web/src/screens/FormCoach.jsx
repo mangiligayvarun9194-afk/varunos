@@ -8,6 +8,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EXERCISES, RepEngine, LOG_MAP, estimateLoad } from '../lib/formcoach.js';
+import { detect as detectMuscle, MUSCLE_LABEL } from '../lib/musclenet.js';
+import MUSCLE_MODEL from '../lib/muscle_model.json';
 import { api, getProfile } from '../api.js';
 import { useToast } from '../components/ui.jsx';
 import { IconBack, IconBolt, IconShield, IconBody } from '../components/Icons.jsx';
@@ -42,7 +44,8 @@ export default function FormCoach({ onTab }) {
   const [guide, setGuide] = useState(null);   // "step into frame" coaching
   const [logged, setLogged] = useState(null); // confirmation after logging a set
   const [logging, setLogging] = useState(false);
-  const lastRef = useRef({ hud: '', guide: '' });
+  const [muscle, setMuscle] = useState(null);   // live AI muscle detection
+  const lastRef = useRef({ hud: '', guide: '', frame: 0, muscle: '' });
   const toast = useToast();
 
   const ex = EXERCISES[exId];
@@ -51,8 +54,8 @@ export default function FormCoach({ onTab }) {
   useEffect(() => {
     engineRef.current.set(exId);
     setHud({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
-    setFlash(null); setGuide(null); setLogged(null);
-    lastRef.current = { hud: '', guide: '' };
+    setFlash(null); setGuide(null); setLogged(null); setMuscle(null);
+    lastRef.current = { hud: '', guide: '', frame: 0, muscle: '' };
   }, [exId]);
 
   // The unique loop: camera-coached reps → a real logged set → the Twin grows
@@ -136,6 +139,7 @@ export default function FormCoach({ onTab }) {
   function stop() {
     teardown();
     setStatus('idle');
+    setMuscle(null); setGuide(null);
   }
 
   function loop() {
@@ -159,6 +163,17 @@ export default function FormCoach({ onTab }) {
         const g = r.valid ? null : guideFor(r.reason);
         if (g !== lastRef.current.guide) { lastRef.current.guide = g; setGuide(g); }
         if (r.event) setFlash(r.event);
+
+        // Live AI muscle detection (throttled ~6fps) — independent of the rep engine.
+        lastRef.current.frame = (lastRef.current.frame + 1) % 5;
+        if (pts && lastRef.current.frame === 0) {
+          const d = detectMuscle(MUSCLE_MODEL, pts);
+          const key = d && d.confidence > 0.6 ? `${d.label}` : '';
+          if (key !== lastRef.current.muscle) {
+            lastRef.current.muscle = key;
+            setMuscle(key ? { label: d.label, confidence: d.confidence } : null);
+          }
+        }
       }
     }
     rafRef.current = requestAnimationFrame(loop);
@@ -260,6 +275,16 @@ export default function FormCoach({ onTab }) {
                 {hud.angle}° · {hud.phase === 'down' ? 'lowering' : 'ready'}
               </div>
             )}
+            {/* live on-device AI muscle detection */}
+            {muscle && (
+              <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(4,6,11,0.6)', backdropFilter: 'blur(8px)', borderRadius: 12, padding: '6px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13 }}>🦾</span>
+                <span style={{ color: muscle.label === 'rest' ? 'var(--mute)' : 'var(--cyan)', fontWeight: 600 }}>
+                  {MUSCLE_LABEL[muscle.label] || muscle.label}
+                </span>
+                <span style={{ color: 'var(--mute)', fontSize: 10 }}>{Math.round(muscle.confidence * 100)}%</span>
+              </div>
+            )}
             {/* live "get in frame" guidance — shown while the pose can't be tracked */}
             <AnimatePresence>
               {guide && (
@@ -348,7 +373,7 @@ export default function FormCoach({ onTab }) {
       )}
 
       <p className="meta" style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 14, fontSize: 11 }}>
-        <IconShield width={13} height={13} /> Runs entirely on your device. Your camera feed never leaves this phone.
+        <IconShield width={13} height={13} /> Pose + AI muscle detection run entirely on your device. Your camera feed never leaves this phone.
       </p>
     </motion.div>
   );
