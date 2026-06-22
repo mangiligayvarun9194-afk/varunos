@@ -331,6 +331,32 @@ class TestAccounts:
         assert client.get("/v1/auth/me", headers=self._bearer("not-a-real-token")).status_code == 401
 
 
+class TestExerciseLibrary:
+    def test_list_exercises(self, client):
+        r = client.get("/v1/exercises", headers=_auth())
+        assert r.status_code == 200
+        b = r.json()
+        assert len(b["exercises"]) >= 20
+        assert "legs" in b["groups"]
+
+    def test_filter_by_group(self, client):
+        r = client.get("/v1/exercises?group=chest", headers=_auth())
+        assert all(x["group"] == "chest" for x in r.json()["exercises"])
+
+    def test_search(self, client):
+        r = client.get("/v1/exercises?q=deadlift", headers=_auth())
+        assert any("deadlift" in x["id"] for x in r.json()["exercises"])
+
+    def test_detail_has_form(self, client):
+        r = client.get("/v1/exercises/barbell_back_squat", headers=_auth())
+        assert r.status_code == 200
+        e = r.json()
+        assert e["primary"] and e["execution"] and e["cues"] and e["mistakes"] and e["rom"]
+
+    def test_detail_404(self, client):
+        assert client.get("/v1/exercises/nope", headers=_auth()).status_code == 404
+
+
 # ---- Auth enforcement -----------------------------------------------------
 
 class TestAuthRequired:

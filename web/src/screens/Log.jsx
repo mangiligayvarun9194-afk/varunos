@@ -34,9 +34,13 @@ export default function Log({ sheet, onOpenSheet, onCloseSheet, onTab }) {
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show">
-      <motion.div variants={rise} style={{ margin: '26px 0 20px' }}>
-        <h2 className="display" style={{ fontSize: 30, fontWeight: 700 }}>Log</h2>
-        <p className="meta">Quick capture, anywhere</p>
+      <motion.div variants={rise} style={{ margin: '26px 0 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <h2 className="display" style={{ fontSize: 30, fontWeight: 700 }}>Log</h2>
+          <p className="meta">Quick capture, anywhere</p>
+        </div>
+        <button className="btn ghost" style={{ fontSize: 13, whiteSpace: 'nowrap' }}
+          onClick={() => onTab && onTab('library')}>📚 Form library</button>
       </motion.div>
 
       {TILES.map(({ id, Icon, title, sub }) => (

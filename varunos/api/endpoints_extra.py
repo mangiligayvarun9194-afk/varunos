@@ -1157,6 +1157,27 @@ def hermes_delete_memory(memory_id: int):
     return {"deleted": memory_id, "memories": db.list_memories(uid, limit=100)}
 
 
+# ---- Exercise form library (coach-grade reference) -----------------------
+
+@router.get("/v1/exercises")
+def exercises_list(group: Optional[str] = None, q: Optional[str] = None):
+    """The strength-training library — list or search. Static reference content."""
+    from varunos.core import exercises as ex
+    if q:
+        return {"exercises": ex.search(q), "groups": ex.groups()}
+    return {"exercises": ex.list_exercises(group), "groups": ex.groups()}
+
+
+@router.get("/v1/exercises/{exercise_id}")
+def exercise_detail(exercise_id: str):
+    """Full form detail for one exercise: muscles, ROM, execution, cues, mistakes."""
+    from varunos.core import exercises as ex
+    e = ex.get_exercise(exercise_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="exercise not found")
+    return e
+
+
 # ---- Cloud wearable connectors (OAuth: Fitbit / Oura) --------------------
 
 _PROVIDERS = {

@@ -9,6 +9,7 @@ import Today from './screens/Today.jsx';
 import Log from './screens/Log.jsx';
 import Twin from './screens/Twin.jsx';
 import Insights from './screens/Insights.jsx';
+import Library from './screens/Library.jsx';
 import Coach from './screens/Coach.jsx';
 import Settings from './screens/Settings.jsx';
 
@@ -131,6 +132,7 @@ export default function App() {
             {tab === 'log' && <Log sheet={sheet} onOpenSheet={setSheet} onCloseSheet={() => setSheet(null)} onTab={openTab} />}
             {tab === 'twin' && <Twin />}
             {tab === 'insights' && <Insights />}
+            {tab === 'library' && <Library onTab={openTab} />}
             {tab === 'coach' && <Coach />}
             {tab === 'settings' && <Settings onTab={openTab} onSetupPin={setupPinFromSettings} />}
           </motion.div>
