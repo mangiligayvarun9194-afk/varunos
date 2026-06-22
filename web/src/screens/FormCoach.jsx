@@ -7,8 +7,10 @@
 // message if the camera or model can't load.
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EXERCISES, RepEngine } from '../lib/formcoach.js';
-import { IconBack, IconBolt, IconShield } from '../components/Icons.jsx';
+import { EXERCISES, RepEngine, LOG_MAP, estimateLoad } from '../lib/formcoach.js';
+import { api, getProfile } from '../api.js';
+import { useToast } from '../components/ui.jsx';
+import { IconBack, IconBolt, IconShield, IconBody } from '../components/Icons.jsx';
 
 const TASKS_VERSION = '0.10.18';
 const CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VERSION}`;
@@ -38,7 +40,10 @@ export default function FormCoach({ onTab }) {
   const [hud, setHud] = useState({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
   const [flash, setFlash] = useState(null);
   const [guide, setGuide] = useState(null);   // "step into frame" coaching
+  const [logged, setLogged] = useState(null); // confirmation after logging a set
+  const [logging, setLogging] = useState(false);
   const lastRef = useRef({ hud: '', guide: '' });
+  const toast = useToast();
 
   const ex = EXERCISES[exId];
 
@@ -46,9 +51,40 @@ export default function FormCoach({ onTab }) {
   useEffect(() => {
     engineRef.current.set(exId);
     setHud({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
-    setFlash(null); setGuide(null);
+    setFlash(null); setGuide(null); setLogged(null);
     lastRef.current = { hud: '', guide: '' };
   }, [exId]);
+
+  // The unique loop: camera-coached reps → a real logged set → the Twin grows
+  // and Hermes notices. Bodyweight load is estimated from the user's bodyweight.
+  async function logSession() {
+    const m = LOG_MAP[exId];
+    if (!m || hud.reps < 1 || logging) return;
+    setLogging(true);
+    const load = estimateLoad(exId, getProfile().weight_kg);
+    try {
+      await api('/v1/logs/workouts', { method: 'POST', body: {
+        program: 'form-coach', day_name: `${ex.label} (Form Coach)`,
+        week: 0, day_index: 0, decision: 'GREEN',
+        notes: 'Logged from the camera Form Coach',
+        total_volume_kg: load * hud.reps,
+        sets: [{ exercise_id: m.logId, set_index: 0, weight_kg: load, reps: hud.reps }],
+      }});
+      teardown(); setStatus('idle');
+      setLogged({ reps: hud.reps, group: m.group, load });
+      toast('Logged — your Twin just grew 💪');
+    } catch (_) {
+      toast('Couldn’t log that set — try again.');
+    }
+    setLogging(false);
+  }
+
+  function coachAnother() {
+    engineRef.current.set(exId);
+    setHud({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
+    setLogged(null); lastRef.current = { hud: '', guide: '' };
+    start();
+  }
 
   // Auto-clear the feedback banner.
   useEffect(() => {
@@ -281,8 +317,34 @@ export default function FormCoach({ onTab }) {
         <p style={{ fontSize: 13, lineHeight: 1.5, flex: 1 }}>{ex.cue}</p>
       </div>
 
-      {status === 'running' && (
-        <button className="btn ghost" style={{ width: '100%', marginTop: 10 }} onClick={stop}>End session</button>
+      {/* the camera → log → Twin-growth loop */}
+      {logged ? (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          className="card" style={{ marginTop: 10, padding: 16, textAlign: 'center', border: '1px solid var(--mint)' }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>
+            ✓ Logged {logged.reps} {ex.label.toLowerCase()} reps
+          </div>
+          <p className="meta" style={{ margin: '4px 0 12px' }}>
+            Your Twin’s <b style={{ color: 'var(--mint)' }}>{logged.group}</b> grew · Hermes will notice next briefing.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn primary" style={{ flex: 1 }} onClick={() => onTab && onTab('twin')}>
+              <IconBody width={16} height={16} /> See your Twin
+            </button>
+            <button className="btn ghost" style={{ flex: 1 }} onClick={coachAnother}>Coach another set</button>
+          </div>
+        </motion.div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          {hud.reps > 0 && (
+            <button className="btn primary" style={{ flex: 1 }} disabled={logging} onClick={logSession}>
+              <IconBody width={16} height={16} /> {logging ? 'Logging…' : `Log ${hud.reps} reps → grow Twin`}
+            </button>
+          )}
+          {status === 'running' && (
+            <button className="btn ghost" style={{ flex: hud.reps > 0 ? '0 0 auto' : 1 }} onClick={stop}>End</button>
+          )}
+        </div>
       )}
 
       <p className="meta" style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 14, fontSize: 11 }}>

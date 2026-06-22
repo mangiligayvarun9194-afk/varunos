@@ -72,6 +72,28 @@ export const EXERCISES = {
   },
 };
 
+// Logging map: a coached set → a real workout set. The exercise id is chosen so
+// the backend's muscle-keyword matcher routes the volume to the right group
+// (squat→legs, pushup→chest, pullup→back, curl→arms). Bodyweight movements
+// genuinely load muscle, so we estimate the load as a fraction of bodyweight
+// (sports-science rough: squat ≈ 0.9·BW on the legs, push-up ≈ 0.65·BW through
+// the hands, pull-up ≈ full BW, curl ≈ a light arm load). Clearly an estimate —
+// the point is that camera reps feed progress + the Twin's growth, honestly.
+export const LOG_MAP = {
+  squat:  { logId: 'squat',  group: 'legs',  loadFactor: 0.90 },
+  pushup: { logId: 'pushup', group: 'chest', loadFactor: 0.65 },
+  pullup: { logId: 'pullup', group: 'back',  loadFactor: 1.00 },
+  curl:   { logId: 'curl',   group: 'arms',  loadFactor: 0.12 },
+};
+
+// Estimated working load (kg) for a coached bodyweight set.
+export function estimateLoad(exId, bodyweightKg) {
+  const m = LOG_MAP[exId];
+  const bw = bodyweightKg && bodyweightKg > 0 ? bodyweightKg : 75;
+  if (!m) return 0;
+  return Math.round(bw * m.loadFactor);
+}
+
 // Tuning constants.
 const CONFIRM_FRAMES = 3;   // a phase change must persist this many frames
 const MIN_REP_MS = 320;     // a real rep is not instantaneous

@@ -3,7 +3,7 @@
 // No camera or browser needed — the engine is fed synthetic angle sequences
 // (and synthetic landmarks for the presence gate), which is exactly how the
 // strength science (depth) and the CV robustness (gating) are verified.
-import { angleDeg, poseQuality, OneEuro, RepEngine, EXERCISES, SIDE } from '../src/lib/formcoach.js';
+import { angleDeg, poseQuality, OneEuro, RepEngine, EXERCISES, SIDE, LOG_MAP, estimateLoad } from '../src/lib/formcoach.js';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  FAIL:', m); } };
@@ -97,6 +97,24 @@ ok(pl.reps === 1 && pl.goodReps === 1, 'pull-up deep rep (reps=' + pl.reps + ' g
 const pls = new RepEngine('pullup'); feed(pls, 175); feed(pls, 95);
 const pls_ev = feedEv(pls, 175);
 ok(pls.reps === 1 && pls.goodReps === 0 && pls_ev && pls_ev.type === 'shallow', 'shallow pull-up flagged');
+
+// --- camera→log loop: every coached lift maps to a real muscle group + load ---
+const KW = {
+  legs: ['squat', 'leg'], chest: ['bench', 'push_up', 'pushup'],
+  back: ['pull', 'row', 'lat'], arms: ['curl', 'tricep'],
+};
+for (const exId of Object.keys(EXERCISES)) {
+  const m = LOG_MAP[exId];
+  ok(!!m, `${exId} has a log mapping`);
+  // the logId must contain a keyword the backend matcher routes to m.group
+  ok((KW[m.group] || []).some((k) => m.logId.includes(k)),
+    `${exId} logId "${m.logId}" routes to ${m.group}`);
+}
+// load scales with bodyweight and is non-zero
+ok(estimateLoad('squat', 80) === 72, 'squat load = 0.9·BW (got ' + estimateLoad('squat', 80) + ')');
+ok(estimateLoad('pullup', 80) === 80, 'pull-up load = full BW');
+ok(estimateLoad('squat', 0) > 0, 'missing bodyweight falls back to a sane default');
+ok(estimateLoad('unknown', 80) === 0, 'unknown exercise → no load');
 
 // --- config integrity: thresholds ordered so coaching can fire ---
 for (const e of Object.values(EXERCISES)) {
