@@ -52,29 +52,38 @@ function repPhase(t, tempo) {
   return 0;
 }
 
+// Joint axes were measured empirically against THIS rig (left & right are NOT
+// cleanly mirrored, so signs differ per side). Verified clean axes:
+//   knee flexion  : lLeg.x+ / rLeg.x+   (heel travels up & back)
+//   hip flexion   : lUpLeg.x- / rUpLeg.x- (thigh forward, knee drops/forward)
+//   elbow flexion : lFore.z+ / rFore.z-  (forearm curls up & in)
+//   torso hinge   : spine.x+             (lean forward)
+// Feet are kept planted every frame by the foot-lock, so the body sinks into a
+// rep instead of flying. The bar is shown only on lifts where the hands hold it.
 const EXdata = {
-  squat: { bar: true, glow: 'legs', tempo: { up: 1.3, hold: 0.25, down: 1.6, rest: 0.5 },
-    // front rack: elbows up, bar on front delts; hips sit back, knees track, to parallel
-    grip: { lArm: { x: -1.55 }, rArm: { x: -1.55 }, lFore: { x: -2.15 }, rFore: { x: -2.15 } },
-    pose: (p) => ({ hipsY: -0.46 * p, hipsZ: 0.06 * p, spine: { x: 0.24 * p }, spine2: { x: 0.08 * p },
-      lUpLeg: { x: -1.55 * p }, rUpLeg: { x: -1.55 * p }, lLeg: { x: 1.95 * p }, rLeg: { x: 1.95 * p },
-      lFoot: { x: -0.55 * p }, rFoot: { x: -0.55 * p } }) },
+  // Bodyweight squat — legs are cleanly mirrored, so this is anatomically right:
+  // knees bend, hips sink & hinge back, arms reach forward to counterbalance.
+  squat: { bar: false, glow: 'legs', tempo: { up: 1.2, hold: 0.25, down: 1.5, rest: 0.5 },
+    pose: (p) => ({ hipsY: -0.2 * p, spine: { x: 0.18 * p },
+      lUpLeg: { x: -0.45 * p }, rUpLeg: { x: -0.45 * p }, lLeg: { x: 1.0 * p }, rLeg: { x: 1.0 * p },
+      lFore: { z: 0.9 * p }, rFore: { z: -0.9 * p }, lArm: { x: -0.35 * p }, rArm: { x: 0.35 * p } }) },
+  // Deadlift — hip hinge: torso folds forward, soft knees, arms hang so the bar
+  // (held in the hands) lowers toward the floor and locks out at the top.
   deadlift: { bar: true, glow: 'back', tempo: { up: 1.2, hold: 0.2, down: 1.5, rest: 0.45 },
-    // hip hinge with a flat/neutral spine; arms hang straight; drive to full lockout
-    grip: { lArm: { x: 0.05 }, rArm: { x: 0.05 } },
-    pose: (p) => ({ hipsY: -0.16 * p, hipsZ: 0.04 * p, spine: { x: 0.95 * p }, spine2: { x: 0.12 * p }, neck: { x: -0.3 * p },
-      lUpLeg: { x: -0.5 * p }, rUpLeg: { x: -0.5 * p }, lLeg: { x: 0.72 * p }, rLeg: { x: 0.72 * p } }) },
-  press: { bar: true, glow: 'shoulders', tempo: { up: 1.0, hold: 0.3, down: 1.3, rest: 0.35 },
-    pose: (p) => ({ lArm: { x: -1.25 - 1.75 * p }, rArm: { x: -1.25 - 1.75 * p },
-      lFore: { x: -1.5 + 1.42 * p }, rFore: { x: -1.5 + 1.42 * p }, spine: { x: -0.05 * p } }) },
+    pose: (p) => ({ hipsY: -0.06 * p, spine: { x: 0.85 * p }, spine2: { x: 0.12 * p }, neck: { x: -0.45 * p },
+      lUpLeg: { x: -0.25 * p }, rUpLeg: { x: -0.25 * p }, lLeg: { x: 0.35 * p }, rLeg: { x: 0.35 * p } }) },
+  // Biceps curl — bar in hands, forearms flex up (elbow flexion axis, mirrored).
   curl: { bar: true, glow: 'arms', tempo: { up: 0.9, hold: 0.35, down: 1.1, rest: 0.3 },
-    grip: { lArm: { x: -0.22 }, rArm: { x: -0.22 } },
-    pose: (p) => ({ lFore: { x: -0.15 - 2.05 * p }, rFore: { x: -0.15 - 2.05 * p } }) },
+    pose: (p) => ({ lFore: { z: 1.9 * p }, rFore: { z: -1.9 * p } }) },
+  // Bent-over row — hinge and hold (bar in hands), forearms pull the bar to the torso.
   row: { bar: true, glow: 'back', tempo: { up: 0.85, hold: 0.35, down: 1.1, rest: 0.3 },
-    grip: { spine: { x: 0.85 }, spine2: { x: 0.22 }, neck: { x: -0.5 },
-      lUpLeg: { x: -0.32 }, rUpLeg: { x: -0.32 }, lLeg: { x: 0.42 }, rLeg: { x: 0.42 } },
-    pose: (p) => ({ lFore: { x: -0.25 - 1.25 * p }, rFore: { x: -0.25 - 1.25 * p },
-      lArm: { x: 0.1 - 0.55 * p }, rArm: { x: 0.1 - 0.55 * p } }) },
+    grip: { spine: { x: 0.8 }, spine2: { x: 0.18 }, neck: { x: -0.5 },
+      lUpLeg: { x: -0.28 }, rUpLeg: { x: -0.28 }, lLeg: { x: 0.38 }, rLeg: { x: 0.38 } },
+    pose: (p) => ({ lFore: { z: 1.1 * p }, rFore: { z: -1.1 * p } }) },
+  // Press — bar in hands driven up to the shoulders/chest (a clean upward path;
+  // a true overhead lockout needs shoulder axes this rig doesn't cleanly expose).
+  press: { bar: true, glow: 'shoulders', tempo: { up: 1.0, hold: 0.3, down: 1.3, rest: 0.35 },
+    pose: (p) => ({ lFore: { z: 1.7 * p }, rFore: { z: -1.7 * p }, spine: { x: -0.04 * p } }) },
 };
 
 // Muscle activation per lift (ExRx target + key synergists). Each node is
@@ -285,6 +294,13 @@ export default function Twin() {
         root.position.z -= center.z;
         root.position.y -= box.min.y;     // feet to floor (y=0)
         root.updateMatrixWorld(true);
+        // Record the rest-pose floor level of the feet so we can keep them planted
+        // every frame (foot-lock) — the figure can never drift off the ground.
+        const _fa = new THREE.Vector3(), _fb = new THREE.Vector3();
+        let restFootY = Infinity;
+        if (rig.lFoot) { rig.lFoot.getWorldPosition(_fa); restFootY = Math.min(restFootY, _fa.y); }
+        if (rig.rFoot) { rig.rFoot.getWorldPosition(_fb); restFootY = Math.min(restFootY, _fb.y); }
+        if (!isFinite(restFootY)) restFootY = 0;
         const h = 1.8;
         camera.position.set(0, h * 0.62, h * 1.85);
         camera.lookAt(0, h * 0.52, 0);
@@ -355,6 +371,7 @@ export default function Twin() {
 
         const twin = { renderer, composer, scene, camera, rig, rest, root, aura, amat,
           spd, rings, auraColor, baseAura: auraTarget, bar, trail, tp, tc, TN, glows,
+          restFootY,
           camRad: h * 1.9, camY: h * 0.62, camLookY: h * 0.5,
           _X: new THREE.Vector3(1, 0, 0), _l: new THREE.Vector3(), _r: new THREE.Vector3(),
           _g: new THREE.Vector3(), lastMode: null, t: 0, raf: 0 };
@@ -406,8 +423,18 @@ export default function Twin() {
             if (rig.hips) rig.hips.position.x += Math.sin(t * 0.9) * 0.012;
           }
 
-          // Barbell tracks the hands via forward kinematics + a fading motion trail.
+          // Foot-lock: re-ground every frame so the lowest foot stays on the floor.
+          // Rig-agnostic — the figure can never drift or fly, whatever the pose does.
           root.updateMatrixWorld(true);
+          {
+            let minY = Infinity;
+            if (rig.lFoot) { rig.lFoot.getWorldPosition(twin._l); minY = Math.min(minY, twin._l.y); }
+            if (rig.rFoot) { rig.rFoot.getWorldPosition(twin._r); minY = Math.min(minY, twin._r.y); }
+            // Ground floats fully; clamp downward so a bent-knee pose can't sink the body.
+            if (isFinite(minY)) { root.position.y += Math.max(twin.restFootY - minY, -0.22); root.updateMatrixWorld(true); }
+          }
+
+          // Barbell tracks the hands via forward kinematics + a fading motion trail.
           const showBar = !!(ex && ex.bar && rig.lHand && rig.rHand);
           twin.bar.visible = showBar; twin.trail.visible = showBar;
           if (showBar) {
