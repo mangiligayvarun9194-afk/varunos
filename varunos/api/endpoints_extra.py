@@ -278,6 +278,18 @@ def list_workouts(limit: int = Query(20, ge=1, le=200)):
     return {"workouts": db.list_workout_logs(uid, limit)}
 
 
+@router.get("/v1/insights/strength")
+def insights_strength():
+    """Strength Intelligence: per-lift e1RM/volume trends, stalls, PRs, and
+    muscle-group balance over the user's full logged history."""
+    uid = _user_id_from_default()
+    from varunos.core import strength_intel as si
+    from varunos.core import exercises as ex
+    sets = db.list_sets_since(uid, "1970-01-01")
+    name_of = lambda i: (ex.get_exercise(i) or {}).get("name", i)
+    return si.analyze(sets, name_of=name_of)
+
+
 class ImportHevyIn(BaseModel):
     csv: str
 

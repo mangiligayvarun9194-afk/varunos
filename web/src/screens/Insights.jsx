@@ -8,13 +8,22 @@ import { IconPulse } from '../components/Icons.jsx';
 
 const SEV_TONE = { good: 'var(--green)', watch: 'var(--amber)', warn: 'var(--red)', info: 'var(--cyan)' };
 
+const GROUP_LABEL = { legs: 'Legs', chest: 'Chest', back: 'Back', shoulders: 'Shoulders', arms: 'Arms', core: 'Core' };
+const TREND_TONE = { progressing: 'var(--green)', stalled: 'var(--amber)', declining: 'var(--red)', holding: 'var(--cyan)', new: 'var(--mute)' };
+const TREND_ICON = { progressing: '↗', stalled: '→', declining: '↘', holding: '•', new: '·' };
+
 export default function Insights() {
   const [patterns, setPatterns] = useState(undefined);
+  const [strength, setStrength] = useState(undefined);
 
   useEffect(() => {
     (async () => {
       try { setPatterns(await api('/v1/insights')); }
       catch (e) { setPatterns({ error: e.message }); }
+    })();
+    (async () => {
+      try { setStrength(await api('/v1/insights/strength')); }
+      catch (e) { setStrength({ error: e.message }); }
     })();
   }, []);
 
@@ -33,12 +42,94 @@ export default function Insights() {
       </motion.div>
 
       <motion.div variants={rise}>
+        <div className="micro">Strength intelligence</div>
+        {strength === undefined && <div className="skel" style={{ height: 120, borderRadius: 16 }} />}
+        {strength?.error && <p className="err">{strength.error}</p>}
+        {strength && !strength.error && <StrengthIntel r={strength} />}
+      </motion.div>
+
+      <motion.div variants={rise}>
         <div className="micro">Risk calculators</div>
         <IDRSCard />
         <ASCVDCard />
         <BPStageCard />
       </motion.div>
     </motion.div>
+  );
+}
+
+function StrengthIntel({ r }) {
+  const h = r.highlights || {};
+  const bal = r.muscle_balance || { shares: {} };
+  if (!r.totals?.exercises) {
+    return (
+      <div className="card" style={{ borderStyle: 'dashed', textAlign: 'center', padding: 22 }}>
+        <p className="meta">Log or import workouts to unlock strength trends, stall alerts and muscle balance.</p>
+      </div>
+    );
+  }
+  const maxShare = Math.max(1, ...Object.values(bal.shares || {}));
+  const row = (e, tone) => (
+    <div key={e.exercise_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
+      <span style={{ color: tone, fontWeight: 800, width: 14 }}>{TREND_ICON[e.status]}</span>
+      <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{e.name}</span>
+      <span style={{ fontSize: 12, color: tone, fontWeight: 700 }}>
+        {e.pct > 0 ? '+' : ''}{e.pct}% <span style={{ color: 'var(--mute)', fontWeight: 500 }}>{e.metric === 'e1rm' ? 'est 1RM' : 'vol'}</span>
+      </span>
+    </div>
+  );
+
+  return (
+    <>
+      {/* muscle balance */}
+      <div className="card" style={{ marginBottom: 8 }}>
+        <h3 style={{ fontSize: 14, marginBottom: 10 }}>Muscle balance <span className="meta" style={{ fontWeight: 400 }}>· training volume share</span></h3>
+        {Object.keys(GROUP_LABEL).map((g) => {
+          const pct = bal.shares?.[g] || 0;
+          const neglected = (bal.neglected || []).includes(g);
+          return (
+            <div key={g} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+              <span style={{ width: 70, fontSize: 12, color: 'var(--dim)' }}>{GROUP_LABEL[g]}</span>
+              <div style={{ flex: 1, height: 8, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ width: `${(pct / maxShare) * 100}%`, height: '100%', background: neglected ? 'var(--mute)' : 'var(--mint)', borderRadius: 99 }} />
+              </div>
+              <span style={{ width: 42, textAlign: 'right', fontSize: 11, color: neglected ? 'var(--amber)' : 'var(--mute)' }}>
+                {neglected ? 'none' : pct + '%'}
+              </span>
+            </div>
+          );
+        })}
+        {(h.undertrained?.length || bal.neglected?.length) ? (
+          <p className="meta" style={{ marginTop: 8, color: 'var(--amber)' }}>
+            Bring up: {[...(bal.neglected || []), ...(h.undertrained || [])].map((g) => GROUP_LABEL[g] || g).join(', ')}
+          </p>
+        ) : null}
+      </div>
+
+      {/* progressing */}
+      {h.progressing?.length > 0 && (
+        <div className="card" style={{ marginBottom: 8, borderLeft: '3px solid var(--green)' }}>
+          <h3 style={{ fontSize: 14, marginBottom: 2 }}>Trending up 🔥</h3>
+          {h.progressing.map((e) => row(e, 'var(--green)'))}
+        </div>
+      )}
+
+      {/* stalled */}
+      {h.stalled?.length > 0 && (
+        <div className="card" style={{ marginBottom: 8, borderLeft: '3px solid var(--amber)' }}>
+          <h3 style={{ fontSize: 14, marginBottom: 2 }}>Needs attention</h3>
+          {h.stalled.map((e) => (
+            <div key={e.exercise_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
+              <span style={{ color: TREND_TONE[e.status], fontWeight: 800, width: 14 }}>{TREND_ICON[e.status]}</span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{e.name}</span>
+              <span style={{ fontSize: 11, color: 'var(--mute)' }}>
+                {e.status === 'declining' ? `${e.pct}%` : `flat ${e.span_days}d`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
