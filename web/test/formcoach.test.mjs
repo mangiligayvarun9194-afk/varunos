@@ -90,6 +90,14 @@ const pu = new RepEngine('pushup'); feed(pu, 170); feed(pu, 80);
 const pe = feedEv(pu, 170);
 ok(pe && pe.type === 'good' && /Good rep/.test(pe.msg), 'pushup emits a good-rep event');
 
+// pull-up (calibrated from the angle dataset): hang ~175° → full pull ~55°
+const pl = new RepEngine('pullup'); feed(pl, 175); feed(pl, 55); feed(pl, 175);
+ok(pl.reps === 1 && pl.goodReps === 1, 'pull-up deep rep (reps=' + pl.reps + ' good=' + pl.goodReps + ')');
+// a chin-not-over-bar partial (only to 95°) is counted but flagged shallow
+const pls = new RepEngine('pullup'); feed(pls, 175); feed(pls, 95);
+const pls_ev = feedEv(pls, 175);
+ok(pls.reps === 1 && pls.goodReps === 0 && pls_ev && pls_ev.type === 'shallow', 'shallow pull-up flagged');
+
 // --- config integrity: thresholds ordered so coaching can fire ---
 for (const e of Object.values(EXERCISES)) {
   ok(e.repStart > e.depthTarget && e.extended > e.repStart && e.minRange > 0,

@@ -1,7 +1,7 @@
 // Settings: profile, wearable sync, backend connection, device security
 // (PIN + pairing links), surveillance consent, local data. All endpoints
 // and localStorage keys identical to the legacy PWA.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, API_BASE, API_KEY, setConnection, getProfile, saveProfileLocal, makePairLink } from '../api.js';
 import { Sheet, useToast, stagger, rise } from '../components/ui.jsx';
@@ -25,6 +25,25 @@ export default function Settings({ onTab, onSetupPin }) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [me, setMe] = useState(null);
+  const [imp, setImp] = useState(null);     // workout-history import status
+  const importRef = useRef(null);
+
+  async function importHistory(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImp({ busy: true, msg: 'Reading file…' });
+    try {
+      const text = await file.text();
+      const r = await api('/v1/import/hevy', { method: 'POST', body: { csv: text } });
+      const s = r.summary || {};
+      const extra = r.skipped_existing ? ` · ${r.skipped_existing} already present` : '';
+      setImp({ busy: false, msg: `Imported ${r.imported} sessions (${s.sets || 0} sets)${extra}.` });
+      toast('Workout history imported 💪');
+    } catch (_) {
+      setImp({ busy: false, msg: 'Import failed — make sure it’s a Hevy CSV export.' });
+    }
+    if (e.target) e.target.value = '';
+  }
 
   // Exact, copy-paste-ready building blocks for the Shortcut — always reflect THIS
   // device's real backend URL + key, so there's nothing for the user to guess.
@@ -336,6 +355,22 @@ export default function Settings({ onTab, onSetupPin }) {
         <button className="btn primary full" disabled={dl} onClick={downloadVault}>
           <IconDownload width={16} height={16} /> {dl ? 'Preparing…' : 'Download your Health Vault'}
         </button>
+      </motion.div>
+
+      <motion.div variants={rise} className="card">
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ color: 'var(--mint)' }}><IconDownload width={17} height={17} /></span> Import workout history
+        </h3>
+        <p className="meta" style={{ marginBottom: 12 }}>
+          Bring your training history from Hevy (or any compatible CSV export). Your real
+          dates, weights and reps flow straight into your progress, insights and the Twin’s
+          muscle growth. Re-importing the same file is safe — duplicates are skipped.
+        </p>
+        <input ref={importRef} type="file" accept=".csv,text/csv" onChange={importHistory} style={{ display: 'none' }} />
+        <button className="btn primary full" disabled={imp?.busy} onClick={() => importRef.current?.click()}>
+          <IconDownload width={16} height={16} /> {imp?.busy ? 'Importing…' : 'Import a workout CSV'}
+        </button>
+        {imp && !imp.busy && <p className="meta" style={{ marginTop: 10, color: 'var(--mint)' }}>{imp.msg}</p>}
       </motion.div>
 
       <motion.div variants={rise} className="card">

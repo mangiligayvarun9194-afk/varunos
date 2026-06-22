@@ -31,7 +31,7 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional
 
 
 _DB_PATH = os.environ.get("VARUNOS_DB_PATH", "varunos.db")
@@ -623,6 +623,40 @@ def list_workout_dates(user_id: str, days: int = 120) -> list[str]:
         (user_id, days),
     ).fetchall()
     return [r["d"] for r in reversed(rows)]
+
+
+def import_workout_session(user_id: str, session: dict) -> Optional[int]:
+    """Persist a *historical* session (from an import), preserving its real
+    timestamp on both the log and every set. Idempotent: if a session already
+    exists for this user at the same ts, it is skipped and None is returned, so
+    re-importing the same file never duplicates data.
+    """
+    ts = session.get("ts") or _now()
+    exists = conn().execute(
+        "SELECT 1 FROM workout_log WHERE user_id=? AND ts=? LIMIT 1",
+        (user_id, ts),
+    ).fetchone()
+    if exists:
+        return None
+    with transaction() as c:
+        cur = c.execute(
+            "INSERT INTO workout_log (user_id, ts, program, day_name, week, day_index, "
+            "decision, duration_min, avg_rpe, total_volume_kg, notes) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (user_id, ts, session.get("program"), session.get("day_name"),
+             session.get("week"), session.get("day_index"), session.get("decision"),
+             session.get("duration_min"), session.get("avg_rpe"),
+             session.get("total_volume_kg"), session.get("notes")),
+        )
+        wid = cur.lastrowid
+        for s in session.get("sets", []):
+            c.execute(
+                "INSERT INTO workout_set (user_id, workout_id, exercise_id, set_index, "
+                "weight_kg, reps, rpe, ts) VALUES (?,?,?,?,?,?,?,?)",
+                (user_id, wid, s.get("exercise_id"), s.get("set_index", 0),
+                 s.get("weight_kg"), s.get("reps"), s.get("rpe"), ts),
+            )
+        return wid
 
 
 # ========== CUSTOM PROGRAMS ==========

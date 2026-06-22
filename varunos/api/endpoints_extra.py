@@ -278,6 +278,30 @@ def list_workouts(limit: int = Query(20, ge=1, le=200)):
     return {"workouts": db.list_workout_logs(uid, limit)}
 
 
+class ImportHevyIn(BaseModel):
+    csv: str
+
+
+@router.post("/v1/import/hevy")
+def import_hevy(payload: ImportHevyIn):
+    """Import a Hevy CSV export into the user's real workout history. Idempotent:
+    re-importing the same file skips sessions already present (matched on ts)."""
+    uid = _user_id_from_default()
+    from varunos.core.import_hevy import parse_hevy_csv
+    parsed = parse_hevy_csv(payload.csv)
+    imported, skipped = 0, 0
+    for session in parsed["sessions"]:
+        wid = db.import_workout_session(uid, session)
+        if wid:
+            imported += 1
+        else:
+            skipped += 1
+    db.log_event(uid, "history_imported", channel="api",
+                 payload={"imported": imported, "skipped_existing": skipped,
+                          **parsed["summary"]})
+    return {"imported": imported, "skipped_existing": skipped, "summary": parsed["summary"]}
+
+
 class MealIn(BaseModel):
     food_id: str
     portions: float = 1.0

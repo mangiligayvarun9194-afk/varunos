@@ -20,7 +20,13 @@
 //      time; micro-oscillations and instant flips are rejected.
 //
 // Angle thresholds are grounded in standard strength biomechanics (ExRx / NSCA
-// joint-ROM norms) and classic-physique full-ROM coaching. In ALL lifts the
+// joint-ROM norms) AND calibrated against a real labeled pose-angle dataset
+// (~31k frames of Squats / Push-ups / Pull-ups; per-frame joint angles). The
+// data's p5–p95 ranges set extended/depth: e.g. squat knee tops out ~178° and a
+// full rep drives well below parallel; push-up elbow tops ~178° and bottoms ~40°;
+// pull-up elbow hangs ~175° and a full pull flexes past ~60°. (The dataset is
+// also why robustness matters — it's riddled with 0° garbage frames from failed
+// detections, exactly what the presence gate + 1€ filter reject.) In ALL lifts the
 // "extended" position is a LARGE angle and the "contracted" a SMALL angle, so
 // one state-machine handles every exercise. Three thresholds per lift:
 //   • extended    — back to the top; a rep is tallied here.
@@ -45,13 +51,20 @@ export const EXERCISES = {
   },
   pushup: {
     id: 'pushup', label: 'Push-up', joints: ['shoulder', 'elbow', 'wrist'],
-    extended: 158, repStart: 130, depthTarget: 95, minRange: 45,
+    extended: 162, repStart: 130, depthTarget: 95, minRange: 45,
     setup: 'Side-on to the camera so your whole body shows.',
     cue: 'Body in one straight line, elbows ~45°, brace the core.',
     shallow: 'Lower more — chest toward the floor.',
   },
+  pullup: {
+    id: 'pullup', label: 'Pull-up', joints: ['shoulder', 'elbow', 'wrist'],
+    extended: 160, repStart: 140, depthTarget: 80, minRange: 50,
+    setup: 'Face or side-on to the camera, full body and the bar in frame.',
+    cue: 'Full dead hang at the bottom, pull the chest to the bar.',
+    shallow: 'Pull higher — chin over the bar.',
+  },
   curl: {
-    id: 'curl', label: 'Biceps Curl', joints: ['shoulder', 'elbow', 'wrist'],
+    id: 'curl', label: 'Curl', joints: ['shoulder', 'elbow', 'wrist'],
     extended: 150, repStart: 110, depthTarget: 60, minRange: 55,
     setup: 'Face or angle to the camera, working arm clearly visible.',
     cue: 'Pin the elbow, full stretch at the bottom, squeeze at the top.',
