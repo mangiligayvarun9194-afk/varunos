@@ -149,7 +149,9 @@ def muscle_balance(sets: list[dict]) -> dict:
     # undertrained = trained but well below the average emphasis
     undertrained = sorted([g for g in trained if shares[g] < 0.6 * mean],
                           key=lambda g: shares[g])
-    neglected = [g for g in vol if vol[g] == 0]
+    # "Neglected" only means something once you're actually training — a user
+    # with no logged volume at all isn't neglecting anything.
+    neglected = [g for g in vol if vol[g] == 0] if total > 0 else []
     return {"shares": shares, "undertrained": undertrained, "neglected": neglected}
 
 

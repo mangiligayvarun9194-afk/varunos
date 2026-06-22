@@ -1046,6 +1046,15 @@ def _hermes_observations(uid: str, snap: dict) -> list[dict]:
     warnings = [a.get("title") for a in ins.get("anomalies", []) if a.get("title")]
     correlations = [c.get("title") for c in ins.get("correlations", []) if c.get("title")]
 
+    # Strength intelligence over the full logged history (stalls, PRs, balance).
+    try:
+        from varunos.core import strength_intel as si
+        from varunos.core import exercises as ex
+        sets = db.list_sets_since(uid, "1970-01-01")
+        strength = si.analyze(sets, name_of=lambda i: (ex.get_exercise(i) or {}).get("name", i))
+    except Exception:
+        strength = None
+
     return observations(
         goal_lines=goal_lines,
         warnings=warnings,
@@ -1053,6 +1062,7 @@ def _hermes_observations(uid: str, snap: dict) -> list[dict]:
         memories=memories,
         last_workout_days=_days_since_last_workout(uid),
         streak_weeks=_streak_weeks(uid),
+        strength=strength,
         level=snap.get("level", 0),
     )
 

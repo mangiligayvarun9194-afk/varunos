@@ -319,6 +319,37 @@ def _num(v) -> str:
     return str(int(f)) if f == int(f) else f"{f:g}"
 
 
+def _strength_observations(strength: Optional[dict]) -> list[dict]:
+    """Turn a strength_intel report into 0-3 specific coaching lines, ranked
+    most-actionable first. Empty if there's nothing true to say."""
+    if not strength:
+        return []
+    h = strength.get("highlights", {}) or {}
+    out: list[dict] = []
+    # A fresh strength peak — celebrate momentum.
+    for e in (h.get("prs") or [])[:1]:
+        out.append({"kind": "win",
+                    "text": f"New strength peak on {e['name']} — up {e['pct']}%. That's real progress."})
+    # A stalled or slipping lift — the highest-value nudge.
+    for e in (h.get("stalled") or [])[:1]:
+        if e.get("status") == "declining":
+            out.append({"kind": "coach",
+                        "text": f"{e['name']} has slipped {abs(e.get('pct') or 0)}% — worth a deload or a form check."})
+        else:
+            out.append({"kind": "coach",
+                        "text": f"{e['name']} has been flat for {e.get('span_days', 0)} days — time to change the stimulus (add a set or a little load)."})
+    # A neglected / under-trained muscle group.
+    neglected = h.get("neglected") or []
+    under = h.get("undertrained") or []
+    if neglected:
+        out.append({"kind": "coach",
+                    "text": f"You haven't trained {neglected[0]} at all lately — let's not let it fall behind."})
+    elif under:
+        out.append({"kind": "coach",
+                    "text": f"Your {under[0]} volume is low next to everything else — bring it up this week."})
+    return out
+
+
 def observations(
     *,
     goal_lines: Optional[list[str]] = None,
@@ -328,6 +359,7 @@ def observations(
     last_workout_days: Optional[int] = None,
     streak_weeks: int = 0,
     readiness_trend: Optional[str] = None,  # "down" | "up" | None
+    strength: Optional[dict] = None,         # strength_intel.analyze() output
     level: int = 0,
     limit: int = 4,
 ) -> list[dict]:
@@ -339,6 +371,8 @@ def observations(
         out.append({"kind": "goal", "text": g})
     for w in (warnings or [])[:2]:
         out.append({"kind": "warning", "text": w})
+    # Strength-intelligence coaching — specific, drawn from real logged history.
+    out.extend(_strength_observations(strength))
     if last_workout_days is not None and last_workout_days >= 4:
         out.append({"kind": "nudge",
                     "text": f"It's been {last_workout_days} days since your last logged session."})

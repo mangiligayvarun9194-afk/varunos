@@ -187,3 +187,20 @@ class TestObservations:
         obs = observations(goal_lines=["same"], correlations=["same"], streak_weeks=3, limit=2)
         texts = [o["text"] for o in obs]
         assert len(texts) == len(set(texts)) and len(obs) <= 2
+
+    def test_strength_stall_and_neglect_become_coaching(self):
+        strength = {"highlights": {
+            "prs": [{"name": "Squat", "pct": 6.0}],
+            "stalled": [{"name": "Bench Press", "status": "stalled", "span_days": 35, "pct": 0.0}],
+            "neglected": ["core"],
+            "undertrained": [],
+        }}
+        obs = observations(strength=strength, limit=6)
+        texts = " | ".join(o["text"] for o in obs)
+        assert "Bench Press" in texts and "flat for 35 days" in texts
+        assert "core" in texts
+        assert any(o["kind"] == "win" and "Squat" in o["text"] for o in obs)
+
+    def test_no_strength_data_adds_nothing(self):
+        assert observations(strength=None) == []
+        assert observations(strength={"highlights": {}}) == []
