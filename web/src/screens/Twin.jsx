@@ -12,13 +12,15 @@ import { CountUp, useToast, stagger, rise, confettiBurst } from '../components/u
 import { IconBody, IconTrend, IconFlame, IconBolt, IconSparkle } from '../components/Icons.jsx';
 
 const TWIN_DEMO_GLB = '/models/twin-custom.glb';
+// Lifts marked 🎞 play real motion-capture (baked GLB); the rest use the
+// grounded procedural rep engine.
 const ACTIONS = [
   { id: 'idle', label: 'Idle' },
-  { id: 'squat', label: 'Squat' },
-  { id: 'deadlift', label: 'Deadlift' },
-  { id: 'press', label: 'Press' },
-  { id: 'curl', label: 'Curl' },
-  { id: 'row', label: 'Row' },
+  { id: 'squat', label: 'Squat' },          // mocap
+  { id: 'curl', label: 'Curl' },            // mocap
+  { id: 'jumpingjacks', label: 'Jacks' },   // mocap
+  { id: 'deadlift', label: 'Deadlift' },    // procedural (grounded)
+  { id: 'row', label: 'Row' },              // procedural
   { id: 'celebrate', label: 'PR!' },
 ];
 // Each stage gets its own aura hue — the body literally changes colour as it ascends.
@@ -84,6 +86,17 @@ const EXdata = {
   // a true overhead lockout needs shoulder axes this rig doesn't cleanly expose).
   press: { bar: true, glow: 'shoulders', tempo: { up: 1.0, hold: 0.3, down: 1.3, rest: 0.35 },
     pose: (p) => ({ lFore: { z: 1.7 * p }, rFore: { z: -1.7 * p }, spine: { x: -0.04 * p } }) },
+};
+
+// Real motion-capture clips baked onto THIS avatar's rig (Meshy 3d_rigging from
+// the WorkingOut library). Each is a self-contained animated GLB — we play its
+// embedded clip via AnimationMixer, so the motion is captured human movement,
+// not hand-authored joint angles. Modes listed here use mocap; the rest fall
+// back to the procedural rep engine above.
+const MOCAP = {
+  squat: '/models/mocap-air_squat.glb',
+  curl: '/models/mocap-bicep_curl.glb',
+  jumpingjacks: '/models/mocap-jumping_jacks.glb',
 };
 
 // Muscle activation per lift (ExRx target + key synergists). Each node is
@@ -374,7 +387,8 @@ export default function Twin() {
           restFootY,
           camRad: h * 1.9, camY: h * 0.62, camLookY: h * 0.5,
           _X: new THREE.Vector3(1, 0, 0), _l: new THREE.Vector3(), _r: new THREE.Vector3(),
-          _g: new THREE.Vector3(), lastMode: null, t: 0, raf: 0 };
+          _g: new THREE.Vector3(), lastMode: null, t: 0, raf: 0,
+          mocap: { cache: {}, active: null, loading: null, mixer: null } };
         twinRef.current = twin;
 
         // Apply a set of {joint:{x,y,z}} (or hipsY) offsets onto the rest pose.
@@ -390,84 +404,144 @@ export default function Twin() {
           }
         };
 
+        // ---- Real mocap playback -------------------------------------------
+        // The baked GLBs are decimated to ~300 tris, so we DISCARD their mesh and
+        // borrow only the AnimationClip — playing it on the original high-poly
+        // textured avatar. Both share the same Meshy rig (identical bone names),
+        // so the clip's tracks bind by name: full-detail avatar + real captured
+        // motion. One mixer bound to the base avatar; clips swap per exercise.
+        const mocapMixer = new THREE.AnimationMixer(root);
+        const showMocap = (mode) => {
+          const url = MOCAP[mode];
+          if (!url) return;
+          const cache = twin.mocap.cache;
+          if (cache[mode]) {
+            mocapMixer.stopAllAction();
+            cache[mode].action.reset().play();
+            twin.mocap.mixer = mocapMixer; twin.mocap.active = mode;
+            return;
+          }
+          if (twin.mocap.loading === mode) return;     // already in flight
+          twin.mocap.loading = mode;
+          new GLTFLoader().loadAsync(url).then((gm) => {
+            if (dead) return;
+            twin.mocap.loading = null;
+            const clip = gm.animations && gm.animations[0];
+            if (!clip) return;
+            const action = mocapMixer.clipAction(clip);
+            cache[mode] = { action };
+            if (modeRef.current === mode) {
+              mocapMixer.stopAllAction();
+              action.reset().play();
+              twin.mocap.mixer = mocapMixer; twin.mocap.active = mode;
+            }
+          }).catch(() => { twin.mocap.loading = null; });
+        };
+        const hideMocap = () => {
+          mocapMixer.stopAllAction();
+          twin.mocap.mixer = null; twin.mocap.active = null;
+        };
+
         const loop = () => {
           twin.raf = requestAnimationFrame(loop);
           twin.t += 0.016;
           const t = twin.t;
-          for (const [k, b] of Object.entries(rig)) {
-            if (!b || !rest[k]) continue;
-            b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos);
-          }
-          const breathe = Math.sin(t * 1.8) * 0.5 + 0.5;
-          if (rig.spine2) rig.spine2.rotation.x += breathe * 0.025;
           const m = modeRef.current;
-          const ex = EXdata[m];
           let p = 0;
-          if (m === 'celebrate') {
-            const hop = Math.abs(Math.sin(t * 5));
-            if (rig.hips) rig.hips.position.y += hop * 0.07;
-            for (const k of ['lArm', 'rArm']) {
-              if (!rig[k]) continue;
-              rig[k].rotation.x += -2.6;
-              rig[k].rotation.z += (k === 'lArm' ? -0.4 : 0.4) * (0.7 + 0.3 * Math.sin(t * 5));
+
+          if (MOCAP[m]) {
+            // Real motion-capture on the high-poly avatar: advance the mixer, or
+            // stand in the rest pose while the clip is still loading.
+            if (twin.mocap.active !== m) showMocap(m);
+            if (twin.mocap.mixer) {
+              twin.mocap.mixer.update(0.016);
+            } else {
+              for (const [k, b] of Object.entries(rig)) {
+                if (b && rest[k]) { b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos); }
+              }
             }
-            if (rig.head) rig.head.rotation.z += Math.sin(t * 5) * 0.08;
-          } else if (ex) {
-            // a controlled rep: grip holds the setup, pose(p) drives the motion
-            p = repPhase(t, ex.tempo);
-            if (ex.grip) applyOffsets(ex.grip);
-            applyOffsets(ex.pose(p));
+            // Keep feet planted (mocap is grounded; re-ground guards against drift).
+            root.updateMatrixWorld(true);
+            {
+              let minY = Infinity;
+              if (rig.lFoot) { rig.lFoot.getWorldPosition(twin._l); minY = Math.min(minY, twin._l.y); }
+              if (rig.rFoot) { rig.rFoot.getWorldPosition(twin._r); minY = Math.min(minY, twin._r.y); }
+              if (isFinite(minY)) { root.position.y += Math.max(twin.restFootY - minY, -0.5); root.updateMatrixWorld(true); }
+            }
+            twin.bar.visible = false; twin.trail.visible = false;
+            twin.glows.forEach((s) => { s.visible = false; });
           } else {
-            // idle: relaxed breathing sway + subtle weight shift
-            for (const k of ['lArm', 'rArm']) rig[k] && (rig[k].rotation.z += (k === 'lArm' ? -1 : 1) * Math.sin(t * 1.8) * 0.02);
-            if (rig.hips) rig.hips.position.x += Math.sin(t * 0.9) * 0.012;
-          }
+            if (twin.mocap.active) hideMocap();
+            for (const [k, b] of Object.entries(rig)) {
+              if (!b || !rest[k]) continue;
+              b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos);
+            }
+            const breathe = Math.sin(t * 1.8) * 0.5 + 0.5;
+            if (rig.spine2) rig.spine2.rotation.x += breathe * 0.025;
+            const ex = EXdata[m];
+            if (m === 'celebrate') {
+              const hop = Math.abs(Math.sin(t * 5));
+              if (rig.hips) rig.hips.position.y += hop * 0.07;
+              for (const k of ['lArm', 'rArm']) {
+                if (!rig[k]) continue;
+                rig[k].rotation.x += -2.6;
+                rig[k].rotation.z += (k === 'lArm' ? -0.4 : 0.4) * (0.7 + 0.3 * Math.sin(t * 5));
+              }
+              if (rig.head) rig.head.rotation.z += Math.sin(t * 5) * 0.08;
+            } else if (ex) {
+              // a controlled rep: grip holds the setup, pose(p) drives the motion
+              p = repPhase(t, ex.tempo);
+              if (ex.grip) applyOffsets(ex.grip);
+              applyOffsets(ex.pose(p));
+            } else {
+              // idle: relaxed breathing sway + subtle weight shift
+              for (const k of ['lArm', 'rArm']) rig[k] && (rig[k].rotation.z += (k === 'lArm' ? -1 : 1) * Math.sin(t * 1.8) * 0.02);
+              if (rig.hips) rig.hips.position.x += Math.sin(t * 0.9) * 0.012;
+            }
 
-          // Foot-lock: re-ground every frame so the lowest foot stays on the floor.
-          // Rig-agnostic — the figure can never drift or fly, whatever the pose does.
-          root.updateMatrixWorld(true);
-          {
-            let minY = Infinity;
-            if (rig.lFoot) { rig.lFoot.getWorldPosition(twin._l); minY = Math.min(minY, twin._l.y); }
-            if (rig.rFoot) { rig.rFoot.getWorldPosition(twin._r); minY = Math.min(minY, twin._r.y); }
-            // Ground floats fully; clamp downward so a bent-knee pose can't sink the body.
-            if (isFinite(minY)) { root.position.y += Math.max(twin.restFootY - minY, -0.22); root.updateMatrixWorld(true); }
-          }
+            // Foot-lock: re-ground every frame so the lowest foot stays on the floor.
+            root.updateMatrixWorld(true);
+            {
+              let minY = Infinity;
+              if (rig.lFoot) { rig.lFoot.getWorldPosition(twin._l); minY = Math.min(minY, twin._l.y); }
+              if (rig.rFoot) { rig.rFoot.getWorldPosition(twin._r); minY = Math.min(minY, twin._r.y); }
+              if (isFinite(minY)) { root.position.y += Math.max(twin.restFootY - minY, -0.22); root.updateMatrixWorld(true); }
+            }
 
-          // Barbell tracks the hands via forward kinematics + a fading motion trail.
-          const showBar = !!(ex && ex.bar && rig.lHand && rig.rHand);
-          twin.bar.visible = showBar; twin.trail.visible = showBar;
-          if (showBar) {
-            rig.lHand.getWorldPosition(twin._l);
-            rig.rHand.getWorldPosition(twin._r);
-            const mx = (twin._l.x + twin._r.x) / 2, my = (twin._l.y + twin._r.y) / 2, mz = (twin._l.z + twin._r.z) / 2;
-            twin.bar.position.set(mx, my, mz);
-            const ax = twin._r.clone().sub(twin._l);
-            if (ax.lengthSq() > 1e-5) twin.bar.quaternion.setFromUnitVectors(twin._X, ax.normalize());
-            const { tp, tc, TN } = twin;
-            if (twin.lastMode !== m) for (let i = 0; i < TN; i++) { tp[i*3]=mx; tp[i*3+1]=my; tp[i*3+2]=mz; }
-            for (let i = TN - 1; i > 0; i--) { tp[i*3]=tp[(i-1)*3]; tp[i*3+1]=tp[(i-1)*3+1]; tp[i*3+2]=tp[(i-1)*3+2]; }
-            tp[0]=mx; tp[1]=my; tp[2]=mz;
-            const c = twin.auraColor;
-            for (let i = 0; i < TN; i++) { const a = (1 - i / TN) ** 1.5; tc[i*3]=c.r*a; tc[i*3+1]=c.g*a; tc[i*3+2]=c.b*a; }
-            twin.trail.geometry.attributes.position.needsUpdate = true;
-            twin.trail.geometry.attributes.color.needsUpdate = true;
+            // Barbell tracks the hands via forward kinematics + a fading motion trail.
+            const showBar = !!(ex && ex.bar && rig.lHand && rig.rHand);
+            twin.bar.visible = showBar; twin.trail.visible = showBar;
+            if (showBar) {
+              rig.lHand.getWorldPosition(twin._l);
+              rig.rHand.getWorldPosition(twin._r);
+              const mx = (twin._l.x + twin._r.x) / 2, my = (twin._l.y + twin._r.y) / 2, mz = (twin._l.z + twin._r.z) / 2;
+              twin.bar.position.set(mx, my, mz);
+              const ax = twin._r.clone().sub(twin._l);
+              if (ax.lengthSq() > 1e-5) twin.bar.quaternion.setFromUnitVectors(twin._X, ax.normalize());
+              const { tp, tc, TN } = twin;
+              if (twin.lastMode !== m) for (let i = 0; i < TN; i++) { tp[i*3]=mx; tp[i*3+1]=my; tp[i*3+2]=mz; }
+              for (let i = TN - 1; i > 0; i--) { tp[i*3]=tp[(i-1)*3]; tp[i*3+1]=tp[(i-1)*3+1]; tp[i*3+2]=tp[(i-1)*3+2]; }
+              tp[0]=mx; tp[1]=my; tp[2]=mz;
+              const c = twin.auraColor;
+              for (let i = 0; i < TN; i++) { const a = (1 - i / TN) ** 1.5; tc[i*3]=c.r*a; tc[i*3+1]=c.g*a; tc[i*3+2]=c.b*a; }
+              twin.trail.geometry.attributes.position.needsUpdate = true;
+              twin.trail.geometry.attributes.color.needsUpdate = true;
+            }
+
+            // Muscle activation — target muscles glow, brightening at peak contraction.
+            const nodes = MUSCLE_NODES[m];
+            twin.glows.forEach((s, i) => {
+              const node = nodes && nodes[i];
+              const bone = node && rig[node[0]];
+              if (!bone) { s.visible = false; return; }
+              bone.getWorldPosition(twin._g);
+              s.position.set(twin._g.x + node[1][0], twin._g.y + node[1][1], twin._g.z + node[1][2]);
+              s.visible = true;
+              s.material.opacity = 0.18 + p * 0.82;
+              s.scale.setScalar(0.32 + p * 0.16);
+            });
           }
           twin.lastMode = m;
-
-          // Muscle activation — the ExRx target/synergist muscles glow, brightening
-          // as the figure contracts (an "x-ray" of what each lift works).
-          const nodes = MUSCLE_NODES[m];
-          twin.glows.forEach((s, i) => {
-            const node = nodes && nodes[i];
-            const bone = node && rig[node[0]];
-            if (!bone) { s.visible = false; return; }
-            bone.getWorldPosition(twin._g);
-            s.position.set(twin._g.x + node[1][0], twin._g.y + node[1][1], twin._g.z + node[1][2]);
-            s.visible = true;
-            s.material.opacity = 0.18 + p * 0.82;
-            s.scale.setScalar(0.32 + p * 0.16);
-          });
 
           // --- VFX ---
           // aura swells at peak contraction — the effort glow.
