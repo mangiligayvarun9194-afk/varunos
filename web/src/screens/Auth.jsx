@@ -68,9 +68,13 @@ export default function Auth({ onAuthed }) {
       flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
       <div className="ambient" />
       <div style={{ position: 'relative', width: '100%', maxWidth: 380 }}>
-        <div style={{ color: 'var(--mint)', display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+        <div style={{ color: 'var(--accent)', display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
           <IconSparkle width={32} height={32} />
         </div>
+        <p style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 11, letterSpacing: '0.28em',
+          textTransform: 'uppercase', color: 'var(--accent)', textAlign: 'center', marginBottom: 10 }}>
+          सारथि · the charioteer
+        </p>
         <h2 className="display" style={{ fontSize: 26, fontWeight: 700, textAlign: 'center' }}>
           {mode === 'signup' ? 'Create your Sarathi' : 'Welcome back'}
         </h2>

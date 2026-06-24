@@ -59,6 +59,8 @@ export default function Insights() {
 }
 
 function StrengthIntel({ r }) {
+  const [grown, setGrown] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setGrown(true), 120); return () => clearTimeout(t); }, []);
   const h = r.highlights || {};
   const bal = r.muscle_balance || { shares: {} };
   if (!r.totals?.exercises) {
@@ -91,7 +93,9 @@ function StrengthIntel({ r }) {
             <div key={g} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 7 }}>
               <span style={{ width: 70, fontSize: 12, color: 'var(--dim)' }}>{GROUP_LABEL[g]}</span>
               <div style={{ flex: 1, height: 8, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden' }}>
-                <div style={{ width: `${(pct / maxShare) * 100}%`, height: '100%', background: neglected ? 'var(--mute)' : 'var(--mint)', borderRadius: 99 }} />
+                <div style={{ width: grown ? `${(pct / maxShare) * 100}%` : 0, height: '100%',
+                  background: neglected ? 'var(--mute)' : 'linear-gradient(90deg, var(--accent-2), var(--accent))',
+                  borderRadius: 99, transition: 'width 0.9s cubic-bezier(.22,1,.36,1)' }} />
               </div>
               <span style={{ width: 42, textAlign: 'right', fontSize: 11, color: neglected ? 'var(--amber)' : 'var(--mute)' }}>
                 {neglected ? 'none' : pct + '%'}
