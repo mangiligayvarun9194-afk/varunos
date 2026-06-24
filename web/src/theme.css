@@ -237,6 +237,21 @@ input[type="range"].vslider::-webkit-slider-thumb {
   font-size: 11px; color: var(--mute); line-height: 1.5; margin-top: 20px;
 }
 
+/* ---- UI kit support ---- */
+@keyframes kit-spin { to { transform: rotate(360deg); } }
+.btn.kit-sm { padding: 9px 13px; font-size: 13px; border-radius: 11px; }
+.btn.kit-lg { padding: 16px 24px; font-size: 15px; }
+/* Accessible focus ring — keyboard users only (not on mouse click). */
+:where(a, button, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px;
+}
+/* Screen-reader-only text */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skel::after { animation: none; }
+  * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
 }

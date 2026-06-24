@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../api.js';
 import { stagger, rise, PageHeader } from '../components/ui.jsx';
+import { DataState, Skeleton } from '../components/kit.jsx';
 import { IconPulse } from '../components/Icons.jsx';
 
 const SEV_TONE = { good: 'var(--green)', watch: 'var(--amber)', warn: 'var(--red)', info: 'var(--cyan)' };
@@ -33,16 +34,18 @@ export default function Insights() {
 
       <motion.div variants={rise}>
         <div className="micro">Your patterns</div>
-        {patterns === undefined && <div className="skel" style={{ height: 80, borderRadius: 16 }} />}
-        {patterns?.error && <p className="err">{patterns.error}</p>}
-        {patterns && !patterns.error && <Patterns r={patterns} />}
+        <DataState loading={patterns === undefined} error={patterns?.error}
+          skeleton={<Skeleton height={80} radius={16} />}>
+          {patterns && !patterns.error && <Patterns r={patterns} />}
+        </DataState>
       </motion.div>
 
       <motion.div variants={rise}>
         <div className="micro">Strength intelligence</div>
-        {strength === undefined && <div className="skel" style={{ height: 120, borderRadius: 16 }} />}
-        {strength?.error && <p className="err">{strength.error}</p>}
-        {strength && !strength.error && <StrengthIntel r={strength} />}
+        <DataState loading={strength === undefined} error={strength?.error}
+          skeleton={<Skeleton height={120} radius={16} />}>
+          {strength && !strength.error && <StrengthIntel r={strength} />}
+        </DataState>
       </motion.div>
 
       <motion.div variants={rise}>
