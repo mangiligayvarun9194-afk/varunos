@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, getProfile } from '../api.js';
 import { Ring, CountUp, stagger, rise, confettiBurst } from '../components/ui.jsx';
+import { Skeleton, EmptyState, ErrorState, Button } from '../components/kit.jsx';
 import { IconBarbell, IconFork, IconArrow, IconSparkle, IconMoon, IconWatch } from '../components/Icons.jsx';
 
 const SRC_LABELS = { apple_health: 'Apple Health', fitbit: 'Fitbit', oura: 'Oura', whoop: 'Whoop', garmin: 'Garmin' };
@@ -77,25 +78,20 @@ export default function Today({ onOpenSheet, onTab }) {
 
       {/* readiness hero */}
       <motion.div variants={rise}>
-        {wake === undefined && <div className="skel" style={{ height: 170, borderRadius: 18 }} />}
+        {wake === undefined && <Skeleton height={170} radius={18} />}
         {wake !== undefined && r && <ReadinessHero r={r} />}
         {wake !== undefined && !r && (
-          <div className="card" style={{ textAlign: 'center', padding: '30px 22px', borderStyle: 'dashed' }}>
-            <span style={{ color: 'var(--mute)' }}><IconMoon width={28} height={28} /></span>
-            <h3 style={{ margin: '10px 0 6px', fontSize: 16 }}>No check-in yet today</h3>
-            <p className="meta" style={{ marginBottom: 16 }}>Six quick taps about sleep and how you feel — readiness in 15 seconds.</p>
-            <button className="btn primary full" onClick={() => onOpenSheet('checkin')}>Start morning check-in</button>
-          </div>
+          <EmptyState icon={<IconMoon width={28} height={28} />} title="No check-in yet today"
+            message="Six quick taps about sleep and how you feel — readiness in 15 seconds."
+            action={<Button full onClick={() => onOpenSheet('checkin')}>Start morning check-in</Button>} />
         )}
-        {wake === null && (
-          <div className="card"><p className="err">Server unreachable — check Settings → Backend connection.</p></div>
-        )}
+        {wake === null && <ErrorState title="Server unreachable" message="Check Settings → Backend connection." />}
       </motion.div>
 
       {/* your readings — everything synced from the watch, in one place */}
       <motion.div variants={rise}>
         <div className="micro">Your readings</div>
-        {sync === undefined && <div className="skel" style={{ height: 120, borderRadius: 18 }} />}
+        {sync === undefined && <Skeleton height={120} radius={18} />}
         {sync !== undefined && <ReadingsCard sync={sync} onConnect={() => onTab('settings')} />}
       </motion.div>
 
@@ -114,16 +110,16 @@ export default function Today({ onOpenSheet, onTab }) {
       {/* workout */}
       <motion.div variants={rise}>
         <div className="micro">Today's session</div>
-        {wake === undefined && <div className="skel" style={{ height: 130, borderRadius: 18 }} />}
+        {wake === undefined && <Skeleton height={130} radius={18} />}
         {wake?.workout && <WorkoutCard w={wake.workout} noCheckin={!r} onStart={() => onTab('log')} />}
-        {wake === null && <div className="card"><p className="err">Start the API to see today's plan.</p></div>}
+        {wake === null && <ErrorState title="Can’t load today’s plan" message="Start the API or check your connection." />}
       </motion.div>
 
       {/* nutrition */}
       <motion.div variants={rise}>
         <div className="micro">Nutrition</div>
         {diet ? <DietCard d={diet} consumed={consumed} onLog={() => onOpenSheet('meal')} />
-          : <div className="skel" style={{ height: 110, borderRadius: 18 }} />}
+          : <Skeleton height={110} radius={18} />}
       </motion.div>
 
       <motion.div variants={rise} className="disclaimer">

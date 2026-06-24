@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, classifyExercise } from '../api.js';
 import { CountUp, useToast, stagger, rise, confettiBurst } from '../components/ui.jsx';
+import { Skeleton } from '../components/kit.jsx';
 import { IconBody, IconTrend, IconFlame, IconBolt, IconSparkle } from '../components/Icons.jsx';
 
 const TWIN_DEMO_GLB = '/models/twin-custom.glb';
@@ -746,7 +747,7 @@ export default function Twin() {
 
       {/* drivers */}
       <motion.div variants={rise} className="card" style={{ padding: 18 }}>
-        {!stats && <div className="skel" style={{ height: 60 }} />}
+        {!stats && <Skeleton height={60} />}
         {stats?.unavailable && <p className="meta">Stats unavailable — log workouts to grow your Twin.</p>}
         {av && (
           <>

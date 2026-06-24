@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../api.js';
 import { stagger, rise } from '../components/ui.jsx';
+import { EmptyState } from '../components/kit.jsx';
 import { IconArrow, IconSparkle, IconX } from '../components/Icons.jsx';
 
 const KIND_LABEL = { goal: 'Goal', preference: 'Preference', fact: 'Fact', win: 'Win', struggle: 'Struggle' };
@@ -225,10 +226,8 @@ export default function Coach() {
       {/* Chat */}
       <motion.div variants={rise} style={{ marginTop: 6 }}>
         {msgs.length === 0 && (
-          <div className="empty" style={{ padding: '24px 20px', lineHeight: 1.9 }}>
-            Talk to {name} — <i>"I benched 100 for 5"</i> · <i>"I weigh 77 today"</i><br />
-            <i>"my goal is to lose 5kg"</i> · <i>"what should I eat tonight?"</i>
-          </div>
+          <EmptyState title={`Talk to ${name}`}
+            message={<>Try <i>"I benched 100 for 5"</i> · <i>"I weigh 77 today"</i> · <i>"my goal is to lose 5kg"</i> · <i>"what should I eat tonight?"</i></>} />
         )}
         {msgs.map((m, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
