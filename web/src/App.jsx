@@ -94,7 +94,7 @@ export default function App() {
         {/* top bar */}
         <header style={{
           position: 'sticky', top: 0, zIndex: 100,
-          background: 'rgba(6,8,13,0.75)', borderBottom: '1px solid var(--line)',
+          background: 'rgba(4,6,10,0.78)', borderBottom: '1px solid var(--line)',
           backdropFilter: 'blur(20px) saturate(1.4)', WebkitBackdropFilter: 'blur(20px) saturate(1.4)',
           padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
@@ -114,10 +114,11 @@ export default function App() {
               {connected === null ? 'checking' : connected ? 'connected' : 'offline'}
             </span>
             <div style={{
-              width: 34, height: 34, borderRadius: 11, background: 'var(--mint)',
-              color: '#04150e', fontWeight: 800, fontSize: 14,
+              width: 34, height: 34, borderRadius: 11,
+              background: 'linear-gradient(150deg, var(--accent-hi), var(--accent) 55%, var(--accent-2))',
+              color: 'var(--accent-ink)', fontWeight: 800, fontSize: 14,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(46,230,168,0.35)',
+              boxShadow: '0 0 20px rgba(245,181,114,0.4)',
             }}>{initial}</div>
           </div>
         </header>
