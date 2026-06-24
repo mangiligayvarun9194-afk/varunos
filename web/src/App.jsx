@@ -4,6 +4,7 @@ import { API_BASE, API_KEY, healthCheck, getProfile, setConnection } from './api
 import { ToastProvider, Dock } from './components/ui.jsx';
 import Lock from './screens/Lock.jsx';
 import Auth from './screens/Auth.jsx';
+import Landing from './screens/Landing.jsx';
 import Onboarding from './screens/Onboarding.jsx';
 import Today from './screens/Today.jsx';
 import Log from './screens/Log.jsx';
@@ -27,6 +28,7 @@ export default function App() {
   const [connected, setConnected] = useState(null);
   const [authed, setAuthed] = useState(null); // null=checking, true=ok, false=bad/missing key
   const [tabEpoch, setTabEpoch] = useState(0); // remounts the active screen on revisit
+  const [landingDone, setLandingDone] = useState(!!localStorage.getItem('sarathi_seen_landing'));
 
   async function checkAuth() {
     try {
@@ -62,9 +64,18 @@ export default function App() {
     setLockMode('create');
   }
 
-  // Public front door: no session yet, or a session that went bad → account
-  // signup / login (with a self-hosting API-key path tucked under "Advanced").
-  if (!API_KEY || authed === false) {
+  // Public front door for new/logged-out visitors: the cinematic 3D landing,
+  // shown once before the signup screen (CTA → Auth). Returning visitors and
+  // anyone with a session skip straight past it.
+  const loggedOut = !API_KEY || authed === false;
+  if (loggedOut && !landingDone) {
+    return (
+      <ToastProvider>
+        <Landing onStart={() => { localStorage.setItem('sarathi_seen_landing', '1'); setLandingDone(true); }} />
+      </ToastProvider>
+    );
+  }
+  if (loggedOut) {
     return (
       <ToastProvider>
         <Auth onAuthed={() => location.reload()} />
