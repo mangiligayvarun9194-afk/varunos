@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { motion, MotionConfig } from 'framer-motion';
+import { motion, MotionConfig, AnimatePresence } from 'framer-motion';
 import { API_BASE, API_KEY, healthCheck, getProfile, setConnection } from './api.js';
 import { ToastProvider, Dock } from './components/ui.jsx';
 import Lock from './screens/Lock.jsx';
@@ -135,21 +135,24 @@ export default function App() {
         </header>
 
         <main className="app-main">
-          <motion.div
-            key={tab + tabEpoch}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-          >
-            {tab === 'today' && <Today onOpenSheet={openSheet} onTab={openTab} />}
-            {tab === 'log' && <Log sheet={sheet} onOpenSheet={setSheet} onCloseSheet={() => setSheet(null)} onTab={openTab} />}
-            {tab === 'twin' && <Twin />}
-            {tab === 'insights' && <Insights />}
-            {tab === 'library' && <Library onTab={openTab} />}
-            {tab === 'formcoach' && <FormCoach onTab={openTab} />}
-            {tab === 'coach' && <Coach />}
-            {tab === 'settings' && <Settings onTab={openTab} onSetupPin={setupPinFromSettings} />}
-          </motion.div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={tab + tabEpoch}
+              initial={{ opacity: 0, y: 14, filter: 'blur(6px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -10, filter: 'blur(6px)' }}
+              transition={{ type: 'spring', stiffness: 420, damping: 38, mass: 0.7 }}
+            >
+              {tab === 'today' && <Today onOpenSheet={openSheet} onTab={openTab} />}
+              {tab === 'log' && <Log sheet={sheet} onOpenSheet={setSheet} onCloseSheet={() => setSheet(null)} onTab={openTab} />}
+              {tab === 'twin' && <Twin />}
+              {tab === 'insights' && <Insights />}
+              {tab === 'library' && <Library onTab={openTab} />}
+              {tab === 'formcoach' && <FormCoach onTab={openTab} />}
+              {tab === 'coach' && <Coach />}
+              {tab === 'settings' && <Settings onTab={openTab} onSetupPin={setupPinFromSettings} />}
+            </motion.div>
+          </AnimatePresence>
         </main>
 
         <Dock tab={tab} onTab={openTab} />

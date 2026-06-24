@@ -98,14 +98,20 @@ export function Dock({ tab, onTab }) {
                 transition={{ type: 'spring', stiffness: 480, damping: 36 }}
                 style={{
                   position: 'absolute', inset: 0, borderRadius: 15,
-                  background: 'var(--mint-dim)', border: '1px solid rgba(245,181,114,0.25)',
+                  background: 'linear-gradient(180deg, rgba(245,181,114,0.20), rgba(245,181,114,0.05))',
+                  border: '1px solid rgba(245,181,114,0.3)',
+                  boxShadow: '0 6px 20px -8px rgba(245,181,114,0.5)',
                 }}
-              />
+              >
+                <span style={{ position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
+                  width: 18, height: 2, borderRadius: 2, background: 'var(--accent)', boxShadow: '0 0 8px var(--accent)' }} />
+              </motion.span>
             )}
             <motion.span animate={{ scale: active ? 1.12 : 1, y: active ? -1 : 0 }} style={{ display: 'flex', position: 'relative' }}>
               <Icon />
             </motion.span>
-            <span style={{ fontSize: 9, fontWeight: 650, letterSpacing: '0.04em', position: 'relative' }}>{label}</span>
+            <span style={{ fontSize: 9, fontWeight: 650, letterSpacing: '0.06em', position: 'relative',
+              textTransform: 'uppercase', fontFamily: active ? 'var(--font-eyebrow)' : 'var(--font-body)' }}>{label}</span>
           </button>
         );
       })}

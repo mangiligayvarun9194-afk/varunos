@@ -4,7 +4,7 @@
 // back to a static poster if WebGL/model fail. CTA → onStart() (sign up).
 import { useEffect, useRef, useState } from 'react';
 import { initStage } from '../lib/twinStage.js';
-import { useCountUp } from '../lib/motion.js';
+import { useCountUp, useInView } from '../lib/motion.js';
 
 const MODEL = '/models/twin-custom.glb';
 const GOLD = '#f5b572';
@@ -135,24 +135,13 @@ export default function Landing({ onStart }) {
         </Scene>
 
         {/* Moment — transformation / level up */}
-        <Scene>
-          <div data-reveal data-levelup style={{ textAlign: 'center', maxWidth: 720 }}>
-            <Eyebrow>01 · transformation</Eyebrow>
-            <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(34px,5vw,64px)', letterSpacing: '-.03em' }}>
-              Your future self,<br /><span style={{ color: GOLD }}>becoming visible.</span>
-            </h2>
-            <p style={{ color: '#8e9ab8', maxWidth: 520, margin: '14px auto 0' }}>Train, recover, log a meal — the Twin lights up, levels rise, and the muscle you worked grows. Progress you can see, not just numbers.</p>
-          </div>
-        </Scene>
+        <TransformationScene />
+
+        {/* Moment — recovery */}
+        <RecoveryScene />
 
         {/* Moment — privacy */}
-        <Scene>
-          <div data-reveal data-stage="4" style={{ textAlign: 'center', maxWidth: 720 }}>
-            <Eyebrow>02 · privacy</Eyebrow>
-            <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(30px,4.4vw,56px)', letterSpacing: '-.03em' }}>Your data never leaves your control.</h2>
-            <p style={{ color: '#8e9ab8', maxWidth: 520, margin: '14px auto 0' }}>On-device coaching. A Health Vault in open Markdown that's yours forever — export it any time, no lock-in.</p>
-          </div>
-        </Scene>
+        <PrivacyScene />
 
         {/* Final CTA */}
         <Scene>
@@ -212,5 +201,147 @@ function Role({ tone, k, v, d, ...rest }) {
       <div style={{ color: tone, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{v}</div>
       <div style={{ color: '#8e9ab8', fontSize: 13, lineHeight: 1.5 }}>{d}</div>
     </div>
+  );
+}
+
+/* ============ Cinematic moments (designed, data-driven) ============ */
+
+// 01 — Transformation: a real level jump + muscle bars that fill on reveal.
+function TransformationScene() {
+  const [ref, inView] = useInView(0.2);
+  const lvl = useCountUp(62, inView, { decimals: 0 });
+  return (
+    <Scene>
+      <div ref={ref} data-reveal data-levelup style={{ maxWidth: 880, width: '100%' }}>
+        <Eyebrow>01 · transformation</Eyebrow>
+        <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(34px,5vw,64px)', letterSpacing: '-.03em' }}>
+          Your future self,<br /><span style={{ color: GOLD }}>becoming visible.</span>
+        </h2>
+        <p style={{ color: '#8e9ab8', maxWidth: 520, margin: '14px auto 26px' }}>
+          Train, recover, log a meal — the Twin lights up, levels rise, and the muscle you worked grows. Progress you can see.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 26, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: '#59648a' }}>Level</div>
+            <div className="display" style={{ fontSize: 'clamp(56px,9vw,96px)', fontWeight: 700, lineHeight: 1,
+              background: 'linear-gradient(100deg,#ffdeba,#f5b572 55%,#d97a45)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{lvl}</div>
+            <div style={{ color: '#5fd0bd', fontSize: 13, fontWeight: 600 }}>▲ from level 12</div>
+          </div>
+          <GrowthBars started={inView} />
+        </div>
+      </div>
+    </Scene>
+  );
+}
+
+// 02 — Recovery: a readiness ring + the signals behind it.
+function RecoveryScene() {
+  const [ref, inView] = useInView(0.2);
+  return (
+    <Scene>
+      <div ref={ref} data-reveal data-stage="3" style={{ maxWidth: 820, width: '100%' }}>
+        <Eyebrow>02 · recovery</Eyebrow>
+        <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(30px,4.6vw,58px)', letterSpacing: '-.03em' }}>
+          Recover as hard<br />as you train.
+        </h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 34, alignItems: 'center', justifyContent: 'center', marginTop: 26 }}>
+          <ReadinessRing value={84} started={inView} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left' }}>
+            <MiniStat label="HRV" value={68} suffix="ms" tone="#5fd0bd" trend="▲ 6" started={inView} />
+            <MiniStat label="Sleep" value={7.4} dec={1} suffix="h" tone="#f5b572" trend="78% efficiency" started={inView} />
+            <MiniStat label="Resting HR" value={52} suffix="bpm" tone="#4cc9f0" trend="▼ 3" started={inView} />
+          </div>
+        </div>
+        <p style={{ color: '#8e9ab8', maxWidth: 520, margin: '24px auto 0' }}>
+          One readiness score from your sleep, HRV and strain — so you know when to push and when to back off.
+        </p>
+      </div>
+    </Scene>
+  );
+}
+
+// 03 — Privacy: a cyan vault constellation (the Markdown memory you own).
+function PrivacyScene() {
+  const [ref, inView] = useInView(0.2);
+  return (
+    <Scene>
+      <div ref={ref} data-reveal data-stage="4" style={{ maxWidth: 720 }}>
+        <Eyebrow>03 · privacy</Eyebrow>
+        <VaultGraph on={inView} />
+        <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(30px,4.4vw,56px)', letterSpacing: '-.03em', marginTop: 18 }}>
+          Your data never<br />leaves your control.
+        </h2>
+        <p style={{ color: '#8e9ab8', maxWidth: 520, margin: '14px auto 0' }}>
+          On-device coaching. A Health Vault in open Markdown that's yours forever — export it any time, no lock-in.
+        </p>
+      </div>
+    </Scene>
+  );
+}
+
+function ReadinessRing({ value = 84, started }) {
+  const n = useCountUp(value, started, { decimals: 0 });
+  const R = 76, C = 2 * Math.PI * R;
+  return (
+    <svg width="190" height="190" viewBox="0 0 190 190" style={{ filter: 'drop-shadow(0 0 18px rgba(245,181,114,.28))' }}>
+      <defs>
+        <linearGradient id="lp-ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffdeba" /><stop offset="0.5" stopColor="#f5b572" /><stop offset="1" stopColor="#5fd0bd" />
+        </linearGradient>
+      </defs>
+      <circle cx="95" cy="95" r={R} fill="none" stroke="rgba(151,168,205,.12)" strokeWidth="11" />
+      <circle cx="95" cy="95" r={R} fill="none" stroke="url(#lp-ring)" strokeWidth="11" strokeLinecap="round"
+        strokeDasharray={C} strokeDashoffset={started ? C * (1 - value / 100) : C} transform="rotate(-90 95 95)"
+        style={{ transition: 'stroke-dashoffset 1.7s cubic-bezier(.22,1,.36,1)' }} />
+      <text x="95" y="92" textAnchor="middle" fill="#f2f5fc" style={{ fontSize: 44, fontWeight: 700, fontFamily: 'var(--font-display)' }}>{n}</text>
+      <text x="95" y="118" textAnchor="middle" fill="#8e9ab8" style={{ fontSize: 11, letterSpacing: '.16em', fontFamily: 'var(--font-eyebrow)' }}>READY</text>
+    </svg>
+  );
+}
+
+function MiniStat({ label, value, dec = 0, suffix, tone, trend, started }) {
+  const n = useCountUp(value, started, { decimals: dec });
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 220 }}>
+      <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: '#59648a', width: 84 }}>{label}</div>
+      <div className="display" style={{ fontSize: 26, fontWeight: 700 }}>{n}<span style={{ fontSize: 12, color: tone, marginLeft: 3 }}>{suffix}</span></div>
+      <div style={{ fontSize: 12, color: tone, marginLeft: 'auto' }}>{trend}</div>
+    </div>
+  );
+}
+
+function GrowthBars({ started }) {
+  const bars = [['Legs', 86, '#f5b572'], ['Back', 64, '#f5b572'], ['Chest', 58, '#f5b572'], ['Arms', 47, '#4cc9f0']];
+  return (
+    <div style={{ display: 'grid', gap: 11, minWidth: 280 }}>
+      {bars.map(([l, v, c], i) => (
+        <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ width: 54, fontSize: 12, color: '#8e9ab8', textAlign: 'left' }}>{l}</span>
+          <div style={{ flex: 1, height: 9, background: 'rgba(151,168,205,.12)', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 99, background: c, width: started ? `${v}%` : '0%',
+              transition: `width 1.3s cubic-bezier(.22,1,.36,1) ${0.12 * i}s` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VaultGraph({ on }) {
+  // a small constellation of linked Markdown notes (the Vault, in cyan)
+  const nodes = [[60, 40], [150, 28], [230, 60], [40, 110], [120, 100], [210, 120], [90, 160], [180, 170]];
+  const links = [[0, 1], [1, 2], [0, 4], [1, 4], [2, 5], [3, 4], [4, 6], [4, 5], [5, 7], [6, 7]];
+  return (
+    <svg width="270" height="200" viewBox="0 0 270 200" style={{ margin: '0 auto', display: 'block', maxWidth: '90%' }}>
+      {links.map(([a, b], i) => (
+        <line key={i} x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]}
+          stroke="#4cc9f0" strokeWidth="1" strokeOpacity={on ? 0.35 : 0}
+          style={{ transition: `stroke-opacity .8s ease ${0.05 * i}s` }} />
+      ))}
+      {nodes.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={on ? 4 : 0} fill="#4cc9f0"
+          style={{ transition: `r .5s cubic-bezier(.22,1,.36,1) ${0.06 * i}s`, filter: 'drop-shadow(0 0 6px #4cc9f0)' }} />
+      ))}
+    </svg>
   );
 }

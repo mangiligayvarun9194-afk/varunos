@@ -40,6 +40,22 @@ export function useRevealAll(threshold = 0.16) {
   return ref;
 }
 
+// Returns [ref, inView] — true once the element scrolls into view (once).
+export function useInView(threshold = 0.4) {
+  const ref = useRef(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) { setInView(true); io.unobserve(el); } });
+    }, { threshold });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [threshold]);
+  return [ref, inView];
+}
+
 // Animated number that counts up to `value` once `start` is true (cubic ease-out).
 export function useCountUp(value, start = true, { duration = 1300, decimals = 0 } = {}) {
   const [display, setDisplay] = useState(() => (prefersReduced() ? value : 0));
