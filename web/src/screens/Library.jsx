@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../api.js';
 import { stagger, rise } from '../components/ui.jsx';
+import { DataState, Skeleton, EmptyState } from '../components/kit.jsx';
 import { IconBarbell, IconBack, IconSearch, IconBody, IconShield, IconX } from '../components/Icons.jsx';
 
 const GROUP_LABEL = { chest: 'Chest', back: 'Back', shoulders: 'Shoulders', arms: 'Arms', legs: 'Legs', core: 'Core' };
@@ -73,8 +74,12 @@ export default function Library({ onTab }) {
       </motion.div>
 
       {/* list */}
-      {list === null && <div className="skel" style={{ height: 200, borderRadius: 16 }} />}
-      {list && list.length === 0 && <p className="meta" style={{ padding: 20 }}>No exercises found.</p>}
+      <DataState
+        loading={list === null}
+        empty={!!list && list.length === 0}
+        skeleton={<Skeleton height={200} radius={16} />}
+        emptyState={<EmptyState title="No exercises found" message={q ? `Nothing matches “${q}”. Try another term or muscle group.` : 'Try a different filter.'} />}
+      >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {(list || []).map((e) => (
           <motion.button key={e.id} variants={rise} onClick={() => open(e.id)} className="card"
@@ -92,6 +97,7 @@ export default function Library({ onTab }) {
           </motion.button>
         ))}
       </div>
+      </DataState>
 
       {/* detail sheet */}
       <AnimatePresence>

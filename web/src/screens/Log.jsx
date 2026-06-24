@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, mealContext, plateText } from '../api.js';
 import { Sheet, PickRow, Stepper, useToast, confettiBurst, stagger, rise } from '../components/ui.jsx';
+import { DataState, Skeleton, EmptyState } from '../components/kit.jsx';
 import { IconBarbell, IconFork, IconHeart, IconDrop, IconClipboard, IconArrow } from '../components/Icons.jsx';
 
 const TILES = [
@@ -64,9 +65,13 @@ export default function Log({ sheet, onOpenSheet, onCloseSheet, onTab }) {
 
       <motion.div variants={rise}>
         <div className="micro">Today's meals</div>
-        {!meals && <div className="skel" style={{ height: 60, borderRadius: 16 }} />}
-        {meals?.error && <p className="err">{meals.error}</p>}
-        {Array.isArray(meals) && meals.length === 0 && <div className="empty">No meals logged today.</div>}
+        <DataState
+          loading={!meals && !meals?.error}
+          error={meals?.error}
+          empty={Array.isArray(meals) && meals.length === 0}
+          skeleton={<Skeleton height={60} radius={16} />}
+          emptyState={<EmptyState title="No meals logged today" message="Snap or add a meal to track your macros." />}
+        >
         {Array.isArray(meals) && meals.length > 0 && (
           <>
             {meals.map((m, i) => (
@@ -84,13 +89,18 @@ export default function Log({ sheet, onOpenSheet, onCloseSheet, onTab }) {
             </div>
           </>
         )}
+        </DataState>
       </motion.div>
 
       <motion.div variants={rise}>
         <div className="micro">Recent workouts</div>
-        {!workouts && <div className="skel" style={{ height: 60, borderRadius: 16 }} />}
-        {workouts?.error && <p className="err">{workouts.error}</p>}
-        {Array.isArray(workouts) && workouts.length === 0 && <div className="empty">No workouts logged yet.</div>}
+        <DataState
+          loading={!workouts && !workouts?.error}
+          error={workouts?.error}
+          empty={Array.isArray(workouts) && workouts.length === 0}
+          skeleton={<Skeleton height={60} radius={16} />}
+          emptyState={<EmptyState title="No workouts yet" message="Log a session or import your history to see it here." />}
+        >
         {Array.isArray(workouts) && workouts.map((w, i) => (
           <div key={i} className="card" style={{ padding: '10px 15px', marginBottom: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -100,6 +110,7 @@ export default function Log({ sheet, onOpenSheet, onCloseSheet, onTab }) {
             <span className="meta" style={{ fontSize: 12 }}>{w.decision}{w.duration_min ? ` · ${w.duration_min} min` : ''}</span>
           </div>
         ))}
+        </DataState>
       </motion.div>
 
       {/* sheets */}
