@@ -62,8 +62,8 @@ export default function Today({ onOpenSheet, onTab }) {
       {wake?.momentum && (
         <motion.div variants={rise} className="card" style={{
           marginBottom: 12,
-          borderColor: wake.momentum.kind === 'pr' ? 'rgba(52,211,153,0.4)' : 'rgba(46,230,168,0.25)',
-          boxShadow: 'var(--shadow), 0 0 32px -14px rgba(46,230,168,0.5)',
+          borderColor: wake.momentum.kind === 'pr' ? 'rgba(52,211,153,0.4)' : 'rgba(245,181,114,0.25)',
+          boxShadow: 'var(--shadow), 0 0 32px -14px rgba(245,181,114,0.5)',
         }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <span style={{ color: 'var(--mint)' }}><IconSparkle width={18} height={18} /></span>

@@ -72,9 +72,11 @@ export default function Onboarding({ defaultApi, defaultKey, onDone }) {
         <AnimatePresence mode="wait">
           {step === 1 && (
             <motion.div key="1" {...slide}>
-              <div style={{ color: 'var(--mint)', marginBottom: 18 }}><IconSparkle width={34} height={34} /></div>
+              <div style={{ color: 'var(--accent)', marginBottom: 14 }}><IconSparkle width={34} height={34} /></div>
+              <p style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 11, letterSpacing: '0.28em',
+                textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 12 }}>सारथि · the charioteer</p>
               <h2 className="display" style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.1, marginBottom: 14 }}>
-                Your health,<br />running on <span style={{ color: 'var(--mint)' }}>your</span> server.
+                Your health,<br />running on <span style={{ color: 'var(--accent)' }}>your</span> server.
               </h2>
               <p className="meta" style={{ marginBottom: 10, fontSize: 14 }}>
                 Sarathi is a personal AI coach OS. Data lives in your SQLite file. Nothing
@@ -91,7 +93,7 @@ export default function Onboarding({ defaultApi, defaultKey, onDone }) {
           {step === 2 && (
             <motion.div key="2" {...slide}>
               <h2 className="display" style={{ fontSize: 26, fontWeight: 700, marginBottom: 12 }}>Connect to your server</h2>
-              <div style={{ background: 'var(--mint-dim)', border: '1px solid rgba(46,230,168,0.25)', borderRadius: 12, padding: '10px 14px', fontSize: 13, color: 'var(--dim)', marginBottom: 18 }}>
+              <div style={{ background: 'var(--mint-dim)', border: '1px solid rgba(245,181,114,0.25)', borderRadius: 12, padding: '10px 14px', fontSize: 13, color: 'var(--dim)', marginBottom: 18 }}>
                 Already set up on another device? Open Settings → <b>Copy pairing link</b> there,
                 then open that link here — this whole step disappears.
               </div>

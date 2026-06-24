@@ -24,7 +24,7 @@ const ACTIONS = [
   { id: 'celebrate', label: 'PR!' },
 ];
 // Each stage gets its own aura hue — the body literally changes colour as it ascends.
-const STAGE_HEX = ['#7c8aa5', '#2ee6a8', '#2ee6a8', '#4cc9f0', '#a78bfa'];
+const STAGE_HEX = ['#7c8aa5', '#f5b572', '#f5b572', '#4cc9f0', '#a78bfa'];
 const MUSCLES = [
   ['arms', 'Arms'], ['chest', 'Chest'], ['back', 'Back'],
   ['shoulders', 'Shoulders'], ['legs', 'Legs'], ['core', 'Core'],
@@ -182,7 +182,7 @@ export default function Twin() {
         let g = 0;
         try { g = (levelRef.current || 0) / 100; } catch (_) {}
         const stageIdx = Math.min(4, Math.max(0, (stats?.avatar?.stage ?? 1) - 1));
-        const auraColor = new THREE.Color(STAGE_HEX[stageIdx] || '#2ee6a8');
+        const auraColor = new THREE.Color(STAGE_HEX[stageIdx] || '#f5b572');
 
         // Image-based lighting — a real environment so the iridescent/chrome
         // material has true reflections (the single biggest realism upgrade).
@@ -704,7 +704,7 @@ export default function Twin() {
             <button key={a.id} onClick={() => setAction(a.id)} style={{
               position: 'relative', flex: '0 0 auto', background: 'none', border: 'none', cursor: 'pointer',
               padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap',
-              fontFamily: 'var(--font-display)', color: active ? '#04150e' : 'var(--dim)', transition: 'color 0.18s',
+              fontFamily: 'var(--font-display)', color: active ? '#1a0f06' : 'var(--dim)', transition: 'color 0.18s',
             }}>
               {active && (
                 <motion.span layoutId="twin-action" transition={{ type: 'spring', stiffness: 480, damping: 36 }}

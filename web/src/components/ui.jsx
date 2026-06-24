@@ -43,7 +43,7 @@ export function ToastProvider({ children }) {
 
 /* ---------------- Confetti ---------------- */
 export function confettiBurst() {
-  const colors = ['#2ee6a8', '#fbbf24', '#4cc9f0', '#f472b6', '#a78bfa'];
+  const colors = ['#f5b572', '#fbbf24', '#4cc9f0', '#f472b6', '#a78bfa'];
   for (let i = 0; i < 36; i++) {
     const b = document.createElement('div');
     b.className = 'confetti-bit';
@@ -98,7 +98,7 @@ export function Dock({ tab, onTab }) {
                 transition={{ type: 'spring', stiffness: 480, damping: 36 }}
                 style={{
                   position: 'absolute', inset: 0, borderRadius: 15,
-                  background: 'var(--mint-dim)', border: '1px solid rgba(46,230,168,0.25)',
+                  background: 'var(--mint-dim)', border: '1px solid rgba(245,181,114,0.25)',
                 }}
               />
             )}

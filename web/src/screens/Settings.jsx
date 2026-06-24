@@ -335,7 +335,7 @@ export default function Settings({ onTab, onSetupPin }) {
 
       <motion.div variants={rise} className="card">
         <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{ color: 'var(--mint)' }}><IconVault width={17} height={17} /></span> Health Vault
+          <span style={{ color: 'var(--cyan)' }}><IconVault width={17} height={17} /></span> Health Vault
         </h3>
         <p className="meta" style={{ marginBottom: 12 }}>
           Your whole health story as open Markdown files you own forever — every day,

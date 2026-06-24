@@ -129,7 +129,7 @@ export default function Lock({ mode: initialMode, onUnlock }) {
           <motion.div
             key={i}
             animate={i < buf.length
-              ? { scale: 1.15, backgroundColor: 'var(--mint)', borderColor: 'var(--mint)', boxShadow: '0 0 12px rgba(46,230,168,0.7)' }
+              ? { scale: 1.15, backgroundColor: 'var(--mint)', borderColor: 'var(--mint)', boxShadow: '0 0 12px rgba(245,181,114,0.7)' }
               : { scale: 1, backgroundColor: 'rgba(0,0,0,0)', borderColor: 'var(--mute)', boxShadow: 'none' }}
             transition={{ type: 'spring', stiffness: 500, damping: 28 }}
             style={{ width: 13, height: 13, borderRadius: '50%', border: '1.5px solid var(--mute)' }}

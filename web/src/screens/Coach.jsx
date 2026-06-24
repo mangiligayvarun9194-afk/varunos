@@ -119,13 +119,15 @@ export default function Coach() {
     <motion.div variants={stagger} initial="hidden" animate="show">
       {/* Hermes identity + the "mind" growth bar (mirror of the Twin's body bar) */}
       <motion.div variants={rise} className="card" style={{ margin: '22px 0 16px',
-        background: 'linear-gradient(160deg, rgba(46,230,168,0.10), rgba(76,201,240,0.06))' }}>
+        background: 'linear-gradient(160deg, rgba(245,181,114,0.12), rgba(217,122,69,0.05))' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 44, height: 44, borderRadius: 14, display: 'grid', placeItems: 'center',
-            background: 'rgba(46,230,168,0.16)', color: 'var(--mint)', flexShrink: 0 }}>
+            background: 'rgba(245,181,114,0.18)', color: 'var(--accent)', flexShrink: 0 }}>
             <IconSparkle width={24} height={24} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10, letterSpacing: '0.22em',
+              textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 3 }}>the guiding light</p>
             <h2 className="display" style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{name}</h2>
             <p className="meta" style={{ marginTop: 2 }}>
               {stage ? `${stage.title} · your coach's mind` : 'your companion'}

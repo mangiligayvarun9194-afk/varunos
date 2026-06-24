@@ -51,7 +51,7 @@ export default function Log({ sheet, onOpenSheet, onCloseSheet, onTab }) {
             <span style={{
               width: 42, height: 42, borderRadius: 13, flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'var(--mint-dim)', color: 'var(--mint)', border: '1px solid rgba(46,230,168,0.2)',
+              background: 'var(--mint-dim)', color: 'var(--mint)', border: '1px solid rgba(245,181,114,0.2)',
             }}><Icon width={20} height={20} /></span>
             <div style={{ flex: 1 }}>
               <h3 style={{ fontSize: 15 }}>{title}</h3>
@@ -405,7 +405,7 @@ function MealSheet() {
       <input value={q} onChange={(e) => search(e.target.value)} placeholder="Try 'thigh', 'brown rice', 'moong'…" style={{ width: '100%' }} />
       <div style={{ marginTop: 12 }}>
         {picked ? (
-          <div className="card" style={{ borderColor: 'rgba(46,230,168,0.4)' }}>
+          <div className="card" style={{ borderColor: 'rgba(245,181,114,0.4)' }}>
             <h3 style={{ fontSize: 14 }}>{picked.name}</h3>
             <span className="meta">Per portion: {picked.kcal} kcal · P{picked.p} C{picked.c} F{picked.f}</span>
             <div className="field" style={{ marginTop: 8 }}><label>Portions</label>

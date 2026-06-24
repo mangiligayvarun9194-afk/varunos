@@ -196,7 +196,7 @@ export default function FormCoach({ onTab }) {
     // Red when the pose isn't trackable (not counting), else phase-tinted.
     const valid = r ? r.valid : true;
     const phase = engineRef.current.phase;
-    const col = !valid ? '#f87171' : phase === 'down' ? '#4cc9f0' : '#2ee6a8';
+    const col = !valid ? '#f87171' : phase === 'down' ? '#4cc9f0' : '#f5b572';
     // bones
     g.lineWidth = Math.max(3, w / 160);
     g.strokeStyle = col;
@@ -300,8 +300,8 @@ export default function FormCoach({ onTab }) {
               {flash && (
                 <motion.div key={flash.msg + hud.reps} initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}
                   style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap',
-                    background: flash.type === 'good' ? 'rgba(46,230,168,0.95)' : 'rgba(245,176,66,0.95)',
-                    color: '#04150e', fontWeight: 800, fontSize: 15, padding: '10px 20px', borderRadius: 999 }}>
+                    background: flash.type === 'good' ? 'rgba(245,181,114,0.95)' : 'rgba(245,176,66,0.95)',
+                    color: '#1a0f06', fontWeight: 800, fontSize: 15, padding: '10px 20px', borderRadius: 999 }}>
                   {flash.type === 'good' ? '✓ ' : '↓ '}{flash.msg}
                 </motion.div>
               )}
