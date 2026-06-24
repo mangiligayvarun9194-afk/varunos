@@ -3,6 +3,32 @@ import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { IconSun, IconPlus, IconBody, IconPulse, IconSparkle, IconGear, IconX } from './Icons.jsx';
 
+/* ---------------- PageHeader ----------------
+   Animated screen header: eyebrow + display title + a gold underline that
+   draws in. Gives every screen the cinematic "Obsidian × Warm Human" feel. */
+export function PageHeader({ eyebrow, title, sub, right }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+      style={{ margin: '26px 0 18px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}
+    >
+      <div style={{ minWidth: 0 }}>
+        {eyebrow && <div className="micro" style={{ margin: '0 0 7px' }}>{eyebrow}</div>}
+        <h2 className="display" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.03em' }}>{title}</h2>
+        {sub && <p className="meta" style={{ marginTop: 4 }}>{sub}</p>}
+        <motion.div
+          initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
+          transition={{ delay: 0.14, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          style={{ transformOrigin: 'left', height: 2, width: 52, marginTop: 11, borderRadius: 2,
+            background: 'linear-gradient(90deg, var(--accent), transparent)' }}
+        />
+      </div>
+      {right && <div style={{ flexShrink: 0 }}>{right}</div>}
+    </motion.div>
+  );
+}
+
 /* ---------------- Toast ---------------- */
 const ToastCtx = createContext(() => {});
 export const useToast = () => useContext(ToastCtx);

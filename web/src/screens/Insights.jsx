@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../api.js';
-import { stagger, rise } from '../components/ui.jsx';
+import { stagger, rise, PageHeader } from '../components/ui.jsx';
 import { IconPulse } from '../components/Icons.jsx';
 
 const SEV_TONE = { good: 'var(--green)', watch: 'var(--amber)', warn: 'var(--red)', info: 'var(--cyan)' };
@@ -29,10 +29,7 @@ export default function Insights() {
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show">
-      <motion.div variants={rise} style={{ margin: '26px 0 20px' }}>
-        <h2 className="display" style={{ fontSize: 30, fontWeight: 700 }}>Insights</h2>
-        <p className="meta">Your data, your trends</p>
-      </motion.div>
+      <PageHeader eyebrow="The path" title="Insights" sub="Your data, your trends" />
 
       <motion.div variants={rise}>
         <div className="micro">Your patterns</div>

@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, API_BASE, API_KEY, setConnection, getProfile, saveProfileLocal, makePairLink } from '../api.js';
-import { Sheet, useToast, stagger, rise } from '../components/ui.jsx';
+import { Sheet, useToast, stagger, rise, PageHeader } from '../components/ui.jsx';
 import { IconWatch, IconLock, IconLink, IconShield, IconVault, IconDownload } from '../components/Icons.jsx';
 
 export default function Settings({ onTab, onSetupPin }) {
@@ -183,10 +183,7 @@ export default function Settings({ onTab, onSetupPin }) {
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show">
-      <motion.div variants={rise} style={{ margin: '26px 0 20px' }}>
-        <h2 className="display" style={{ fontSize: 30, fontWeight: 700 }}>Settings</h2>
-        <p className="meta">Your profile drives every computation</p>
-      </motion.div>
+      <PageHeader eyebrow="The system" title="Settings" sub="Your profile drives every computation" />
 
       <motion.div variants={rise} className="card">
         <h3 style={{ marginBottom: 8 }}>Profile</h3>

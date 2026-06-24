@@ -143,6 +143,12 @@ export default function Landing({ onStart }) {
         {/* Moment — privacy */}
         <PrivacyScene />
 
+        {/* How it works — horizontal rail */}
+        <HowItWorks />
+
+        {/* Proof — honest product facts */}
+        <ProofBand />
+
         {/* Final CTA */}
         <Scene>
           <div data-reveal style={{ textAlign: 'center' }}>
@@ -325,6 +331,80 @@ function GrowthBars({ started }) {
       ))}
     </div>
   );
+}
+
+// 04 — How it works: a horizontal scroll-snap rail of numbered steps.
+function HowItWorks() {
+  const steps = [
+    ['01', 'Connect', 'Sync Apple Health or import your history — HRV, sleep and every lift, all in one place.', '#f5b572'],
+    ['02', 'Coach', 'The camera counts your reps on-device while Hermes reads your scores and shows the way.', '#ffd9a8'],
+    ['03', 'Grow', 'Every logged set grows your living Twin — the exact muscle you trained, visibly.', '#5fd0bd'],
+    ['04', 'Notice', 'Strength Intelligence spots stalls, PRs and imbalances — and your coach speaks them.', '#4cc9f0'],
+  ];
+  return (
+    <section style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '70px 0' }}>
+      <div data-reveal style={{ padding: '0 24px', maxWidth: 920, margin: '0 auto', width: '100%', textAlign: 'center' }}>
+        <Eyebrow>04 · how it works</Eyebrow>
+        <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(28px,4vw,48px)', letterSpacing: '-.03em', marginBottom: 6 }}>
+          From signal to self-knowledge.
+        </h2>
+        <p style={{ color: '#8e9ab8', maxWidth: 520, margin: '0 auto' }}>Four moves. The loop no one else has — coach, grow, notice, repeat.</p>
+      </div>
+      <div style={{ display: 'flex', gap: 16, overflowX: 'auto', scrollSnapType: 'x mandatory', padding: '30px 24px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+        <div style={{ flex: '0 0 max(0px, calc(50vw - 480px))' }} />
+        {steps.map(([n, t, d, c]) => (
+          <div key={n} data-reveal style={{ scrollSnapAlign: 'center', flex: '0 0 280px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(151,168,205,0.14)', borderRadius: 20, padding: 22, textAlign: 'left', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${c}, transparent)` }} />
+            <div className="display" style={{ fontSize: 42, fontWeight: 700, color: c, lineHeight: 1, opacity: 0.9 }}>{n}</div>
+            <div className="display" style={{ fontWeight: 700, fontSize: 22, margin: '14px 0 8px' }}>{t}</div>
+            <div style={{ color: '#8e9ab8', fontSize: 14, lineHeight: 1.55 }}>{d}</div>
+          </div>
+        ))}
+        <div style={{ flex: '0 0 max(0px, calc(50vw - 480px))' }} />
+      </div>
+    </section>
+  );
+}
+
+// 05 — Proof: honest product facts (no fake testimonials), big count-up numerals.
+function ProofBand() {
+  const [ref, inView] = useInView(0.3);
+  return (
+    <section ref={ref} style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 24px' }}>
+      <div data-reveal style={{ maxWidth: 900, width: '100%', textAlign: 'center' }}>
+        <Eyebrow>05 · the promise</Eyebrow>
+        <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(24px,3.4vw,40px)', letterSpacing: '-.03em', marginBottom: 34 }}>
+          Built for you alone.
+        </h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '28px 0' }}>
+          <ProofStat value={24} label="Coached lifts" started={inView} />
+          <ProofDivider />
+          <ProofStat value={100} suffix="%" label="On-device AI" started={inView} />
+          <ProofDivider />
+          <ProofStat value={0} label="Data sold, ever" started={inView} />
+          <ProofDivider />
+          <ProofStat glyph="∞" label="Yours forever" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProofStat({ value, suffix = '', label, started, glyph }) {
+  const n = useCountUp(value || 0, started, { decimals: 0 });
+  return (
+    <div style={{ flex: '1 1 160px', minWidth: 140 }}>
+      <div className="display" style={{ fontSize: 'clamp(40px,6vw,64px)', fontWeight: 700, lineHeight: 1,
+        background: 'linear-gradient(100deg,#ffdeba,#f5b572 60%,#d97a45)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
+        {glyph || n}<span style={{ fontSize: '0.5em' }}>{suffix}</span>
+      </div>
+      <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: '#59648a', marginTop: 10 }}>{label}</div>
+    </div>
+  );
+}
+
+function ProofDivider() {
+  return <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(151,168,205,0.14)', margin: '0 6px' }} />;
 }
 
 function VaultGraph({ on }) {
