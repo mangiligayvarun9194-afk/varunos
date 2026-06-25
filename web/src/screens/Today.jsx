@@ -55,7 +55,7 @@ export default function Today({ onOpenSheet, onTab }) {
       <motion.div variants={rise} style={{ margin: '26px 0 22px' }}>
         <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--mute)', textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 6 }}>{dateStr}</p>
         <h2 className="display" style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.1 }}>
-          {wake === undefined ? <span className="skel" style={{ display: 'inline-block', width: 200, height: 30 }} /> : (wake?.greeting || 'Good day')}
+          {wake === undefined ? <Skeleton width={200} height={30} style={{ display: 'inline-block' }} /> : (wake?.greeting || 'Good day')}
         </h2>
       </motion.div>
 

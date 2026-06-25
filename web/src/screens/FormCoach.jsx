@@ -12,6 +12,7 @@ import { detect as detectMuscle, MUSCLE_LABEL } from '../lib/musclenet.js';
 import MUSCLE_MODEL from '../lib/muscle_model.json';
 import { api, getProfile } from '../api.js';
 import { useToast } from '../components/ui.jsx';
+import { Skeleton } from '../components/kit.jsx';
 import { IconBack, IconBolt, IconShield, IconBody } from '../components/Icons.jsx';
 
 const TASKS_VERSION = '0.10.18';
@@ -314,7 +315,7 @@ export default function FormCoach({ onTab }) {
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center' }}>
             {status === 'loading' && (
               <>
-                <div className="skel" style={{ width: 54, height: 54, borderRadius: '50%' }} />
+                <Skeleton width={54} height={54} radius="50%" />
                 <p className="meta">Loading the pose model…</p>
               </>
             )}

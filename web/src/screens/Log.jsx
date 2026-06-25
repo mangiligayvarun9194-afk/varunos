@@ -237,7 +237,7 @@ function WorkoutSheet() {
     })();
   }, []);
 
-  if (plan === undefined) return <div className="skel" style={{ height: 120, borderRadius: 16 }} />;
+  if (plan === undefined) return <Skeleton height={120} radius={16} />;
   if (plan.error) return <p className="err">{plan.error}</p>;
   return (
     <div>
