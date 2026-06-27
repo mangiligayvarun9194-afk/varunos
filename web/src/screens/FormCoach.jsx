@@ -11,6 +11,9 @@ import { EXERCISES, RepEngine, LOG_MAP, estimateLoad } from '../lib/formcoach.js
 import { detect as detectMuscle, MUSCLE_LABEL } from '../lib/musclenet.js';
 import MUSCLE_MODEL from '../lib/muscle_model.json';
 import { ExerciseDetector } from '../lib/exercisedetect.js';
+import { ReplayRecorder } from '../lib/replaycapture.js';
+import { gradeRecording } from '../lib/replaygrade.js';
+import CoachReplay from './CoachReplay.jsx';
 import { api, getProfile } from '../api.js';
 import { useToast } from '../components/ui.jsx';
 import { Skeleton } from '../components/kit.jsx';
@@ -19,6 +22,8 @@ import { IconBack, IconBolt, IconShield, IconBody } from '../components/Icons.js
 const TASKS_VERSION = '0.10.18';
 const CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VERSION}`;
 const MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+// Heavier, more accurate 3D model for the (non-real-time-critical) recording path.
+const MODEL_FULL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task';
 
 // BlazePose skeleton edges to draw (index pairs).
 const BONES = [
@@ -35,6 +40,8 @@ export default function FormCoach({ onTab }) {
   const canvasRef = useRef(null);
   const engineRef = useRef(new RepEngine('squat'));
   const detectorRef = useRef(new ExerciseDetector());
+  const recorderRef = useRef(new ReplayRecorder('squat'));
+  const recordingRef = useRef(false);
   const markerRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(0);
@@ -42,6 +49,8 @@ export default function FormCoach({ onTab }) {
   const [exId, setExId] = useState('squat');
   const [auto, setAuto] = useState(true);       // let the camera name the lift
   const [detected, setDetected] = useState(null); // live { exId, confidence, stable }
+  const [recording, setRecording] = useState(false); // recording a set for 3D replay
+  const [review, setReview] = useState(null);   // { result, skeletons, frames } after a recording
   const [status, setStatus] = useState('idle'); // idle | loading | running | error
   const [err, setErr] = useState('');
   const [hud, setHud] = useState({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
@@ -63,6 +72,7 @@ export default function FormCoach({ onTab }) {
   useEffect(() => {
     engineRef.current.set(exId);
     detectorRef.current.reset();
+    recorderRef.current.setExercise(exId);
     setHud({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
     setFlash(null); setGuide(null); setLogged(null); setMuscle(null);
     lastRef.current = { hud: '', guide: '', frame: 0, muscle: '', det: '' };
@@ -70,9 +80,10 @@ export default function FormCoach({ onTab }) {
 
   // The unique loop: camera-coached reps → a real logged set → the Twin grows
   // and Hermes notices. Bodyweight load is estimated from the user's bodyweight.
-  async function logSession() {
+  // Shared by both the live coach and the 3D replay review.
+  async function doLog(repCount) {
     const m = LOG_MAP[exId];
-    if (!m || hud.reps < 1 || logging) return;
+    if (!m || repCount < 1 || logging) return;
     setLogging(true);
     const load = estimateLoad(exId, getProfile().weight_kg);
     try {
@@ -80,17 +91,19 @@ export default function FormCoach({ onTab }) {
         program: 'form-coach', day_name: `${ex.label} (Form Coach)`,
         week: 0, day_index: 0, decision: 'GREEN',
         notes: 'Logged from the camera Form Coach',
-        total_volume_kg: load * hud.reps,
-        sets: [{ exercise_id: m.logId, set_index: 0, weight_kg: load, reps: hud.reps }],
+        total_volume_kg: load * repCount,
+        sets: [{ exercise_id: m.logId, set_index: 0, weight_kg: load, reps: repCount }],
       }});
-      teardown(); setStatus('idle');
-      setLogged({ reps: hud.reps, group: m.group, load });
+      teardown(); setStatus('idle'); setReview(null);
+      setLogged({ reps: repCount, group: m.group, load });
       toast('Logged — your Twin just grew 💪');
     } catch (_) {
       toast('Couldn’t log that set — try again.');
     }
     setLogging(false);
   }
+  const logSession = () => doLog(hud.reps);
+  const logReplay = () => doLog(review && review.result ? review.result.reps.length : 0);
 
   function coachAnother() {
     engineRef.current.set(exId);
@@ -115,15 +128,18 @@ export default function FormCoach({ onTab }) {
     streamRef.current = null;
   }
 
-  async function start() {
+  async function start(record = false) {
     setStatus('loading');
     setErr('');
+    setReview(null); setLogged(null);
     detectorRef.current.reset(); setDetected(null);
+    recordingRef.current = record; setRecording(record);
+    if (record) { recorderRef.current.setExercise(exId); recorderRef.current.reset(); }
     try {
       const vision = await import(/* @vite-ignore */ CDN);
       const fileset = await vision.FilesetResolver.forVisionTasks(`${CDN}/wasm`);
       markerRef.current = await vision.PoseLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: MODEL, delegate: 'GPU' },
+        baseOptions: { modelAssetPath: record ? MODEL_FULL : MODEL, delegate: 'GPU' },
         runningMode: 'VIDEO',
         numPoses: 1,
       });
@@ -151,6 +167,18 @@ export default function FormCoach({ onTab }) {
     teardown();
     setStatus('idle');
     setMuscle(null); setGuide(null); setDetected(null);
+    recordingRef.current = false; setRecording(false);
+  }
+
+  // End a recorded set → grade the whole clip in 3D, then show the replay review.
+  function endRecording() {
+    teardown();
+    recordingRef.current = false; setRecording(false);
+    setMuscle(null); setGuide(null); setDetected(null);
+    const rec = recorderRef.current;
+    const result = gradeRecording(rec.frames(), exId);
+    setReview({ result, skeletons: rec.skeletons(), frames: rec.frames() });
+    setStatus('review');
   }
 
   function loop() {
@@ -162,8 +190,11 @@ export default function FormCoach({ onTab }) {
       let res = null;
       try { res = marker.detectForVideo(v, now); } catch (_) {}
       const pts = res && res.landmarks && res.landmarks[0];
+      const world = res && res.worldLandmarks && res.worldLandmarks[0];
       const r = engineRef.current.update(pts, now);
       draw(pts, r);
+      // Recording for 3D replay: stash the metric 3D skeleton + working-joint angle.
+      if (recordingRef.current && pts && world) recorderRef.current.push(now, pts, world);
       if (r) {
         // Throttle React state to only fire when something actually changes.
         const key = `${r.reps}|${r.goodReps}|${r.phase}|${r.angle}|${r.valid}|${r.avgForm}`;
@@ -267,6 +298,12 @@ export default function FormCoach({ onTab }) {
         </div>
       </div>
 
+      {status === 'review' && review ? (
+        <CoachReplay result={review.result} skeletons={review.skeletons} frames={review.frames}
+          exLabel={ex.label} logging={logging} onLog={logReplay}
+          onDone={() => { setReview(null); setStatus('idle'); }} />
+      ) : (
+      <>
       {/* exercise picker — "Auto" lets the camera name the lift; tapping any pill
           pins it manually. */}
       <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 6, marginBottom: 6, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
@@ -305,6 +342,11 @@ export default function FormCoach({ onTab }) {
         {/* HUD overlay */}
         {status === 'running' && (
           <>
+            {recording && (
+              <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', background: 'rgba(214,40,40,0.92)', color: '#fff', fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 6, letterSpacing: 0.4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} /> REC · 3D
+              </div>
+            )}
             <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <div style={{ background: 'rgba(4,6,11,0.6)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '8px 14px', textAlign: 'center' }}>
                 <div className="display" style={{ fontSize: 40, fontWeight: 800, lineHeight: 1, color: 'var(--mint)' }}>{hud.reps}</div>
@@ -381,14 +423,20 @@ export default function FormCoach({ onTab }) {
               <>
                 <span style={{ color: 'var(--amber)' }}><IconShield width={30} height={30} /></span>
                 <p style={{ fontSize: 14, maxWidth: 320 }}>{err}</p>
-                <button className="btn primary" onClick={start}>Retry</button>
+                <button className="btn primary" onClick={() => start(false)}>Retry</button>
               </>
             )}
             {status === 'idle' && (
               <>
                 <span style={{ color: 'var(--mint)' }}><IconBolt width={34} height={34} /></span>
                 <p style={{ fontSize: 14, maxWidth: 300, lineHeight: 1.5 }}>{ex.setup}</p>
-                <button className="btn primary" style={{ padding: '12px 28px', fontSize: 15 }} onClick={start}>Start coaching</button>
+                <button className="btn primary" style={{ padding: '12px 28px', fontSize: 15 }} onClick={() => start(false)}>Start coaching</button>
+                <button className="btn ghost" style={{ padding: '9px 18px', fontSize: 13 }} onClick={() => start(true)}>
+                  ⏺ Record set · 3D replay <span style={{ opacity: 0.6 }}>(beta)</span>
+                </button>
+                <p className="meta" style={{ fontSize: 11, maxWidth: 280, lineHeight: 1.4 }}>
+                  Records the set and grades it in 3D afterwards — works from angles the live coach can’t, like machine and facing-camera lifts.
+                </p>
               </>
             )}
           </div>
@@ -420,20 +468,26 @@ export default function FormCoach({ onTab }) {
         </motion.div>
       ) : (
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          {hud.reps > 0 && (
+          {hud.reps > 0 && !recording && (
             <button className="btn primary" style={{ flex: 1 }} disabled={logging} onClick={logSession}>
               <IconBody width={16} height={16} /> {logging ? 'Logging…' : `Log ${hud.reps} reps → grow Twin`}
             </button>
           )}
           {status === 'running' && (
-            <button className="btn ghost" style={{ flex: hud.reps > 0 ? '0 0 auto' : 1 }} onClick={stop}>End</button>
+            <button className={`btn ${recording ? 'primary' : 'ghost'}`}
+              style={{ flex: (hud.reps > 0 && !recording) ? '0 0 auto' : 1 }}
+              onClick={recording ? endRecording : stop}>
+              {recording ? '⏹ End & review' : 'End'}
+            </button>
           )}
         </div>
       )}
 
       <p className="meta" style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 14, fontSize: 11 }}>
-        <IconShield width={13} height={13} /> Pose + AI muscle detection run entirely on your device. Your camera feed never leaves this phone.
+        <IconShield width={13} height={13} /> Pose + AI detection run on your device. 3D replay is graded after the set.
       </p>
+      </>
+      )}
     </motion.div>
   );
 }
