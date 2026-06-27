@@ -34,6 +34,9 @@ const sq = new RepEngine('squat');
 for (let n = 0; n < 3; n++) { feed(sq, 175); feed(sq, 80); } feed(sq, 175);
 ok(sq.reps === 3, '3 deep squats counted (got ' + sq.reps + ')');
 ok(sq.goodReps === 3, 'all 3 flagged good depth (got ' + sq.goodReps + ')');
+// the engine grades each rep and reports a running form score
+const fgr = sq.step(175);
+ok(typeof fgr.avgForm === 'number' && fgr.avgForm >= 0 && fgr.avgForm <= 100, 'engine reports a 0-100 running form score (got ' + fgr.avgForm + ')');
 
 // --- squat: a shallow rep still counts but is flagged ---
 const sh = new RepEngine('squat');

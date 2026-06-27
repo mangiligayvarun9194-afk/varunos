@@ -35,6 +35,8 @@
 //   • depthTarget — strict; the depth a clean, full-ROM rep must reach. A rep
 //                   that starts but never reaches this is counted yet flagged.
 
+import { gradeRep } from './formgrade.js';
+
 // BlazePose (MediaPipe Pose) 33-landmark indices, by body side.
 export const SIDE = {
   left:  { shoulder: 11, elbow: 13, wrist: 15, hip: 23, knee: 25, ankle: 27 },
@@ -233,6 +235,10 @@ export class RepEngine {
     this._minInRep = 999; // deepest angle reached this rep
     this._topRef = null;  // extension reference captured before the descent
     this._downT = 0;      // timestamp the descent was confirmed
+    this._samples = [];   // {t, eff} trajectory of the current rep (for grading)
+    this._formSum = 0;    // running form-score total
+    this._gradedReps = 0; // reps that produced a grade
+    this._lastGrade = null;
   }
 
   _resetProgress() {
@@ -286,23 +292,28 @@ export class RepEngine {
         this._downC = 0; this._upC = 0;
         this._minInRep = a;
         this._downT = t;
+        this._samples = [{ t, eff: this._topRef == null ? a : this._topRef }]; // seed at the true top
       }
     } else { // 'down'
       this._minInRep = Math.min(this._minInRep, a);
       if (a >= T.extended) this._upC += 1; else this._upC = 0;
       if (this._upC >= CONFIRM_FRAMES) {
+        this._samples.push({ t, eff: a });
         const top = this._topRef == null ? a : this._topRef;
         const range = top - this._minInRep;
         const dur = t - this._downT;
         // Only a movement of real amplitude AND duration is a rep.
         if (range >= T.minRange && dur >= MIN_REP_MS) {
           this.reps += 1;
+          const grade = gradeRep(this._samples, T);
+          this._lastGrade = grade;
+          this._formSum += grade.score; this._gradedReps += 1;
           const deep = this._minInRep <= T.depthTarget;
           if (deep) {
             this.goodReps += 1;
-            event = { type: 'good', msg: `Good rep — ${this.reps}` };
+            event = { type: 'good', msg: `Good rep — ${this.reps}`, score: grade.score, tags: grade.tags };
           } else {
-            event = { type: 'shallow', msg: this.ex.shallow };
+            event = { type: 'shallow', msg: this.ex.shallow, score: grade.score, tags: grade.tags };
           }
         }
         // Reset for the next rep regardless (the partial is discarded).
@@ -310,8 +321,11 @@ export class RepEngine {
         this._downC = 0; this._upC = 0;
         this._minInRep = 999;
         this._topRef = a;
+        this._samples = [];
       }
     }
+    // Record the rep trajectory while descending/returning (for grading).
+    if (this.phase === 'down') this._samples.push({ t, eff: a });
 
     // Report the angle back in real-world terms for the HUD.
     const disp = T.flex ? a : 180 - a;
@@ -324,6 +338,8 @@ export class RepEngine {
     return {
       valid: false, angle: null, phase: this.phase,
       reps: this.reps, goodReps: this.goodReps,
+      avgForm: this._gradedReps ? Math.round(this._formSum / this._gradedReps) : null,
+      lastGrade: this._lastGrade,
       side: this.side, quality: 0, event: null,
       ...extra,
     };

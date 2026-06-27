@@ -156,10 +156,10 @@ export default function FormCoach({ onTab }) {
       draw(pts, r);
       if (r) {
         // Throttle React state to only fire when something actually changes.
-        const key = `${r.reps}|${r.goodReps}|${r.phase}|${r.angle}|${r.valid}`;
+        const key = `${r.reps}|${r.goodReps}|${r.phase}|${r.angle}|${r.valid}|${r.avgForm}`;
         if (key !== lastRef.current.hud) {
           lastRef.current.hud = key;
-          setHud({ reps: r.reps, goodReps: r.goodReps, phase: r.phase, angle: r.angle, valid: r.valid });
+          setHud({ reps: r.reps, goodReps: r.goodReps, phase: r.phase, angle: r.angle, valid: r.valid, avgForm: r.avgForm });
         }
         const g = r.valid ? null : guideFor(r.reason);
         if (g !== lastRef.current.guide) { lastRef.current.guide = g; setGuide(g); }
@@ -267,7 +267,13 @@ export default function FormCoach({ onTab }) {
               {accuracy != null && (
                 <div style={{ background: 'rgba(4,6,11,0.6)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '8px 12px', textAlign: 'center' }}>
                   <div style={{ fontSize: 18, fontWeight: 700, color: accuracy >= 80 ? 'var(--green)' : 'var(--amber)' }}>{accuracy}%</div>
-                  <div className="meta" style={{ fontSize: 10 }}>good form</div>
+                  <div className="meta" style={{ fontSize: 10 }}>good depth</div>
+                </div>
+              )}
+              {hud.avgForm != null && (
+                <div style={{ background: 'rgba(4,6,11,0.6)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '8px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: hud.avgForm >= 80 ? 'var(--mint)' : 'var(--amber)' }}>{hud.avgForm}</div>
+                  <div className="meta" style={{ fontSize: 10 }}>form</div>
                 </div>
               )}
             </div>
@@ -300,10 +306,16 @@ export default function FormCoach({ onTab }) {
             <AnimatePresence>
               {flash && (
                 <motion.div key={flash.msg + hud.reps} initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}
-                  style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap',
+                  style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', textAlign: 'center',
                     background: flash.type === 'good' ? 'rgba(245,181,114,0.95)' : 'rgba(245,176,66,0.95)',
-                    color: '#1a0f06', fontWeight: 800, fontSize: 15, padding: '10px 20px', borderRadius: 999 }}>
-                  {flash.type === 'good' ? '✓ ' : '↓ '}{flash.msg}
+                    color: '#1a0f06', fontWeight: 800, fontSize: 15, padding: '10px 20px', borderRadius: 18 }}>
+                  <div style={{ whiteSpace: 'nowrap' }}>
+                    {flash.type === 'good' ? '✓ ' : '↓ '}{flash.msg}
+                    {typeof flash.score === 'number' && <span style={{ opacity: 0.85 }}> · Form {flash.score}</span>}
+                  </div>
+                  {flash.tags && flash.tags.length > 0 && (
+                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2, opacity: 0.8 }}>{flash.tags[0]}</div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
