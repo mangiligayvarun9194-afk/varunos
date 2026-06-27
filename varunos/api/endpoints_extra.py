@@ -649,18 +649,22 @@ def coach_ask(payload: CoachAskIn):
     ctx = build_brain_context(readiness=readiness, diet=diet, insights=insights,
                               consumed_kcal=consumed or None)
 
-    answer = _llm_or_template(payload.question, ctx, SAFE_SYSTEM_PROMPT)
+    answer = _llm_or_template(payload.question, ctx, SAFE_SYSTEM_PROMPT, uid)
     db.log_event(uid, "coach_ask", channel="api", payload={"q": payload.question[:120]})
     return {"answer": answer, "context_used": list(ctx.keys()),
             "engine": "llm" if os.environ.get("ANTHROPIC_API_KEY") else "deterministic",
             "disclaimer": DISCLAIMER}
 
 
-def _llm_or_template(question: str, ctx: dict, system: str) -> str:
+def _llm_or_template(question: str, ctx: dict, system: str, uid: str = "default") -> str:
     from varunos.core.brain import narrate_template
+    from varunos.core import llm_guard
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         return narrate_template(question, ctx)
+    allowed, _reason = llm_guard.reserve(uid)
+    if not allowed:
+        return narrate_template(question, ctx)   # over budget → deterministic answer
     try:
         import httpx, json as _json
         r = httpx.post(
@@ -766,7 +770,7 @@ def _dispatch_action(uid: str, intent) -> Optional[dict]:
     return None  # question -> caller routes to the coach
 
 
-def _llm_extract_intent(text: str):
+def _llm_extract_intent(text: str, uid: str = "default"):
     """Best-effort LLM fallback for phrasings the deterministic parser misses.
 
     Asks the cheap model for a structured action, then runs it through the SAME
@@ -777,6 +781,10 @@ def _llm_extract_intent(text: str):
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         return None
+    from varunos.core import llm_guard
+    allowed, _reason = llm_guard.reserve(uid)
+    if not allowed:
+        return None   # over budget → deterministic parser only
     try:
         import httpx, json as _json
         from varunos.core.agent import intent_from_extraction, QUESTION
@@ -862,7 +870,7 @@ def coach_act(payload: CoachActIn):
     # Fallback: a message the parser couldn't classify might still be an action
     # phrased in a way we didn't anticipate. Try the validated LLM extractor.
     if intent.action == QUESTION:
-        upgraded = _llm_extract_intent(payload.text)
+        upgraded = _llm_extract_intent(payload.text, uid)
         if upgraded is not None:
             intent = upgraded
 
@@ -1131,7 +1139,7 @@ def hermes_briefing(part: Optional[str] = None):
     engine = "template"
     key = os.environ.get("ANTHROPIC_API_KEY")
     if key:
-        voiced = _hermes_voice(composed, snap)
+        voiced = _hermes_voice(composed, snap, uid)
         if voiced:
             text, engine = voiced, "llm"
 
@@ -1140,11 +1148,15 @@ def hermes_briefing(part: Optional[str] = None):
             "observations": obs, "part_of_day": pod, "hermes": snap}
 
 
-def _hermes_voice(composed: dict, snap: dict) -> Optional[str]:
+def _hermes_voice(composed: dict, snap: dict, uid: str = "default") -> Optional[str]:
     """Rephrase a composed briefing in Hermes's voice. Safe-context only."""
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         return None
+    from varunos.core import llm_guard
+    allowed, _reason = llm_guard.reserve(uid)
+    if not allowed:
+        return None   # over budget → the deterministic briefing stands
     try:
         import httpx, json as _json
         stage = snap.get("stage", {}).get("title", "")

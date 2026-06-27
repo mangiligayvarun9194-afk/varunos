@@ -162,6 +162,13 @@ def _migrate(c: sqlite3.Connection) -> None:
         ts          TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS llm_usage (
+        user_id  TEXT,
+        day      TEXT,
+        count    INTEGER DEFAULT 0,
+        PRIMARY KEY (user_id, day)
+    );
+
     CREATE TABLE IF NOT EXISTS meal_log (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id    TEXT,
@@ -1002,6 +1009,40 @@ def acknowledge_alert(event_id: str, acked_via: str = "user") -> dict:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+# ---- LLM usage metering (cost guardrails) ---------------------------------
+
+def llm_usage_today(user_id: str, day: Optional[str] = None) -> int:
+    """How many LLM calls this user has made today (UTC)."""
+    row = conn().execute(
+        "SELECT count FROM llm_usage WHERE user_id=? AND day=?",
+        (user_id, day or _today()),
+    ).fetchone()
+    return int(row["count"]) if row else 0
+
+
+def llm_usage_global_today(day: Optional[str] = None) -> int:
+    """Total LLM calls across all users today (UTC) — the kill-switch signal."""
+    row = conn().execute(
+        "SELECT COALESCE(SUM(count), 0) AS c FROM llm_usage WHERE day=?",
+        (day or _today(),),
+    ).fetchone()
+    return int(row["c"]) if row else 0
+
+
+def llm_usage_increment(user_id: str, day: Optional[str] = None) -> None:
+    """Record one LLM call for this user/day (atomic upsert)."""
+    with transaction() as c:
+        c.execute(
+            "INSERT INTO llm_usage (user_id, day, count) VALUES (?,?,1) "
+            "ON CONFLICT(user_id, day) DO UPDATE SET count = count + 1",
+            (user_id, day or _today()),
+        )
 
 
 def _age_seconds(iso_ts: str) -> float:
