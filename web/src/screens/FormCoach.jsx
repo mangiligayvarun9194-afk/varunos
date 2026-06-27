@@ -103,7 +103,8 @@ export default function FormCoach({ onTab }) {
     setLogging(false);
   }
   const logSession = () => doLog(hud.reps);
-  const logReplay = () => doLog(review && review.result ? review.result.reps.length : 0);
+  // CoachReplay passes the (possibly cloud-enhanced) rep count it's actually showing.
+  const logReplay = (repCount) => doLog(repCount || 0);
 
   function coachAnother() {
     engineRef.current.set(exId);
@@ -300,7 +301,7 @@ export default function FormCoach({ onTab }) {
 
       {status === 'review' && review ? (
         <CoachReplay result={review.result} skeletons={review.skeletons} frames={review.frames}
-          exLabel={ex.label} logging={logging} onLog={logReplay}
+          exId={exId} exLabel={ex.label} logging={logging} onLog={logReplay}
           onDone={() => { setReview(null); setStatus('idle'); }} />
       ) : (
       <>

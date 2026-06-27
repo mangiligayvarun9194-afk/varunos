@@ -303,6 +303,44 @@ def readiness_muscles():
     return rm.analyze(sets, undertrained=undertrained)
 
 
+class RefineFrameIn(BaseModel):
+    t: float
+    raw: Optional[float] = None
+    conf: float = 0.0
+
+
+class RefineIn(BaseModel):
+    exId: Optional[str] = None
+    frames: list[RefineFrameIn] = Field(default_factory=list)
+    # Optional (T, 33, 3) world-skeleton clip for the playback refinement.
+    skel: Optional[list[list[list[float]]]] = None
+
+
+# Frame caps so a single request can't ask the box to chew on an unbounded clip.
+_REFINE_MAX_FRAMES = 2000
+
+
+@router.post("/v1/coach/refine")
+def coach_refine(payload: RefineIn):
+    """Phase D v2 — cloud refinement of a recorded set's 3D pose. Runs heavier,
+    zero-lag biomechanical smoothing + occlusion in-painting + bone-length clamping
+    than the phone can, and hands the improved angle/skeleton series back so the
+    client re-grades. Stateless; the learned-model swap lives behind this same
+    contract."""
+    from varunos.core import pose_refine as pr
+    frames = payload.frames
+    if not frames:
+        return {"raw": [], "conf": [], "skel": None, "filledFrac": 0.0, "frames": 0}
+    if len(frames) > _REFINE_MAX_FRAMES:
+        raise HTTPException(status_code=413, detail="recording too long to refine")
+    skel = payload.skel
+    if skel is not None and len(skel) != len(frames):
+        raise HTTPException(status_code=400, detail="skel length must match frames")
+    out = pr.refine([f.model_dump() for f in frames], skel=skel)
+    out["frames"] = len(frames)
+    return out
+
+
 class LegalAcceptIn(BaseModel):
     version: str
 
