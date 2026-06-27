@@ -4,11 +4,72 @@
 // back to a static poster if WebGL/model fail. CTA → onStart() (sign up).
 import { useEffect, useRef, useState } from 'react';
 import { initStage } from '../lib/twinStage.js';
-import { useCountUp, useInView } from '../lib/motion.js';
+import { useCountUp, useInView, useScrollProgress, useParallax, useMagnetic } from '../lib/motion.js';
 import { LegalOverlay } from './Legal.jsx';
 
 const MODEL = '/models/twin-custom.glb';
 const GOLD = '#f5b572';
+
+const prefersReduced = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Cinematic word-by-word headline reveal (mask-up). Each word rises from behind a
+// clip on scroll-in, staggered — the signature "expensive website" move.
+function SplitText({ text, stagger = 0.045, delay = 0, style, className }) {
+  const ref = useRef(null);
+  const [on, setOn] = useState(prefersReduced());
+  useEffect(() => {
+    const el = ref.current; if (!el || prefersReduced()) return;
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { setOn(true); io.unobserve(el); } }), { threshold: 0.25 });
+    io.observe(el); return () => io.disconnect();
+  }, []);
+  const words = String(text).split(' ');
+  return (
+    <span ref={ref} className={className} style={style}>
+      {words.map((w, i) => (
+        <span key={i} style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'top', paddingBottom: '0.08em' }}>
+          <span style={{ display: 'inline-block', willChange: 'transform',
+            transform: on ? 'translateY(0)' : 'translateY(115%)', opacity: on ? 1 : 0,
+            transition: `transform .9s cubic-bezier(.2,1,.3,1) ${(delay + i * stagger).toFixed(2)}s, opacity .9s ease ${(delay + i * stagger).toFixed(2)}s` }}>
+            {w}
+          </span>
+          {i < words.length - 1 ? ' ' : ''}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// A primary CTA that drifts toward the cursor (magnetic) with a sheen sweep on hover.
+function MagneticCTA({ children, onClick, primary = true, style }) {
+  const ref = useMagnetic(0.4);
+  return (
+    <span ref={ref} style={{ display: 'inline-block' }}>
+      <button className={`btn ${primary ? 'primary' : 'ghost'} lp-cta`} onClick={onClick} style={style}>{children}</button>
+    </span>
+  );
+}
+
+// Scroll-linked parallax wrapper for depth between layers.
+function Parallax({ speed = 0.1, children, style, className }) {
+  const ref = useParallax(speed);
+  return <div ref={ref} className={className} style={style}>{children}</div>;
+}
+
+// Infinite marquee of the product's pillars — premium editorial motion.
+function Marquee({ items }) {
+  const row = [...items, ...items];
+  return (
+    <div className="lp-marquee" aria-hidden style={{ position: 'relative', zIndex: 2, padding: '26px 0', borderTop: '1px solid rgba(151,168,205,.1)', borderBottom: '1px solid rgba(151,168,205,.1)', overflow: 'hidden', maskImage: 'linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)', WebkitMaskImage: 'linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)' }}>
+      <div className="lp-marquee-track" style={{ display: 'flex', gap: 40, whiteSpace: 'nowrap', width: 'max-content' }}>
+        {row.map((t, i) => (
+          <span key={i} className="display" style={{ fontSize: 'clamp(20px,2.4vw,32px)', fontWeight: 700, letterSpacing: '-.02em', color: i % 2 ? GOLD : '#2a3145', display: 'inline-flex', alignItems: 'center', gap: 40 }}>
+            {t}<span style={{ color: '#2a3145' }}>✦</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Landing({ onStart }) {
   const canvasRef = useRef(null);
@@ -16,6 +77,8 @@ export default function Landing({ onStart }) {
   const [status, setStatus] = useState('loading'); // loading | ready | poster
   const [seen, setSeen] = useState(false);         // hero in view → start count-ups
   const [legal, setLegal] = useState(null);        // null | 'privacy' | 'terms'
+  const progress = useScrollProgress();
+  const scrolled = progress > 0.02;
 
   useEffect(() => {
     let stage = null;
@@ -60,6 +123,13 @@ export default function Landing({ onStart }) {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', background: '#04060a', color: '#f2f5fc', overflowX: 'hidden' }}>
+      {/* scroll-progress rail */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 60, pointerEvents: 'none' }}>
+        <div style={{ height: '100%', width: `${(progress * 100).toFixed(2)}%`, background: 'linear-gradient(90deg,#ffdeba,#f5b572 60%,#d97a45)', boxShadow: '0 0 12px rgba(245,181,114,.6)', transition: 'width .1s linear' }} />
+      </div>
+      {/* film grain + drifting aurora texture */}
+      <div className="lp-grain" aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none', opacity: 0.5, mixBlendMode: 'overlay' }} />
+      <div className="lp-aurora" aria-hidden style={{ position: 'fixed', inset: '-20%', zIndex: 0, pointerEvents: 'none' }} />
       <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }} />
       <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none',
         background: 'radial-gradient(130% 90% at 50% 18%, transparent 40%, rgba(0,0,0,.5) 100%), radial-gradient(100% 60% at 50% 120%, rgba(0,0,0,.55), transparent 55%)' }} />
@@ -79,10 +149,21 @@ export default function Landing({ onStart }) {
         <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 12, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8e9ab8' }}>Summoning your Twin…</span>
       </div>
 
-      {/* brand bar */}
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', pointerEvents: 'none' }}>
-        <span className="display" style={{ fontWeight: 700, fontSize: 17 }}>Sarathi</span>
-        <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: '#59648a' }}>Private AI Health OS</span>
+      {/* brand bar — condenses + blurs once you scroll, reveals a CTA */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: scrolled ? '12px 24px' : '20px 24px',
+        background: scrolled ? 'rgba(4,6,10,0.6)' : 'transparent',
+        backdropFilter: scrolled ? 'blur(14px)' : 'none', WebkitBackdropFilter: scrolled ? 'blur(14px)' : 'none',
+        borderBottom: scrolled ? '1px solid rgba(151,168,205,.08)' : '1px solid transparent',
+        transition: 'padding .4s cubic-bezier(.22,1,.36,1), background .4s ease, border-color .4s ease' }}>
+        <span className="display" style={{ fontWeight: 700, fontSize: scrolled ? 15 : 17, transition: 'font-size .4s ease' }}>Sarathi</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: '#59648a' }}>Private AI Health OS</span>
+          <button className="btn primary lp-cta" onClick={onStart}
+            style={{ padding: '8px 16px', fontSize: 13, opacity: scrolled ? 1 : 0, transform: scrolled ? 'translateX(0)' : 'translateX(12px)', pointerEvents: scrolled ? 'auto' : 'none', transition: 'opacity .4s ease, transform .4s ease' }}>
+            Get started
+          </button>
+        </div>
       </div>
 
       <div style={{ position: 'relative', zIndex: 2 }}>
@@ -102,22 +183,23 @@ export default function Landing({ onStart }) {
         <Scene id="lp-hero">
           <div data-reveal style={{ maxWidth: 820 }}>
             <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(38px,6vw,76px)', lineHeight: 0.98, letterSpacing: '-.04em', marginBottom: 20 }}>
-              Own your health.<br />Talk to it.<br />
-              <span style={{ background: 'linear-gradient(100deg,#ffdeba,#f5b572 55%,#d97a45)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Watch yourself level up.</span>
+              <SplitText text="Own your health." /><br />
+              <SplitText text="Talk to it." delay={0.18} /><br />
+              <span className="lp-shine" style={{ background: 'linear-gradient(100deg,#ffdeba,#f5b572 55%,#d97a45)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', display: 'inline-block' }}>Watch yourself level up.</span>
             </h2>
             <p style={{ color: '#8e9ab8', fontSize: 'clamp(15px,1.6vw,18px)', maxWidth: 560, marginBottom: 26 }}>
               A private AI health OS with a living Twin, a personal Hermes coach, and a Health Vault you own forever.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 30 }}>
-              <button className="btn primary" onClick={onStart} style={{ padding: '14px 24px' }}>Build your Twin</button>
-              <a href="#roles" className="btn ghost" style={{ padding: '14px 22px', textDecoration: 'none' }}>See how it works</a>
+              <MagneticCTA onClick={onStart} style={{ padding: '14px 24px' }}>Build your Twin</MagneticCTA>
+              <a href="#roles" className="btn ghost lp-cta" style={{ padding: '14px 22px', textDecoration: 'none' }}>See how it works</a>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            <Parallax speed={0.05} style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               <Stat label="Readiness" value={84} suffix="▲" started={seen} />
               <Stat label="Level" value={62} started={seen} />
               <Stat label="Sleep" value={7.4} dec={1} suffix="h" started={seen} />
               <Stat label="HRV" value={68} suffix="ms" started={seen} />
-            </div>
+            </Parallax>
           </div>
         </Scene>
 
@@ -135,6 +217,9 @@ export default function Landing({ onStart }) {
             </div>
           </div>
         </Scene>
+
+        {/* pillar marquee — editorial motion band */}
+        <Marquee items={['LIVING TWIN', 'HERMES COACH', 'HEALTH VAULT', 'ON-DEVICE AI', 'FORM COACH', 'READINESS', 'STRENGTH INTELLIGENCE']} />
 
         {/* Moment — transformation / level up */}
         <TransformationScene />
@@ -154,9 +239,9 @@ export default function Landing({ onStart }) {
         {/* Final CTA */}
         <Scene>
           <div data-reveal style={{ textAlign: 'center' }}>
-            <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(32px,5vw,60px)', letterSpacing: '-.03em', marginBottom: 8 }}>Meet your Twin.</h2>
+            <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(32px,5vw,60px)', letterSpacing: '-.03em', marginBottom: 8 }}><SplitText text="Meet your Twin." /></h2>
             <p style={{ color: '#8e9ab8', marginBottom: 24 }}>Sixty seconds to set up. A lifetime that's yours.</p>
-            <button className="btn primary" onClick={onStart} style={{ padding: '16px 30px', fontSize: 15 }}>Build your Twin</button>
+            <MagneticCTA onClick={onStart} style={{ padding: '16px 30px', fontSize: 15 }}>Build your Twin</MagneticCTA>
             <div style={{ marginTop: 16 }}>
               <button onClick={onStart} style={{ background: 'none', border: 'none', color: '#8e9ab8', cursor: 'pointer', fontSize: 13 }}>I already have an account →</button>
             </div>
@@ -175,7 +260,31 @@ export default function Landing({ onStart }) {
       </div>
 
       {legal && <LegalOverlay doc={legal} onClose={() => setLegal(null)} />}
-      <style>{`@keyframes lpspin{to{transform:rotate(360deg)}} @keyframes lpfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}`}</style>
+      <style>{`
+        @keyframes lpspin{to{transform:rotate(360deg)}}
+        @keyframes lpfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+        @keyframes lpmarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+        @keyframes lpaurora{0%,100%{transform:translate(-4%,-3%) rotate(0deg)}50%{transform:translate(4%,3%) rotate(8deg)}}
+        @keyframes lpshine{to{background-position:200% center}}
+        .lp-shine{background-size:200% auto;animation:lpshine 5s linear infinite}
+        .lp-marquee-track{animation:lpmarquee 32s linear infinite}
+        .lp-aurora{background:
+          radial-gradient(40% 32% at 22% 30%, rgba(245,181,114,.10), transparent 60%),
+          radial-gradient(36% 30% at 78% 62%, rgba(76,201,240,.08), transparent 60%),
+          radial-gradient(30% 26% at 60% 12%, rgba(217,122,69,.08), transparent 60%);
+          filter:blur(20px); animation:lpaurora 24s ease-in-out infinite}
+        .lp-grain{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E")}
+        /* magnetic CTA: sheen sweep + lift on hover */
+        .lp-cta{position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s ease}
+        .lp-cta::after{content:"";position:absolute;top:0;left:-130%;width:60%;height:100%;
+          background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-18deg);transition:left .6s ease}
+        .lp-cta:hover{transform:translateY(-2px)}
+        .lp-cta:hover::after{left:140%}
+        .btn.primary.lp-cta:hover{box-shadow:0 10px 30px -8px rgba(245,181,114,.55)}
+        /* card hover lift on reveal cards */
+        [data-reveal]{transition:opacity .9s cubic-bezier(.22,1,.36,1),transform 1s cubic-bezier(.22,1,.36,1)}
+        @media (prefers-reduced-motion: reduce){.lp-marquee-track,.lp-aurora{animation:none}}
+      `}</style>
     </div>
   );
 }
