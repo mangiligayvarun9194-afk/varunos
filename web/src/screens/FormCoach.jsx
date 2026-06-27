@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EXERCISES, RepEngine, LOG_MAP, estimateLoad } from '../lib/formcoach.js';
 import { detect as detectMuscle, MUSCLE_LABEL } from '../lib/musclenet.js';
 import MUSCLE_MODEL from '../lib/muscle_model.json';
+import { ExerciseDetector } from '../lib/exercisedetect.js';
 import { api, getProfile } from '../api.js';
 import { useToast } from '../components/ui.jsx';
 import { Skeleton } from '../components/kit.jsx';
@@ -33,11 +34,14 @@ export default function FormCoach({ onTab }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const engineRef = useRef(new RepEngine('squat'));
+  const detectorRef = useRef(new ExerciseDetector());
   const markerRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(0);
 
   const [exId, setExId] = useState('squat');
+  const [auto, setAuto] = useState(true);       // let the camera name the lift
+  const [detected, setDetected] = useState(null); // live { exId, confidence, stable }
   const [status, setStatus] = useState('idle'); // idle | loading | running | error
   const [err, setErr] = useState('');
   const [hud, setHud] = useState({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
@@ -46,17 +50,22 @@ export default function FormCoach({ onTab }) {
   const [logged, setLogged] = useState(null); // confirmation after logging a set
   const [logging, setLogging] = useState(false);
   const [muscle, setMuscle] = useState(null);   // live AI muscle detection
-  const lastRef = useRef({ hud: '', guide: '', frame: 0, muscle: '' });
+  const lastRef = useRef({ hud: '', guide: '', frame: 0, muscle: '', det: '' });
+  const autoRef = useRef(auto);
   const toast = useToast();
+
+  // Keep the rAF loop's view of `auto` fresh without re-creating the loop.
+  useEffect(() => { autoRef.current = auto; }, [auto]);
 
   const ex = EXERCISES[exId];
 
   // Switching exercise resets the set.
   useEffect(() => {
     engineRef.current.set(exId);
+    detectorRef.current.reset();
     setHud({ reps: 0, goodReps: 0, phase: 'up', angle: null, valid: false });
     setFlash(null); setGuide(null); setLogged(null); setMuscle(null);
-    lastRef.current = { hud: '', guide: '', frame: 0, muscle: '' };
+    lastRef.current = { hud: '', guide: '', frame: 0, muscle: '', det: '' };
   }, [exId]);
 
   // The unique loop: camera-coached reps → a real logged set → the Twin grows
@@ -109,6 +118,7 @@ export default function FormCoach({ onTab }) {
   async function start() {
     setStatus('loading');
     setErr('');
+    detectorRef.current.reset(); setDetected(null);
     try {
       const vision = await import(/* @vite-ignore */ CDN);
       const fileset = await vision.FilesetResolver.forVisionTasks(`${CDN}/wasm`);
@@ -140,7 +150,7 @@ export default function FormCoach({ onTab }) {
   function stop() {
     teardown();
     setStatus('idle');
-    setMuscle(null); setGuide(null);
+    setMuscle(null); setGuide(null); setDetected(null);
   }
 
   function loop() {
@@ -165,7 +175,8 @@ export default function FormCoach({ onTab }) {
         if (g !== lastRef.current.guide) { lastRef.current.guide = g; setGuide(g); }
         if (r.event) setFlash(r.event);
 
-        // Live AI muscle detection (throttled ~6fps) — independent of the rep engine.
+        // Live AI muscle + exercise detection (throttled ~6fps), independent of
+        // the rep engine.
         lastRef.current.frame = (lastRef.current.frame + 1) % 5;
         if (pts && lastRef.current.frame === 0) {
           const d = detectMuscle(MUSCLE_MODEL, pts);
@@ -173,6 +184,24 @@ export default function FormCoach({ onTab }) {
           if (key !== lastRef.current.muscle) {
             lastRef.current.muscle = key;
             setMuscle(key ? { label: d.label, confidence: d.confidence } : null);
+          }
+
+          // Auto-detect which lift is being performed.
+          if (autoRef.current) {
+            const det = detectorRef.current.push(pts, now);
+            const dkey = det.exId ? `${det.exId}|${Math.round(det.confidence * 100)}|${det.stable ? 1 : 0}` : '';
+            if (dkey !== lastRef.current.det) {
+              lastRef.current.det = dkey;
+              setDetected(det.exId ? { ...det } : null);
+            }
+            // Only switch the lift before any rep is counted, so an in-progress
+            // set is never disrupted. The pills stay a one-tap manual override.
+            const cur = engineRef.current.ex.id;
+            if (det.stable && det.exId && det.exId !== cur &&
+                engineRef.current.reps === 0 && engineRef.current.phase === 'up') {
+              setExId(det.exId);
+              toast(`Auto-detected: ${EXERCISES[det.exId].label}`);
+            }
           }
         }
       }
@@ -238,13 +267,30 @@ export default function FormCoach({ onTab }) {
         </div>
       </div>
 
-      {/* exercise picker */}
-      <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 6, marginBottom: 12, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+      {/* exercise picker — "Auto" lets the camera name the lift; tapping any pill
+          pins it manually. */}
+      <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 6, marginBottom: 6, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+        <button className={`btn ${auto ? 'primary' : 'ghost'}`}
+          style={{ flex: '0 0 auto', padding: '8px 14px', fontSize: 13, whiteSpace: 'nowrap' }}
+          onClick={() => { setAuto(true); detectorRef.current.reset(); setDetected(null); }}>✨ Auto</button>
         {EX_LIST.map((e) => (
-          <button key={e.id} className={`btn ${exId === e.id ? 'primary' : 'ghost'}`}
-            style={{ flex: '0 0 auto', padding: '8px 14px', fontSize: 13, whiteSpace: 'nowrap' }} onClick={() => setExId(e.id)}>{e.label}</button>
+          <button key={e.id} className={`btn ${!auto && exId === e.id ? 'primary' : 'ghost'}`}
+            style={{ flex: '0 0 auto', padding: '8px 14px', fontSize: 13, whiteSpace: 'nowrap' }}
+            onClick={() => { setAuto(false); setExId(e.id); }}>{e.label}</button>
         ))}
       </div>
+      {/* detection status line (auto mode) */}
+      {auto && (
+        <p className="meta" style={{ margin: '0 2px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {status === 'running'
+            ? (detected && detected.exId
+                ? <><span style={{ color: detected.stable ? 'var(--mint)' : 'var(--dim)' }}>
+                    {detected.stable ? '✓ ' : '… '}Detected <b>{EXERCISES[detected.exId].label}</b></span>
+                    <span style={{ color: 'var(--mute)' }}>{Math.round(detected.confidence * 100)}%</span></>
+                : <span style={{ color: 'var(--dim)' }}>Start a rep — I’ll name the lift</span>)
+            : <span style={{ color: 'var(--mute)' }}>Auto-detect on · or tap a lift to set it yourself</span>}
+        </p>
+      )}
 
       {/* camera stage */}
       <div style={{
