@@ -290,6 +290,19 @@ def insights_strength():
     return si.analyze(sets, name_of=name_of)
 
 
+@router.get("/v1/readiness/muscles")
+def readiness_muscles():
+    """Per-muscle recovery + what's ready to train today. Recovery rises with time
+    since a group was last trained, slower after heavy days; the recommendation
+    nudges up under-trained groups (from Strength Intelligence)."""
+    uid = _user_id_from_default()
+    from varunos.core import readiness_muscle as rm
+    from varunos.core import strength_intel as si
+    sets = db.list_sets_since(uid, "1970-01-01")
+    undertrained = si.muscle_balance(sets).get("undertrained")
+    return rm.analyze(sets, undertrained=undertrained)
+
+
 class LegalAcceptIn(BaseModel):
     version: str
 
@@ -1067,14 +1080,20 @@ def _hermes_observations(uid: str, snap: dict) -> list[dict]:
     warnings = [a.get("title") for a in ins.get("anomalies", []) if a.get("title")]
     correlations = [c.get("title") for c in ins.get("correlations", []) if c.get("title")]
 
-    # Strength intelligence over the full logged history (stalls, PRs, balance).
+    # Strength intelligence + per-muscle readiness over the full logged history.
+    strength = readiness = None
     try:
         from varunos.core import strength_intel as si
         from varunos.core import exercises as ex
+        from varunos.core import readiness_muscle as rm
         sets = db.list_sets_since(uid, "1970-01-01")
         strength = si.analyze(sets, name_of=lambda i: (ex.get_exercise(i) or {}).get("name", i))
+        # Only coach readiness once there's training history (a blank user isn't
+        # "recovering" anything — same honesty gate as neglected-muscle coaching).
+        if sets:
+            readiness = rm.analyze(sets, undertrained=(strength.get("muscle_balance") or {}).get("undertrained"))
     except Exception:
-        strength = None
+        pass
 
     return observations(
         goal_lines=goal_lines,
@@ -1084,6 +1103,7 @@ def _hermes_observations(uid: str, snap: dict) -> list[dict]:
         last_workout_days=_days_since_last_workout(uid),
         streak_weeks=_streak_weeks(uid),
         strength=strength,
+        readiness=readiness,
         level=snap.get("level", 0),
     )
 

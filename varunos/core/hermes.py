@@ -319,6 +319,23 @@ def _num(v) -> str:
     return str(int(f)) if f == int(f) else f"{f:g}"
 
 
+def _readiness_observations(readiness: Optional[dict]) -> list[dict]:
+    """One recovery-aware coaching line from per-muscle readiness. The actionable
+    'ease off' warning wins; otherwise suggest what's fresh."""
+    if not readiness:
+        return []
+    cap = lambda gs: ", ".join(g.capitalize() for g in gs)
+    avoid = readiness.get("avoid") or []
+    train = readiness.get("train_today") or []
+    if avoid:
+        verb = "is" if len(avoid) == 1 else "are"
+        return [{"kind": "coach", "text": f"{cap(avoid)} {verb} still recovering — ease off there today."}]
+    if train:
+        verb = "is" if len(train) == 1 else "are"
+        return [{"kind": "coach", "text": f"{cap(train)} {verb} fresh and ready — a good day to train them."}]
+    return []
+
+
 def _strength_observations(strength: Optional[dict]) -> list[dict]:
     """Turn a strength_intel report into 0-3 specific coaching lines, ranked
     most-actionable first. Empty if there's nothing true to say."""
@@ -360,6 +377,7 @@ def observations(
     streak_weeks: int = 0,
     readiness_trend: Optional[str] = None,  # "down" | "up" | None
     strength: Optional[dict] = None,         # strength_intel.analyze() output
+    readiness: Optional[dict] = None,        # readiness_muscle.analyze() output
     level: int = 0,
     limit: int = 4,
 ) -> list[dict]:
@@ -373,6 +391,8 @@ def observations(
         out.append({"kind": "warning", "text": w})
     # Strength-intelligence coaching — specific, drawn from real logged history.
     out.extend(_strength_observations(strength))
+    # Recovery-aware "what to train today" from per-muscle readiness.
+    out.extend(_readiness_observations(readiness))
     if last_workout_days is not None and last_workout_days >= 4:
         out.append({"kind": "nudge",
                     "text": f"It's been {last_workout_days} days since your last logged session."})

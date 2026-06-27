@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, getProfile } from '../api.js';
 import { Ring, CountUp, stagger, rise, confettiBurst } from '../components/ui.jsx';
-import { Skeleton, EmptyState, ErrorState, Button } from '../components/kit.jsx';
+import { Skeleton, EmptyState, ErrorState, Button, DataState } from '../components/kit.jsx';
 import { IconBarbell, IconFork, IconArrow, IconSparkle, IconMoon, IconWatch } from '../components/Icons.jsx';
 
 const SRC_LABELS = { apple_health: 'Apple Health', fitbit: 'Fitbit', oura: 'Oura', whoop: 'Whoop', garmin: 'Garmin' };
@@ -106,6 +106,12 @@ export default function Today({ onOpenSheet, onTab }) {
           </div>
         </motion.div>
       )}
+
+      {/* per-muscle readiness — what's recovered and ready to train */}
+      <motion.div variants={rise}>
+        <div className="micro">Ready to train</div>
+        <MuscleReadiness />
+      </motion.div>
 
       {/* workout */}
       <motion.div variants={rise}>
@@ -318,6 +324,54 @@ function DietCard({ d, consumed, onLog }) {
         ))}
       </div>
       <button className="btn ghost full" onClick={onLog}>+ Log a meal</button>
+    </div>
+  );
+}
+
+// ---- Per-muscle readiness ----
+const GROUP_LABEL = { legs: 'Legs', chest: 'Chest', back: 'Back', shoulders: 'Shoulders', arms: 'Arms', core: 'Core' };
+const STATUS_TONE = { fresh: 'var(--green)', moderate: 'var(--amber)', fatigued: 'var(--red)' };
+
+function MuscleReadiness() {
+  const [r, setR] = useState(undefined);
+  useEffect(() => {
+    let on = true;
+    api('/v1/readiness/muscles').then((d) => on && setR(d)).catch(() => on && setR({ error: 'unavailable' }));
+    return () => { on = false; };
+  }, []);
+  return (
+    <DataState loading={r === undefined} error={r?.error} skeleton={<Skeleton height={150} radius={18} />}>
+      {r && !r.error && <ReadinessBody r={r} />}
+    </DataState>
+  );
+}
+
+function ReadinessBody({ r }) {
+  const order = ['legs', 'back', 'chest', 'shoulders', 'arms', 'core'];
+  const label = (gs) => gs.map((g) => GROUP_LABEL[g] || g).join(', ');
+  return (
+    <div className="card">
+      {order.map((g) => {
+        const v = r.muscles[g]; if (!v) return null;
+        const tone = STATUS_TONE[v.status] || 'var(--mute)';
+        return (
+          <div key={g} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 }}>
+            <span style={{ width: 74, fontSize: 12, color: 'var(--dim)' }}>{GROUP_LABEL[g]}</span>
+            <div style={{ flex: 1, height: 8, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{ width: `${v.recovery}%`, height: '100%', borderRadius: 99, background: tone, transition: 'width 0.9s cubic-bezier(.22,1,.36,1)' }} />
+            </div>
+            <span style={{ width: 70, textAlign: 'right', fontSize: 11, color: tone, fontWeight: 600, textTransform: 'capitalize' }}>{v.status}</span>
+          </div>
+        );
+      })}
+      <div style={{ marginTop: 10, paddingTop: 12, borderTop: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {r.train_today?.length > 0 && (
+          <p style={{ fontSize: 13 }}><span style={{ color: 'var(--green)', fontWeight: 700 }}>Train today:</span> {label(r.train_today)}</p>
+        )}
+        {r.avoid?.length > 0 && (
+          <p style={{ fontSize: 13 }}><span style={{ color: 'var(--amber)', fontWeight: 700 }}>Ease off:</span> {label(r.avoid)} — still recovering</p>
+        )}
+      </div>
     </div>
   );
 }

@@ -204,3 +204,12 @@ class TestObservations:
     def test_no_strength_data_adds_nothing(self):
         assert observations(strength=None) == []
         assert observations(strength={"highlights": {}}) == []
+
+    def test_readiness_becomes_coaching(self):
+        obs = observations(readiness={"train_today": ["chest", "back"], "avoid": ["legs"]}, limit=6)
+        texts = " | ".join(o["text"] for o in obs)
+        assert "Legs" in texts and "still recovering" in texts   # 'ease off' wins
+        # when nothing's fatigued, suggest what's fresh
+        obs2 = observations(readiness={"train_today": ["core"], "avoid": []}, limit=6)
+        assert any("Core is fresh and ready" in o["text"] for o in obs2)
+        assert observations(readiness=None) == []
