@@ -115,9 +115,20 @@ const MUSCLE_NODES = {
 // Which muscle a lift "lights up" — the just-trained group pulses on the Twin.
 const MODE_GROUP = { squat: 'legs', deadlift: 'legs', press: 'shoulders', curl: 'arms', row: 'back' };
 
+// Cheap 3D value-noise (hash-based) for muscle striations + coursing energy veins.
+const NOISE_GLSL = `
+varying vec3 vObjPos;
+float h31(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float vnoise(vec3 x){ vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h31(i+vec3(0,0,0)),h31(i+vec3(1,0,0)),f.x), mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x), mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x),f.y), f.z); }
+`;
+
 // GLSL injected into the avatar's PBR shader: each vertex carries a muscle-group id
-// (aMuscle); we light that group from within in molten gold (fresh) → ember (fatigued),
-// add a living energy "flow", a per-group "just-trained" pulse, and a warm fresnel rim.
+// (aMuscle) + a stable body coord (vObjPos). We light that group from within in molten
+// gold (fresh) → ember (fatigued), etch fine muscle STRIATIONS for definition, flow
+// coursing energy VEINS up the body, add a per-group just-trained pulse, and a warm
+// fresnel rim so the obsidian silhouette keeps its form.
 const EMISSIVE_INJECT = `#include <emissivemap_fragment>
   int mg = int(vMuscle + 0.5);
   float act = 0.0; float pul = 0.0;
@@ -127,11 +138,13 @@ const EMISSIVE_INJECT = `#include <emissivemap_fragment>
   vec3 goldC = vec3(1.0, 0.66, 0.26);
   vec3 emberC = vec3(0.85, 0.20, 0.08);
   vec3 mcol = mix(emberC, goldC, a);
-  float flow = 0.62 + 0.38 * sin(uTime * 1.7 + vViewPosition.y * 3.2 + vMuscle * 2.1);
-  float glow = a2 * flow + pul;
-  // fresnel rim picks out the silhouette so the obsidian body keeps its form
+  float fiber = 0.62 + 0.38 * sin(vObjPos.y * 130.0 + vnoise(vObjPos * 9.0) * 7.0); // striations
+  float vn = vnoise(vObjPos * 5.5 + vec3(0.0, -uTime * 0.45, 0.0));
+  float vein = smoothstep(0.80, 0.93, vn) * a;                                       // coursing energy
+  float flow = 0.62 + 0.38 * sin(uTime * 1.7 + vObjPos.y * 3.2 + vMuscle * 2.1);
+  float glow = a2 * flow * mix(0.68, 1.0, fiber) + pul;
   float fres = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
-  totalEmissiveRadiance += mcol * glow * 0.55 + vec3(1.0, 0.78, 0.42) * fres * 0.4;`;
+  totalEmissiveRadiance += mcol * glow * 0.55 + goldC * vein * 0.5 + vec3(1.0, 0.78, 0.42) * fres * 0.4;`;
 
 export default function Twin() {
   const toast = useToast();
@@ -307,9 +320,10 @@ export default function Twin() {
             sh.uniforms.uTime = muscleU.uTime;
             sh.uniforms.uAct = muscleU.uAct;
             sh.uniforms.uPulse = muscleU.uPulse;
-            sh.vertexShader = 'attribute float aMuscle;\nvarying float vMuscle;\n'
-              + sh.vertexShader.replace('void main() {', 'void main() {\n  vMuscle = aMuscle;');
+            sh.vertexShader = 'attribute float aMuscle;\nvarying float vMuscle;\nvarying vec3 vObjPos;\n'
+              + sh.vertexShader.replace('void main() {', 'void main() {\n  vMuscle = aMuscle;\n  vObjPos = position;');
             sh.fragmentShader = 'varying float vMuscle;\nuniform float uTime;\nuniform float uAct[8];\nuniform float uPulse[8];\n'
+              + NOISE_GLSL
               + sh.fragmentShader.replace('#include <emissivemap_fragment>', EMISSIVE_INJECT);
           };
           mat.customProgramCacheKey = () => 'twin-muscle';
