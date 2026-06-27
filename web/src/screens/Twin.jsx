@@ -183,10 +183,8 @@ export default function Twin() {
   const readyRef = useRef(null);                    // 8-group activation target for the shader
   const scanRef = useRef(null);                     // 8-group mask of the next muscles to train
 
-  useEffect(() => {
-    const lastEx = localStorage.getItem('twin_last_ex');
-    if (lastEx) { const m = classifyExercise(lastEx); setMode(m); modeRef.current = m; }
-  }, []);
+  // The Twin just stands in idle (the Living-Anatomy avatar). Exercise mocap was
+  // removed — the clips didn't animate cleanly, and the avatar is the centerpiece.
 
   // Stats render even if the 3D engine can't load — and drive the level-up moment.
   useEffect(() => {
@@ -891,30 +889,6 @@ export default function Twin() {
         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'linear-gradient(90deg,#f5b572,#ffd9a3)' }} /> fresh</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'linear-gradient(90deg,#d97a45,#f24322)' }} /> fatigued</span>
         <span style={{ color: 'var(--dim)' }}>· your muscles glow by recovery — tap any to read it</span>
-      </motion.div>
-
-      {/* action pills (scroll horizontally — the Twin performs each lift) */}
-      <motion.div variants={rise} style={{
-        display: 'flex', gap: 6, margin: '12px 0', background: 'var(--surface)',
-        border: '1px solid var(--line)', borderRadius: 16, padding: 5,
-        overflowX: 'auto', scrollbarWidth: 'none',
-      }}>
-        {ACTIONS.map((a) => {
-          const active = mode === a.id;
-          return (
-            <button key={a.id} onClick={() => setAction(a.id)} style={{
-              position: 'relative', flex: '0 0 auto', background: 'none', border: 'none', cursor: 'pointer',
-              padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap',
-              fontFamily: 'var(--font-display)', color: active ? '#1a0f06' : 'var(--dim)', transition: 'color 0.18s',
-            }}>
-              {active && (
-                <motion.span layoutId="twin-action" transition={{ type: 'spring', stiffness: 480, damping: 36 }}
-                  style={{ position: 'absolute', inset: 0, borderRadius: 12, background: 'var(--mint)' }} />
-              )}
-              <span style={{ position: 'relative' }}>{a.label}</span>
-            </button>
-          );
-        })}
       </motion.div>
 
       {/* stage progression track */}
