@@ -290,6 +290,19 @@ def insights_strength():
     return si.analyze(sets, name_of=name_of)
 
 
+class LegalAcceptIn(BaseModel):
+    version: str
+
+
+@router.post("/v1/legal/accept")
+def legal_accept(payload: LegalAcceptIn):
+    """Record that the current user accepted the Privacy Policy + Terms (version).
+    Auditable via the event log; the version lets us require re-acceptance later."""
+    uid = _user_id_from_default()
+    db.log_event(uid, "legal_accepted", channel="api", payload={"version": payload.version})
+    return {"ok": True, "version": payload.version}
+
+
 class ImportHevyIn(BaseModel):
     csv: str
 

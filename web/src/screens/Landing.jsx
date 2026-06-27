@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { initStage } from '../lib/twinStage.js';
 import { useCountUp, useInView } from '../lib/motion.js';
+import { LegalOverlay } from './Legal.jsx';
 
 const MODEL = '/models/twin-custom.glb';
 const GOLD = '#f5b572';
@@ -14,6 +15,7 @@ export default function Landing({ onStart }) {
   const stageRef = useRef(null);
   const [status, setStatus] = useState('loading'); // loading | ready | poster
   const [seen, setSeen] = useState(false);         // hero in view → start count-ups
+  const [legal, setLegal] = useState(null);        // null | 'privacy' | 'terms'
 
   useEffect(() => {
     let stage = null;
@@ -160,12 +162,25 @@ export default function Landing({ onStart }) {
             </div>
           </div>
         </Scene>
+
+        {/* footer */}
+        <footer style={{ position: 'relative', zIndex: 2, padding: '28px 24px 36px', textAlign: 'center',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: '#59648a', fontSize: 12 }}>
+          <div style={{ display: 'flex', gap: 18 }}>
+            <button onClick={() => setLegal('privacy')} style={footLink}>Privacy</button>
+            <button onClick={() => setLegal('terms')} style={footLink}>Terms</button>
+          </div>
+          <span>© {new Date().getFullYear()} Sarathi · Private AI Health OS</span>
+        </footer>
       </div>
 
+      {legal && <LegalOverlay doc={legal} onClose={() => setLegal(null)} />}
       <style>{`@keyframes lpspin{to{transform:rotate(360deg)}} @keyframes lpfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}`}</style>
     </div>
   );
 }
+
+const footLink = { background: 'none', border: 'none', color: '#8e9ab8', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' };
 
 function Scene({ children, id }) {
   return (

@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { API_BASE, setConnection } from '../api.js';
 import { IconSparkle } from '../components/Icons.jsx';
+import { LegalOverlay, LEGAL_VERSION } from './Legal.jsx';
 
 export default function Auth({ onAuthed }) {
   const [mode, setMode] = useState('signup'); // signup | login
@@ -16,6 +17,8 @@ export default function Auth({ onAuthed }) {
   const [status, setStatus] = useState(null);
   const [advanced, setAdvanced] = useState(false);
   const [key, setKey] = useState('');
+  const [legal, setLegal] = useState(null); // null | 'privacy' | 'terms'
+  const linkBtn = { background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' };
 
   async function submit() {
     const e = email.trim().toLowerCase();
@@ -32,6 +35,16 @@ export default function Auth({ onAuthed }) {
       if (res.ok && data.token) {
         setConnection(base.trim(), data.token);
         localStorage.setItem('varunos_onboarded', '1');
+        // Record acceptance of the current Privacy Policy + Terms (continuing use
+        // = acceptance, per the notice below the form). Auditable server-side.
+        if (localStorage.getItem('sarathi_legal_version') !== LEGAL_VERSION) {
+          localStorage.setItem('sarathi_legal_version', LEGAL_VERSION);
+          fetch(base.trim() + '/v1/legal/accept', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.token },
+            body: JSON.stringify({ version: LEGAL_VERSION }),
+          }).catch(() => {});
+        }
         if (data.user?.name) {
           const prof = JSON.parse(localStorage.getItem('varunos_profile') || '{}');
           localStorage.setItem('varunos_profile', JSON.stringify({ ...prof, name: data.user.name, user_id: data.user.user_id }));
@@ -118,8 +131,10 @@ export default function Auth({ onAuthed }) {
         {status && <p className={status.tone} style={{ textAlign: 'center', marginTop: 12 }}>{status.msg}</p>}
 
         <p className="meta" style={{ textAlign: 'center', fontSize: 11, marginTop: 18, lineHeight: 1.6 }}>
-          Your raw health data never leaves your control. By continuing you accept that Sarathi is an
-          educational tool, not a medical device.
+          Your raw health data never leaves your control. By continuing you accept our{' '}
+          <button onClick={() => setLegal('terms')} style={linkBtn}>Terms</button> and{' '}
+          <button onClick={() => setLegal('privacy')} style={linkBtn}>Privacy Policy</button>, and that
+          Sarathi is an educational tool, not a medical device.
         </p>
 
         {/* advanced: self-host / owner key */}
@@ -144,6 +159,7 @@ export default function Auth({ onAuthed }) {
           </div>
         )}
       </div>
+      {legal && <LegalOverlay doc={legal} onClose={() => setLegal(null)} />}
     </div>
   );
 }

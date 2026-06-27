@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, API_BASE, API_KEY, setConnection, getProfile, saveProfileLocal, makePairLink } from '../api.js';
 import { Sheet, useToast, stagger, rise, PageHeader } from '../components/ui.jsx';
+import { LegalOverlay } from './Legal.jsx';
 import { IconWatch, IconLock, IconLink, IconShield, IconVault, IconDownload } from '../components/Icons.jsx';
 
 export default function Settings({ onTab, onSetupPin }) {
@@ -26,6 +27,7 @@ export default function Settings({ onTab, onSetupPin }) {
   const [testResult, setTestResult] = useState(null);
   const [me, setMe] = useState(null);
   const [imp, setImp] = useState(null);     // workout-history import status
+  const [legal, setLegal] = useState(null); // null | 'privacy' | 'terms'
   const importRef = useRef(null);
 
   async function importHistory(e) {
@@ -390,9 +392,19 @@ export default function Settings({ onTab, onSetupPin }) {
         </div>
       </motion.div>
 
+      <motion.div variants={rise} className="card">
+        <h3 style={{ marginBottom: 8 }}>Legal & privacy</h3>
+        <p className="meta" style={{ marginBottom: 12 }}>How your data is handled, and the terms of use.</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn ghost" style={{ flex: 1 }} onClick={() => setLegal('privacy')}>Privacy Policy</button>
+          <button className="btn ghost" style={{ flex: 1 }} onClick={() => setLegal('terms')}>Terms</button>
+        </div>
+      </motion.div>
+
       <Sheet open={manualOpen} onClose={() => setManualOpen(false)} title="Enter today's watch data">
         <ManualSync onDone={() => { setManualOpen(false); refreshSync(); onTab('today'); }} />
       </Sheet>
+      {legal && <LegalOverlay doc={legal} onClose={() => setLegal(null)} />}
     </motion.div>
   );
 }
