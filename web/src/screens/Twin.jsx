@@ -138,13 +138,18 @@ const EMISSIVE_INJECT = `#include <emissivemap_fragment>
   vec3 goldC = vec3(1.0, 0.66, 0.26);
   vec3 emberC = vec3(0.85, 0.20, 0.08);
   vec3 mcol = mix(emberC, goldC, a);
-  float fiber = 0.62 + 0.38 * sin(vObjPos.y * 130.0 + vnoise(vObjPos * 9.0) * 7.0); // striations
+  // muscle fibers run VERTICALLY (wrap the limb/torso axis), broken up by noise
+  float th = atan(vObjPos.z, vObjPos.x);
+  float fiber = 0.62 + 0.38 * sin(th * 26.0 + vObjPos.y * 14.0 + vnoise(vObjPos * 8.0) * 6.0);
   float vn = vnoise(vObjPos * 5.5 + vec3(0.0, -uTime * 0.45, 0.0));
   float vein = smoothstep(0.80, 0.93, vn) * a;                                       // coursing energy
-  float flow = 0.62 + 0.38 * sin(uTime * 1.7 + vObjPos.y * 3.2 + vMuscle * 2.1);
-  float glow = a2 * flow * mix(0.68, 1.0, fiber) + pul;
-  float fres = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
-  totalEmissiveRadiance += mcol * glow * 0.55 + goldC * vein * 0.5 + vec3(1.0, 0.78, 0.42) * fres * 0.4;`;
+  float flow = 0.70 + 0.30 * sin(uTime * 1.6 + vObjPos.y * 3.0 + vMuscle * 2.1);
+  // facing ratio → bright "lit from inside the muscle" core, dark toward the edges
+  float facing = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+  float core = pow(facing, 1.7);
+  float glow = a2 * flow * mix(0.66, 1.0, fiber) * (0.45 + 0.55 * core) + pul;
+  float fres = pow(1.0 - facing, 3.0);                                              // silhouette rim
+  totalEmissiveRadiance += mcol * glow * 0.7 + goldC * vein * 0.5 + vec3(1.0, 0.78, 0.42) * fres * 0.4;`;
 
 export default function Twin() {
   const toast = useToast();
@@ -260,8 +265,8 @@ export default function Twin() {
         // Glowing floor disc + concentric pulse rings.
         const floor = new THREE.Mesh(
           new THREE.CircleGeometry(1.3, 64),
-          new THREE.MeshStandardMaterial({ color: 0x070b12, metalness: 0.95, roughness: 0.18,
-            envMapIntensity: 0.7 }));
+          new THREE.MeshStandardMaterial({ color: 0x05080f, metalness: 1.0, roughness: 0.08,
+            envMapIntensity: 1.0 }));
         floor.rotation.x = -Math.PI / 2; scene.add(floor);
         const rings = [];
         for (let k = 0; k < 3; k++) {
@@ -727,13 +732,22 @@ export default function Twin() {
 
       {/* 3D stage with aurora backdrop + HUD */}
       <motion.div variants={rise} className="card" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
-        {/* animated aurora behind the figure */}
+        {/* animated stage aura behind the figure — a breathing halo + slow drift,
+            tinted by the avatar's stage colour. */}
         <motion.div aria-hidden
-          animate={{ opacity: [0.5, 0.8, 0.5] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          animate={{ opacity: [0.45, 0.85, 0.45], scale: [1, 1.06, 1] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
           style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: `radial-gradient(ellipse at 50% 24%, ${accent}26 0%, transparent 60%)`,
+            background: `radial-gradient(ellipse 60% 50% at 50% 34%, ${accent}33 0%, transparent 62%)`,
+          }} />
+        <motion.div aria-hidden
+          animate={{ opacity: [0.18, 0.4, 0.18], rotate: [0, 8, 0] }}
+          transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
+          style={{
+            position: 'absolute', inset: '-10%', pointerEvents: 'none',
+            background: `conic-gradient(from 200deg at 50% 40%, transparent, ${accent}22, transparent 45%)`,
+            filter: 'blur(24px)',
           }} />
         <div ref={stageRef} key={bootId} style={{
           width: '100%', height: 460, position: 'relative',
