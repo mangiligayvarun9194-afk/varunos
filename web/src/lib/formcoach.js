@@ -41,36 +41,72 @@ export const SIDE = {
   right: { shoulder: 12, elbow: 14, wrist: 16, hip: 24, knee: 26, ankle: 28 },
 };
 
+// DECLARATIVE EXERCISE SPECS — each lift is data, not code, so the library scales
+// to the whole camera-friendly strength catalogue without touching the engine.
+// A spec names the dominant joint (3 landmarks), the movement DIRECTION, and the
+// two angles that bound a rep:
+//   • direction 'flex'   — the working end is a SMALLER joint angle (squat, curl,
+//                          push-up, row, sit-up, hinge).
+//   • direction 'extend' — the working end is a LARGER angle (overhead press,
+//                          triceps pushdown, lateral/front raise, hip thrust).
+//   • restAngle  — the relaxed / locked-out position (start of a rep).
+//   • peakAngle  — the working contraction (the depth a clean rep must reach).
+// deriveThresholds() turns these two intuitive numbers into the engine's
+// effective-space thresholds, and the engine flips 'extend' lifts internally so
+// ONE state-machine drives every exercise. Adding a lift = adding a row here.
 export const EXERCISES = {
-  squat: {
-    id: 'squat', label: 'Squat', joints: ['hip', 'knee', 'ankle'],
-    extended: 160, repStart: 140, depthTarget: 100, minRange: 50,
-    setup: 'Stand side-on to the camera, full body in frame.',
-    cue: 'Sit the hips back, knees track over toes, chest tall.',
-    shallow: 'Go deeper — break parallel.',
-  },
-  pushup: {
-    id: 'pushup', label: 'Push-up', joints: ['shoulder', 'elbow', 'wrist'],
-    extended: 162, repStart: 130, depthTarget: 95, minRange: 45,
-    setup: 'Side-on to the camera so your whole body shows.',
-    cue: 'Body in one straight line, elbows ~45°, brace the core.',
-    shallow: 'Lower more — chest toward the floor.',
-  },
-  pullup: {
-    id: 'pullup', label: 'Pull-up', joints: ['shoulder', 'elbow', 'wrist'],
-    extended: 160, repStart: 140, depthTarget: 80, minRange: 50,
-    setup: 'Face or side-on to the camera, full body and the bar in frame.',
-    cue: 'Full dead hang at the bottom, pull the chest to the bar.',
-    shallow: 'Pull higher — chin over the bar.',
-  },
-  curl: {
-    id: 'curl', label: 'Curl', joints: ['shoulder', 'elbow', 'wrist'],
-    extended: 150, repStart: 110, depthTarget: 60, minRange: 55,
-    setup: 'Face or angle to the camera, working arm clearly visible.',
-    cue: 'Pin the elbow, full stretch at the bottom, squeeze at the top.',
-    shallow: 'Curl higher — full peak squeeze.',
-  },
+  // ---- legs / posterior chain ----
+  squat:      { id: 'squat', label: 'Squat', group: 'legs', joints: ['hip', 'knee', 'ankle'], direction: 'flex', restAngle: 172, peakAngle: 80,
+                setup: 'Stand side-on, full body in frame.', cue: 'Sit the hips back, knees over toes, chest tall.', shallow: 'Go deeper — break parallel.' },
+  lunge:      { id: 'lunge', label: 'Lunge', group: 'legs', joints: ['hip', 'knee', 'ankle'], direction: 'flex', restAngle: 170, peakAngle: 95,
+                setup: 'Side-on, front leg clearly visible.', cue: 'Drop straight down, front shin vertical.', shallow: 'Sink lower — back knee toward the floor.' },
+  rdl:        { id: 'rdl', label: 'RDL', group: 'legs', joints: ['shoulder', 'hip', 'knee'], direction: 'flex', restAngle: 175, peakAngle: 95,
+                setup: 'Side-on, whole torso and hips in frame.', cue: 'Hinge at the hips, soft knees, flat back.', shallow: 'Hinge further — feel the hamstrings.' },
+  deadlift:   { id: 'deadlift', label: 'Deadlift', group: 'back', joints: ['shoulder', 'hip', 'knee'], direction: 'flex', restAngle: 175, peakAngle: 88,
+                setup: 'Side-on, full body and the bar in frame.', cue: 'Flat back, push the floor away, lock the hips.', shallow: 'Reach the bar — full hip hinge.' },
+  hipthrust:  { id: 'hipthrust', label: 'Hip Thrust', group: 'legs', joints: ['shoulder', 'hip', 'knee'], direction: 'extend', restAngle: 110, peakAngle: 175,
+                setup: 'Side-on, hips and torso in frame.', cue: 'Drive through the heels, squeeze the glutes at the top.', shallow: 'Higher — full lockout at the top.' },
+  // ---- push ----
+  pushup:     { id: 'pushup', label: 'Push-up', group: 'chest', joints: ['shoulder', 'elbow', 'wrist'], direction: 'flex', restAngle: 165, peakAngle: 80,
+                setup: 'Side-on so your whole body shows.', cue: 'Body in one line, elbows ~45°, brace.', shallow: 'Lower more — chest toward the floor.' },
+  ohp:        { id: 'ohp', label: 'Press', group: 'shoulders', joints: ['shoulder', 'elbow', 'wrist'], direction: 'extend', restAngle: 65, peakAngle: 172,
+                setup: 'Face or side-on, arms in frame.', cue: 'Press straight overhead, lock out tall.', shallow: 'Press all the way to lockout.' },
+  // ---- pull ----
+  pullup:     { id: 'pullup', label: 'Pull-up', group: 'back', joints: ['shoulder', 'elbow', 'wrist'], direction: 'flex', restAngle: 172, peakAngle: 55,
+                setup: 'Face or side-on, full body and bar in frame.', cue: 'Full dead hang, pull the chest to the bar.', shallow: 'Pull higher — chin over the bar.' },
+  row:        { id: 'row', label: 'Row', group: 'back', joints: ['shoulder', 'elbow', 'wrist'], direction: 'flex', restAngle: 165, peakAngle: 60,
+                setup: 'Side-on, hinged over, arms visible.', cue: 'Lead with the elbow, pull to the hip.', shallow: 'Pull higher — squeeze the back.' },
+  // ---- arms ----
+  curl:       { id: 'curl', label: 'Curl', group: 'arms', joints: ['shoulder', 'elbow', 'wrist'], direction: 'flex', restAngle: 155, peakAngle: 45,
+                setup: 'Face or angle in, working arm visible.', cue: 'Pin the elbow, full stretch then squeeze.', shallow: 'Curl higher — full peak squeeze.' },
+  pushdown:   { id: 'pushdown', label: 'Pushdown', group: 'arms', joints: ['shoulder', 'elbow', 'wrist'], direction: 'extend', restAngle: 65, peakAngle: 172,
+                setup: 'Side-on, upper arm pinned, forearm visible.', cue: 'Elbows tucked, extend fully, squeeze the triceps.', shallow: 'Extend all the way — lock it out.' },
+  // ---- shoulders (raises) ----
+  lateralraise: { id: 'lateralraise', label: 'Lateral Raise', group: 'shoulders', joints: ['hip', 'shoulder', 'elbow'], direction: 'extend', restAngle: 18, peakAngle: 92,
+                setup: 'Face the camera, both arms in frame.', cue: 'Lead with the elbows, raise to shoulder height.', shallow: 'Raise to shoulder height.' },
+  frontraise: { id: 'frontraise', label: 'Front Raise', group: 'shoulders', joints: ['hip', 'shoulder', 'elbow'], direction: 'extend', restAngle: 18, peakAngle: 88,
+                setup: 'Side-on, working arm in frame.', cue: 'Raise straight in front to shoulder height.', shallow: 'Raise to shoulder height.' },
+  // ---- core ----
+  situp:      { id: 'situp', label: 'Sit-up', group: 'core', joints: ['shoulder', 'hip', 'knee'], direction: 'flex', restAngle: 155, peakAngle: 80,
+                setup: 'Side-on, whole torso in frame.', cue: 'Curl up under control, don’t yank the neck.', shallow: 'Come up higher.' },
 };
+
+// Turn a spec's two real-world angles into the engine's effective-space
+// thresholds. 'extend' lifts are flipped (eff = 180 - raw) so the same
+// large-rest → small-peak state-machine handles both movement directions.
+export function deriveThresholds(ex) {
+  const flex = ex.direction !== 'extend';
+  const effRest = flex ? ex.restAngle : 180 - ex.restAngle;   // large = relaxed
+  const effPeak = flex ? ex.peakAngle : 180 - ex.peakAngle;   // small = contracted
+  const span = Math.max(20, effRest - effPeak);
+  return {
+    flex,
+    extended: effRest - Math.min(8, span * 0.12),   // back to rest → tally a rep
+    repStart: effRest - span * 0.4,                  // clearly into the rep
+    depthTarget: effPeak + Math.min(12, span * 0.18),// a clean rep must reach here
+    minRange: span * 0.5,                            // real amplitude, not a twitch
+  };
+}
 
 // Logging map: a coached set → a real workout set. The exercise id is chosen so
 // the backend's muscle-keyword matcher routes the volume to the right group
@@ -80,10 +116,20 @@ export const EXERCISES = {
 // the hands, pull-up ≈ full BW, curl ≈ a light arm load). Clearly an estimate —
 // the point is that camera reps feed progress + the Twin's growth, honestly.
 export const LOG_MAP = {
-  squat:  { logId: 'squat',  group: 'legs',  loadFactor: 0.90 },
-  pushup: { logId: 'pushup', group: 'chest', loadFactor: 0.65 },
-  pullup: { logId: 'pullup', group: 'back',  loadFactor: 1.00 },
-  curl:   { logId: 'curl',   group: 'arms',  loadFactor: 0.12 },
+  squat:        { logId: 'squat',            group: 'legs',      loadFactor: 0.90 },
+  lunge:        { logId: 'lunge',            group: 'legs',      loadFactor: 0.60 },
+  rdl:          { logId: 'rdl',              group: 'legs',      loadFactor: 0.70 },
+  deadlift:     { logId: 'deadlift',         group: 'back',      loadFactor: 1.00 },
+  hipthrust:    { logId: 'hip_thrust',       group: 'legs',      loadFactor: 0.85 },
+  pushup:       { logId: 'pushup',           group: 'chest',     loadFactor: 0.65 },
+  ohp:          { logId: 'overhead_press',   group: 'shoulders', loadFactor: 0.25 },
+  pullup:       { logId: 'pullup',           group: 'back',      loadFactor: 1.00 },
+  row:          { logId: 'row',              group: 'back',      loadFactor: 0.30 },
+  curl:         { logId: 'curl',             group: 'arms',      loadFactor: 0.12 },
+  pushdown:     { logId: 'triceps_pushdown', group: 'arms',      loadFactor: 0.10 },
+  lateralraise: { logId: 'lateral_raise',    group: 'shoulders', loadFactor: 0.08 },
+  frontraise:   { logId: 'front_raise',      group: 'shoulders', loadFactor: 0.08 },
+  situp:        { logId: 'situp',            group: 'core',      loadFactor: 0.30 },
 };
 
 // Estimated working load (kg) for a coached bodyweight set.
@@ -174,6 +220,7 @@ export class RepEngine {
 
   set(exId) {
     this.ex = EXERCISES[exId] || EXERCISES.squat;
+    this.t = deriveThresholds(this.ex);   // effective-space thresholds for this lift
     this.reps = 0;
     this.goodReps = 0;
     this.phase = 'up';
@@ -221,15 +268,19 @@ export class RepEngine {
   }
 
   // Core machine — fed a raw joint angle. Directly unit-testable.
+  // 'extend' lifts are flipped to effective space (eff = 180 - raw) so the same
+  // large-rest → small-peak machine drives flexion and extension movements alike.
   step(rawAngle, t, side = this.side, quality = 1) {
     if (t == null) { this._t += 1000 / 30; t = this._t; } // assume ~30fps
-    const a = this._filter.filter(rawAngle, t);
+    const T = this.t || (this.t = deriveThresholds(this.ex));
+    const eff = T.flex ? rawAngle : 180 - rawAngle;
+    const a = this._filter.filter(eff, t);
     let event = null;
 
     if (this.phase === 'up') {
       // Track the highest extension seen — the top reference for the next rep.
       this._topRef = this._topRef == null ? a : Math.max(this._topRef, a);
-      if (a <= this.ex.repStart) this._downC += 1; else this._downC = 0;
+      if (a <= T.repStart) this._downC += 1; else this._downC = 0;
       if (this._downC >= CONFIRM_FRAMES) {
         this.phase = 'down';
         this._downC = 0; this._upC = 0;
@@ -238,15 +289,15 @@ export class RepEngine {
       }
     } else { // 'down'
       this._minInRep = Math.min(this._minInRep, a);
-      if (a >= this.ex.extended) this._upC += 1; else this._upC = 0;
+      if (a >= T.extended) this._upC += 1; else this._upC = 0;
       if (this._upC >= CONFIRM_FRAMES) {
         const top = this._topRef == null ? a : this._topRef;
         const range = top - this._minInRep;
         const dur = t - this._downT;
         // Only a movement of real amplitude AND duration is a rep.
-        if (range >= (this.ex.minRange || 45) && dur >= MIN_REP_MS) {
+        if (range >= T.minRange && dur >= MIN_REP_MS) {
           this.reps += 1;
-          const deep = this._minInRep <= this.ex.depthTarget;
+          const deep = this._minInRep <= T.depthTarget;
           if (deep) {
             this.goodReps += 1;
             event = { type: 'good', msg: `Good rep — ${this.reps}` };
@@ -262,8 +313,10 @@ export class RepEngine {
       }
     }
 
+    // Report the angle back in real-world terms for the HUD.
+    const disp = T.flex ? a : 180 - a;
     return this._frame({
-      valid: true, angle: Math.round(a), phase: this.phase, side, quality, event,
+      valid: true, angle: Math.round(disp), phase: this.phase, side, quality, event,
     });
   }
 

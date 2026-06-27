@@ -239,10 +239,10 @@ export default function FormCoach({ onTab }) {
       </div>
 
       {/* exercise picker */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 6, marginBottom: 12, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
         {EX_LIST.map((e) => (
           <button key={e.id} className={`btn ${exId === e.id ? 'primary' : 'ghost'}`}
-            style={{ flex: '1 1 22%', padding: '8px 6px', fontSize: 13 }} onClick={() => setExId(e.id)}>{e.label}</button>
+            style={{ flex: '0 0 auto', padding: '8px 14px', fontSize: 13, whiteSpace: 'nowrap' }} onClick={() => setExId(e.id)}>{e.label}</button>
         ))}
       </div>
 

@@ -3,7 +3,7 @@
 // No camera or browser needed — the engine is fed synthetic angle sequences
 // (and synthetic landmarks for the presence gate), which is exactly how the
 // strength science (depth) and the CV robustness (gating) are verified.
-import { angleDeg, poseQuality, OneEuro, RepEngine, EXERCISES, SIDE, LOG_MAP, estimateLoad } from '../src/lib/formcoach.js';
+import { angleDeg, poseQuality, OneEuro, RepEngine, EXERCISES, SIDE, LOG_MAP, estimateLoad, deriveThresholds } from '../src/lib/formcoach.js';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  FAIL:', m); } };
@@ -98,10 +98,25 @@ const pls = new RepEngine('pullup'); feed(pls, 175); feed(pls, 95);
 const pls_ev = feedEv(pls, 175);
 ok(pls.reps === 1 && pls.goodReps === 0 && pls_ev && pls_ev.type === 'shallow', 'shallow pull-up flagged');
 
+// --- bidirectional engine: an 'extend' lift (lateral raise) counts a rep ---
+// raw shoulder angle: arms down ~15° → raised ~95° → down. The engine flips it
+// internally so the same machine that does squats handles raises.
+const lr = new RepEngine('lateralraise');
+feed(lr, 15); feed(lr, 95); feed(lr, 15);
+ok(lr.reps === 1 && lr.goodReps === 1, 'extend-direction lateral raise counts a good rep (got ' + lr.reps + ')');
+// overhead press: racked ~65° → lockout ~172° → back
+const ohp = new RepEngine('ohp');
+feed(ohp, 65); feed(ohp, 172); feed(ohp, 65);
+ok(ohp.reps === 1, 'extend-direction press counts a rep (got ' + ohp.reps + ')');
+
 // --- camera→log loop: every coached lift maps to a real muscle group + load ---
 const KW = {
-  legs: ['squat', 'leg'], chest: ['bench', 'push_up', 'pushup'],
-  back: ['pull', 'row', 'lat'], arms: ['curl', 'tricep'],
+  legs: ['squat', 'leg', 'lunge', 'deadlift', 'rdl', 'calf', 'glute', 'hip'],
+  chest: ['bench', 'chest', 'fly', 'dip', 'push_up', 'pushup'],
+  back: ['row', 'pull', 'lat', 'chin', 'deadlift'],
+  shoulders: ['overhead', 'ohp', 'shoulder', 'lateral', 'raise', 'press'],
+  arms: ['curl', 'tricep', 'extension', 'pushdown', 'skull'],
+  core: ['plank', 'crunch', 'ab', 'situp', 'leg_raise'],
 };
 for (const exId of Object.keys(EXERCISES)) {
   const m = LOG_MAP[exId];
@@ -116,10 +131,13 @@ ok(estimateLoad('pullup', 80) === 80, 'pull-up load = full BW');
 ok(estimateLoad('squat', 0) > 0, 'missing bodyweight falls back to a sane default');
 ok(estimateLoad('unknown', 80) === 0, 'unknown exercise → no load');
 
-// --- config integrity: thresholds ordered so coaching can fire ---
+// --- config integrity: every spec derives a sane, ordered threshold set ---
 for (const e of Object.values(EXERCISES)) {
-  ok(e.repStart > e.depthTarget && e.extended > e.repStart && e.minRange > 0,
-    `${e.id} thresholds ordered (extended>repStart>depthTarget, minRange set)`);
+  const t = deriveThresholds(e);
+  ok(t.extended > t.repStart && t.repStart > t.depthTarget && t.minRange > 0,
+    `${e.id} derives ordered thresholds (extended>repStart>depthTarget, minRange set)`);
+  ok(['flex', 'extend'].includes(e.direction) && e.group && e.joints.length === 3,
+    `${e.id} spec is well-formed (direction, group, 3 joints)`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
