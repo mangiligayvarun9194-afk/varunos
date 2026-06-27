@@ -11,6 +11,7 @@ import { api, classifyExercise } from '../api.js';
 import { CountUp, useToast, stagger, rise, confettiBurst } from '../components/ui.jsx';
 import { Skeleton } from '../components/kit.jsx';
 import { IconBody, IconTrend, IconFlame, IconBolt, IconSparkle } from '../components/Icons.jsx';
+import { buildMuscleAttribute, GROUP_LABEL, GROUP_READINESS } from '../lib/twinSkin.js';
 
 const TWIN_DEMO_GLB = '/models/twin-custom.glb';
 // Lifts marked 🎞 play real motion-capture (baked GLB); the rest use the
@@ -111,6 +112,27 @@ const MUSCLE_NODES = {
   row:      [['spine2', [0, 0.04, -0.09]], ['lArm', [0.05, 0, -0.05]], ['rArm', [-0.05, 0, -0.05]]],      // lats + rear delts
 };
 
+// Which muscle a lift "lights up" — the just-trained group pulses on the Twin.
+const MODE_GROUP = { squat: 'legs', deadlift: 'legs', press: 'shoulders', curl: 'arms', row: 'back' };
+
+// GLSL injected into the avatar's PBR shader: each vertex carries a muscle-group id
+// (aMuscle); we light that group from within in molten gold (fresh) → ember (fatigued),
+// add a living energy "flow", a per-group "just-trained" pulse, and a warm fresnel rim.
+const EMISSIVE_INJECT = `#include <emissivemap_fragment>
+  int mg = int(vMuscle + 0.5);
+  float act = 0.0; float pul = 0.0;
+  for (int i = 0; i < 8; i++) { if (i == mg) { act = uAct[i]; pul = uPulse[i]; } }
+  float a = clamp(act, 0.0, 1.0);
+  float a2 = a * a;                          // contrast: only truly-fresh muscles blaze
+  vec3 goldC = vec3(1.0, 0.66, 0.26);
+  vec3 emberC = vec3(0.85, 0.20, 0.08);
+  vec3 mcol = mix(emberC, goldC, a);
+  float flow = 0.62 + 0.38 * sin(uTime * 1.7 + vViewPosition.y * 3.2 + vMuscle * 2.1);
+  float glow = a2 * flow + pul;
+  // fresnel rim picks out the silhouette so the obsidian body keeps its form
+  float fres = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
+  totalEmissiveRadiance += mcol * glow * 0.55 + vec3(1.0, 0.78, 0.42) * fres * 0.4;`;
+
 export default function Twin() {
   const toast = useToast();
   const stageRef = useRef(null);
@@ -124,6 +146,9 @@ export default function Twin() {
   const [url, setUrl] = useState('');
   const [bootId, setBootId] = useState(0);
   const [levelUp, setLevelUp] = useState(null); // { from, to, stageUp, label }
+  const [readiness, setReadiness] = useState(null); // per-muscle recovery for the panel
+  const [selMuscle, setSelMuscle] = useState(null); // { id } of a tapped muscle group
+  const readyRef = useRef(null);                    // 8-group activation target for the shader
 
   useEffect(() => {
     const lastEx = localStorage.getItem('twin_last_ex');
@@ -149,6 +174,23 @@ export default function Twin() {
         localStorage.setItem('twin_last_level', String(lvl));
         localStorage.setItem('twin_last_stage', String(s.avatar.stage));
       } catch (_) { setStats({ unavailable: true }); }
+    })();
+  }, [bootId]);
+
+  // Per-muscle readiness → the molten-gold activation that lights each muscle group
+  // from within (fresh = bright gold, fatigued = dim ember). Drives the live shader.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api('/v1/readiness/muscles');
+        setReadiness(r);
+        const arr = new Array(8).fill(0.8);
+        for (let i = 0; i < 8; i++) {
+          const rec = r?.muscles?.[GROUP_READINESS[i]]?.recovery;
+          if (typeof rec === 'number') arr[i] = Math.max(0.12, rec / 100);
+        }
+        readyRef.current = arr;
+      } catch (_) { readyRef.current = null; }
     })();
   }, [bootId]);
 
@@ -251,13 +293,37 @@ export default function Twin() {
         }
         if (dead) { renderer.dispose(); return; }
         const root = gltf.scene; scene.add(root);
-        // Keep the model's real PBR skin/textures — just let them catch the
-        // environment reflections for a premium, grounded look.
+
+        // LIVING ANATOMY — reskin the avatar as obsidian with muscles that glow from
+        // within, driven by per-muscle readiness. Shared uniforms updated each frame.
+        const muscleU = {
+          uTime: { value: 0 },
+          uAct: { value: new Array(8).fill(0.8) },   // glow target per group (lerped)
+          uPulse: { value: new Array(8).fill(0) },   // transient just-trained pulse
+        };
+        const bodyMeshes = [];
+        const installMuscle = (mat) => {
+          mat.onBeforeCompile = (sh) => {
+            sh.uniforms.uTime = muscleU.uTime;
+            sh.uniforms.uAct = muscleU.uAct;
+            sh.uniforms.uPulse = muscleU.uPulse;
+            sh.vertexShader = 'attribute float aMuscle;\nvarying float vMuscle;\n'
+              + sh.vertexShader.replace('void main() {', 'void main() {\n  vMuscle = aMuscle;');
+            sh.fragmentShader = 'varying float vMuscle;\nuniform float uTime;\nuniform float uAct[8];\nuniform float uPulse[8];\n'
+              + sh.fragmentShader.replace('#include <emissivemap_fragment>', EMISSIVE_INJECT);
+          };
+          mat.customProgramCacheKey = () => 'twin-muscle';
+        };
         root.traverse((o) => {
-          if (o.isMesh && o.material) {
-            o.material.envMapIntensity = 1.0;
-            o.material.needsUpdate = true;
-          }
+          if (!o.isMesh) return;
+          buildMuscleAttribute(THREE, o);   // tag every vertex with its muscle group
+          const mat = new THREE.MeshStandardMaterial({
+            color: 0x05070d, metalness: 0.6, roughness: 0.48, envMapIntensity: 0.5,
+          });
+          installMuscle(mat);
+          o.material = mat;
+          o.frustumCulled = false;
+          bodyMeshes.push(o);
         });
 
         const bones = {};
@@ -380,7 +446,7 @@ export default function Twin() {
           ]);
           composer = new EffectComposer(renderer);
           composer.addPass(new RenderPass(scene, camera));
-          composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.5 + g * 0.5, 0.85, 0.82));
+          composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.34 + g * 0.3, 0.7, 0.88));
         } catch (_) { composer = null; }
 
         const twin = { renderer, composer, scene, camera, rig, rest, root, aura, amat,
@@ -389,8 +455,26 @@ export default function Twin() {
           camRad: h * 1.9, camY: h * 0.62, camLookY: h * 0.5,
           _X: new THREE.Vector3(1, 0, 0), _l: new THREE.Vector3(), _r: new THREE.Vector3(),
           _g: new THREE.Vector3(), lastMode: null, t: 0, raf: 0,
+          muscleU, bodyMeshes, lastPulseMode: null,
           mocap: { cache: {}, active: null, loading: null, mixer: null } };
         twinRef.current = twin;
+
+        // Tap a muscle → inspect its readiness. Raycast the body, read the hit
+        // vertex's muscle-group tag, surface it in the panel.
+        const _ray = new THREE.Raycaster(); const _ndc = new THREE.Vector2();
+        const onPick = (ev) => {
+          const rect = renderer.domElement.getBoundingClientRect();
+          _ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+          _ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+          _ray.setFromCamera(_ndc, camera);
+          const hit = _ray.intersectObjects(bodyMeshes, false)[0];
+          if (hit && hit.face) {
+            const am = hit.object.geometry.getAttribute('aMuscle');
+            if (am) setSelMuscle({ id: Math.round(am.getX(hit.face.a)) });
+          }
+        };
+        renderer.domElement.addEventListener('pointerdown', onPick);
+        renderer.domElement.style.cursor = 'pointer';
 
         // Apply a set of {joint:{x,y,z}} (or hipsY) offsets onto the rest pose.
         const applyOffsets = (offs) => {
@@ -449,6 +533,21 @@ export default function Twin() {
           const t = twin.t;
           const m = modeRef.current;
           let p = 0;
+
+          // Living-Anatomy glow: animate flow, ease activation toward readiness, decay
+          // the pulse, and flash the muscle of the lift the moment it changes.
+          muscleU.uTime.value = t;
+          const tgt = readyRef.current, A = muscleU.uAct.value, P = muscleU.uPulse.value;
+          for (let i = 0; i < 8; i++) {
+            const want = tgt ? tgt[i] : 0.8;
+            A[i] += (want - A[i]) * 0.05;
+            P[i] *= 0.93;
+          }
+          if (m !== twin.lastPulseMode) {
+            twin.lastPulseMode = m;
+            const key = MODE_GROUP[m];
+            if (key) for (let i = 0; i < 8; i++) if (GROUP_READINESS[i] === key) P[i] = 1.3;
+          }
 
           if (MOCAP[m]) {
             // Real motion-capture on the high-poly avatar: advance the mixer, or
@@ -646,10 +745,42 @@ export default function Twin() {
             </div>
           </>
         )}
-        {phase === 'ready' && !usingOwn && (
+        {phase === 'ready' && !usingOwn && !selMuscle && (
           <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: 'var(--mute)' }}>
             Demo avatar — make it you below
           </div>
+        )}
+
+        {/* tap-to-inspect muscle panel */}
+        {phase === 'ready' && (
+          <AnimatePresence>
+            {selMuscle ? (() => {
+              const key = GROUP_READINESS[selMuscle.id];
+              const mm = readiness?.muscles?.[key];
+              const col = !mm ? 'var(--mute)' : mm.status === 'fresh' ? 'var(--green)' : mm.status === 'fatigued' ? 'var(--red)' : 'var(--amber)';
+              return (
+                <motion.div key="mpanel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                  style={{ position: 'absolute', bottom: 12, left: 12, right: 12, display: 'flex', alignItems: 'center', gap: 10,
+                    background: 'rgba(8,11,18,0.82)', border: `1px solid ${col}55`, borderRadius: 14, padding: '10px 13px',
+                    backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: col, boxShadow: `0 0 10px ${col}`, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{GROUP_LABEL[selMuscle.id]}</div>
+                    <div style={{ fontSize: 11, color: 'var(--dim)' }}>
+                      {mm ? <>{mm.recovery}% recovered · <span style={{ color: col, textTransform: 'capitalize' }}>{mm.status}</span>{mm.hours_since != null ? ` · trained ${Math.round(mm.hours_since)}h ago` : ''}</> : 'No training logged yet — fully fresh.'}
+                    </div>
+                  </div>
+                  <button onClick={() => setSelMuscle(null)} aria-label="Close"
+                    style={{ background: 'none', border: 'none', color: 'var(--mute)', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 2 }}>×</button>
+                </motion.div>
+              );
+            })() : (
+              <motion.div key="mhint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{ position: 'absolute', bottom: 12, right: 14, fontSize: 10.5, color: 'var(--mute)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent, #f5b572)' }} /> tap a muscle
+              </motion.div>
+            )}
+          </AnimatePresence>
         )}
 
         {/* loading */}
@@ -691,6 +822,13 @@ export default function Twin() {
         <AnimatePresence>
           {levelUp && <LevelUpOverlay data={levelUp} accent={accent} />}
         </AnimatePresence>
+      </motion.div>
+
+      {/* living-anatomy legend */}
+      <motion.div variants={rise} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, margin: '10px 0 2px', fontSize: 11, color: 'var(--mute)', flexWrap: 'wrap' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'linear-gradient(90deg,#f5b572,#ffd9a3)' }} /> fresh</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'linear-gradient(90deg,#d97a45,#f24322)' }} /> fatigued</span>
+        <span style={{ color: 'var(--dim)' }}>· your muscles glow by recovery — tap any to read it</span>
       </motion.div>
 
       {/* action pills (scroll horizontally — the Twin performs each lift) */}
