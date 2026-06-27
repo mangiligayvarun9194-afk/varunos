@@ -118,6 +118,7 @@ const MODE_GROUP = { squat: 'legs', deadlift: 'legs', press: 'shoulders', curl: 
 // Cheap 3D value-noise (hash-based) for muscle striations + coursing energy veins.
 const NOISE_GLSL = `
 varying vec3 vObjPos;
+varying vec3 vObjNormal;
 float h31(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float vnoise(vec3 x){ vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(h31(i+vec3(0,0,0)),h31(i+vec3(1,0,0)),f.x), mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),
@@ -131,25 +132,38 @@ float vnoise(vec3 x){ vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2
 // fresnel rim so the obsidian silhouette keeps its form.
 const EMISSIVE_INJECT = `#include <emissivemap_fragment>
   int mg = int(vMuscle + 0.5);
-  float act = 0.0; float pul = 0.0;
-  for (int i = 0; i < 8; i++) { if (i == mg) { act = uAct[i]; pul = uPulse[i]; } }
+  float act = 0.0; float pul = 0.0; float scn = 0.0;
+  for (int i = 0; i < 8; i++) { if (i == mg) { act = uAct[i]; pul = uPulse[i]; scn = uScan[i]; } }
   float a = clamp(act, 0.0, 1.0);
   float a2 = a * a;                          // contrast: only truly-fresh muscles blaze
   vec3 goldC = vec3(1.0, 0.66, 0.26);
   vec3 emberC = vec3(0.85, 0.20, 0.08);
   vec3 mcol = mix(emberC, goldC, a);
-  // muscle fibers run VERTICALLY (wrap the limb/torso axis), broken up by noise
-  float th = atan(vObjPos.z, vObjPos.x);
-  float fiber = 0.62 + 0.38 * sin(th * 26.0 + vObjPos.y * 14.0 + vnoise(vObjPos * 8.0) * 6.0);
+  // TANGENT-ALIGNED fibers: build a surface frame from the object normal so striations
+  // run along each limb's length whatever its orientation (arms, legs, torso alike).
+  vec3 oN = normalize(vObjNormal);
+  vec3 tdir = normalize(vec3(0.0, 1.0, 0.0) - oN * dot(vec3(0.0, 1.0, 0.0), oN) + vec3(1e-4));
+  vec3 bdir = normalize(cross(oN, tdir));
+  float fiber = 0.62 + 0.38 * sin(dot(vObjPos, bdir) * 150.0 + vnoise(vObjPos * 8.0) * 5.0);
   float vn = vnoise(vObjPos * 5.5 + vec3(0.0, -uTime * 0.45, 0.0));
   float vein = smoothstep(0.80, 0.93, vn) * a;                                       // coursing energy
-  float flow = 0.70 + 0.30 * sin(uTime * 1.6 + vObjPos.y * 3.0 + vMuscle * 2.1);
+  float flow = 0.70 + 0.30 * sin(uTime * 1.6 + dot(vObjPos, tdir) * 3.0 + vMuscle * 2.1);
   // facing ratio → bright "lit from inside the muscle" core, dark toward the edges
   float facing = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
   float core = pow(facing, 1.7);
   float glow = a2 * flow * mix(0.66, 1.0, fiber) * (0.45 + 0.55 * core) + pul;
   float fres = pow(1.0 - facing, 3.0);                                              // silhouette rim
-  totalEmissiveRadiance += mcol * glow * 0.7 + goldC * vein * 0.5 + vec3(1.0, 0.78, 0.42) * fres * 0.4;`;
+  // iridescent thin-film sheen on the obsidian (fades out where muscles glow)
+  vec3 irid = 0.5 + 0.5 * cos(6.2831 * (fres * vec3(1.0, 0.9, 0.8) + vec3(0.0, 0.33, 0.66)));
+  // scan-sweep band that lights the next muscle to train as it passes up the body
+  float yn = clamp((vObjPos.y - uBodyY0) / max(0.001, uBodyY1 - uBodyY0), 0.0, 1.0);
+  float band = exp(-pow((yn - uScanY) * 9.0, 2.0));
+  totalEmissiveRadiance += mcol * glow * 0.7
+    + goldC * vein * 0.5
+    + vec3(1.0, 0.78, 0.42) * fres * 0.4
+    + irid * fres * 0.14 * (1.0 - a2)
+    + goldC * band * scn * 0.9
+    + vec3(0.25, 0.45, 0.7) * band * 0.04;`;
 
 export default function Twin() {
   const toast = useToast();
@@ -167,6 +181,7 @@ export default function Twin() {
   const [readiness, setReadiness] = useState(null); // per-muscle recovery for the panel
   const [selMuscle, setSelMuscle] = useState(null); // { id } of a tapped muscle group
   const readyRef = useRef(null);                    // 8-group activation target for the shader
+  const scanRef = useRef(null);                     // 8-group mask of the next muscles to train
 
   useEffect(() => {
     const lastEx = localStorage.getItem('twin_last_ex');
@@ -208,7 +223,10 @@ export default function Twin() {
           if (typeof rec === 'number') arr[i] = Math.max(0.12, rec / 100);
         }
         readyRef.current = arr;
-      } catch (_) { readyRef.current = null; }
+        // mask the shader groups whose readiness group is recommended to train today
+        const train = new Set(r?.train_today || []);
+        scanRef.current = GROUP_READINESS.map((k) => (train.has(k) ? 1 : 0));
+      } catch (_) { readyRef.current = null; scanRef.current = null; }
     })();
   }, [bootId]);
 
@@ -318,6 +336,9 @@ export default function Twin() {
           uTime: { value: 0 },
           uAct: { value: new Array(8).fill(0.8) },   // glow target per group (lerped)
           uPulse: { value: new Array(8).fill(0) },   // transient just-trained pulse
+          uScan: { value: new Array(8).fill(0) },    // 1 for the next-to-train groups
+          uScanY: { value: -1 },                     // scan band height (0..1), <0 = off
+          uBodyY0: { value: 0 }, uBodyY1: { value: 1 },
         };
         const bodyMeshes = [];
         const installMuscle = (mat) => {
@@ -325,17 +346,23 @@ export default function Twin() {
             sh.uniforms.uTime = muscleU.uTime;
             sh.uniforms.uAct = muscleU.uAct;
             sh.uniforms.uPulse = muscleU.uPulse;
-            sh.vertexShader = 'attribute float aMuscle;\nvarying float vMuscle;\nvarying vec3 vObjPos;\n'
-              + sh.vertexShader.replace('void main() {', 'void main() {\n  vMuscle = aMuscle;\n  vObjPos = position;');
-            sh.fragmentShader = 'varying float vMuscle;\nuniform float uTime;\nuniform float uAct[8];\nuniform float uPulse[8];\n'
+            sh.uniforms.uScan = muscleU.uScan;
+            sh.uniforms.uScanY = muscleU.uScanY;
+            sh.uniforms.uBodyY0 = muscleU.uBodyY0;
+            sh.uniforms.uBodyY1 = muscleU.uBodyY1;
+            sh.vertexShader = 'attribute float aMuscle;\nvarying float vMuscle;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;\n'
+              + sh.vertexShader.replace('void main() {', 'void main() {\n  vMuscle = aMuscle;\n  vObjPos = position;\n  vObjNormal = normal;');
+            sh.fragmentShader = 'varying float vMuscle;\nuniform float uTime;\nuniform float uAct[8];\nuniform float uPulse[8];\nuniform float uScan[8];\nuniform float uScanY;\nuniform float uBodyY0;\nuniform float uBodyY1;\n'
               + NOISE_GLSL
               + sh.fragmentShader.replace('#include <emissivemap_fragment>', EMISSIVE_INJECT);
           };
           mat.customProgramCacheKey = () => 'twin-muscle';
         };
+        let yMin = Infinity, yMax = -Infinity;
         root.traverse((o) => {
           if (!o.isMesh) return;
           buildMuscleAttribute(THREE, o);   // tag every vertex with its muscle group
+          if (o.geometry.boundingBox) { yMin = Math.min(yMin, o.geometry.boundingBox.min.y); yMax = Math.max(yMax, o.geometry.boundingBox.max.y); }
           const mat = new THREE.MeshStandardMaterial({
             color: 0x05070d, metalness: 0.6, roughness: 0.48, envMapIntensity: 0.5,
           });
@@ -344,6 +371,7 @@ export default function Twin() {
           o.frustumCulled = false;
           bodyMeshes.push(o);
         });
+        if (isFinite(yMin) && yMax > yMin) { muscleU.uBodyY0.value = yMin; muscleU.uBodyY1.value = yMax; }
 
         const bones = {};
         root.traverse((o) => { if (o.isBone) bones[o.name] = o; });
@@ -556,12 +584,18 @@ export default function Twin() {
           // Living-Anatomy glow: animate flow, ease activation toward readiness, decay
           // the pulse, and flash the muscle of the lift the moment it changes.
           muscleU.uTime.value = t;
-          const tgt = readyRef.current, A = muscleU.uAct.value, P = muscleU.uPulse.value;
+          const tgt = readyRef.current, sc = scanRef.current;
+          const A = muscleU.uAct.value, P = muscleU.uPulse.value, S = muscleU.uScan.value;
+          let anyScan = false;
           for (let i = 0; i < 8; i++) {
             const want = tgt ? tgt[i] : 0.8;
             A[i] += (want - A[i]) * 0.05;
             P[i] *= 0.93;
+            S[i] = sc ? sc[i] : 0;
+            if (S[i]) anyScan = true;
           }
+          // a slow sweep up the body (every ~9s) lights the next muscle to train
+          muscleU.uScanY.value = anyScan ? ((t * 0.11) % 1.3) - 0.15 : -1;
           if (m !== twin.lastPulseMode) {
             twin.lastPulseMode = m;
             const key = MODE_GROUP[m];
