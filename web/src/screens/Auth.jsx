@@ -80,7 +80,12 @@ export default function Auth({ onAuthed }) {
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', display: 'flex',
       flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
       <div className="ambient" />
-      <div style={{ position: 'relative', width: '100%', maxWidth: 380 }}>
+      {/* cinematic charioteer ambience — matches the homepage front door */}
+      <div aria-hidden style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
+        background: 'radial-gradient(60% 50% at 50% 32%, rgba(245,181,114,.12), transparent 64%)' }} />
+      <img aria-hidden src="/img/charioteer-hero.webp" alt="" style={{ position: 'fixed', right: '-6%', bottom: '-4%', height: '92%', zIndex: 0,
+        opacity: 0.14, pointerEvents: 'none', WebkitMaskImage: 'radial-gradient(70% 80% at 60% 45%, #000 40%, transparent 80%)', maskImage: 'radial-gradient(70% 80% at 60% 45%, #000 40%, transparent 80%)' }} />
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 380 }}>
         <div style={{ color: 'var(--accent)', display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
           <IconSparkle width={32} height={32} />
         </div>

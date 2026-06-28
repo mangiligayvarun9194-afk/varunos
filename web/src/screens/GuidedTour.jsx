@@ -7,8 +7,8 @@
 // for the CTA. One rAF loop with inertial smoothing. Reduced-motion → stacked story.
 import { useEffect, useRef, useState } from 'react';
 
-const HERO = '/img/charioteer-hero.png';
-const ASCENDED = '/img/charioteer-ascended.png';
+const HERO = '/img/charioteer-hero.webp';
+const ASCENDED = '/img/charioteer-ascended.webp';
 const reduced = () => typeof window !== 'undefined' && window.matchMedia &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
