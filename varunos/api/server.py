@@ -531,6 +531,23 @@ if _os.path.isdir(_PWA_DIR) and _os.environ.get("VARUNOS_SERVE_PWA", "1") != "0"
     def legacy_index():
         return FileResponse(_os.path.join(_PWA_DIR, "index.html"))
 
+    @app.get("/robots.txt")
+    def robots_txt():
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(
+            "User-agent: *\nAllow: /$\nDisallow: /v1/\nDisallow: /legacy\n"
+            "Sitemap: https://varunos.onrender.com/sitemap.xml\n")
+
+    @app.get("/sitemap.xml")
+    def sitemap_xml():
+        from fastapi.responses import Response
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            '<url><loc>https://varunos.onrender.com/</loc><changefreq>weekly</changefreq>'
+            '<priority>1.0</priority></url></urlset>')
+        return Response(content=body, media_type="application/xml")
+
     @app.get("/manifest.json")
     def root_manifest():
         return FileResponse(_os.path.join(_PWA_DIR, "manifest.json"))
