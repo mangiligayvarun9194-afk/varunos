@@ -515,6 +515,10 @@ if _os.path.isdir(_PWA_DIR) and _os.environ.get("VARUNOS_SERVE_PWA", "1") != "0"
         # Self-hosted 3D avatars (the Twin demo GLB lives here)
         app.mount("/models", StaticFiles(directory=_os.path.join(_WEB_DIST, "models")),
                   name="web-models")
+    if _os.path.isdir(_os.path.join(_WEB_DIST, "img")):
+        # Self-hosted images (the Charioteer character art on the landing)
+        app.mount("/img", StaticFiles(directory=_os.path.join(_WEB_DIST, "img")),
+                  name="web-img")
 
     @app.get("/")
     def root_index():

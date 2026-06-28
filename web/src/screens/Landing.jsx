@@ -3,11 +3,12 @@
 // lighting and growth-stage hue while scenes reveal the charioteer story. Falls
 // back to a static poster if WebGL/model fail. CTA → onStart() (sign up).
 import { useEffect, useRef, useState } from 'react';
-import { initStage } from '../lib/twinStage.js';
+import CharioteerStage from './CharioteerStage.jsx';
 import { useCountUp, useInView, useScrollProgress, useParallax, useMagnetic } from '../lib/motion.js';
 import { LegalOverlay } from './Legal.jsx';
 
-const MODEL = '/models/twin-custom.glb';
+const HERO_IMG = '/img/charioteer-hero.png';
+const ASCENDED_IMG = '/img/charioteer-ascended.png';
 const GOLD = '#f5b572';
 
 const prefersReduced = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -81,44 +82,13 @@ export default function Landing({ onStart }) {
   const scrolled = progress > 0.02;
 
   useEffect(() => {
-    let stage = null;
-    const hasWebGL = (() => {
-      try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl'))); }
-      catch (e) { return false; }
-    })();
-    if (!hasWebGL || !canvasRef.current) { setStatus('poster'); }
-    else {
-      try {
-        stage = initStage({
-          canvas: canvasRef.current, url: MODEL,
-          onReady: () => setStatus('ready'),
-          onError: () => setStatus('poster'),
-        });
-        stageRef.current = stage;
-        // safety: reveal even if the model is slow
-        const t = setTimeout(() => setStatus((s) => (s === 'loading' ? 'ready' : s)), 6000);
-        stage._t = t;
-      } catch (e) { setStatus('poster'); }
-    }
-
-    // reveal-on-scroll + growth-stage hue + level-up pulse
+    // reveal-on-scroll
     const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) e.target.setAttribute('data-in', '1'); }), { threshold: 0.16 });
     document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el));
-    let sio, lio;
-    if (stage) {
-      sio = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) stage.setStage(+e.target.getAttribute('data-stage')); }), { threshold: 0.55 });
-      document.querySelectorAll('[data-stage]').forEach((el) => sio.observe(el));
-      let fired = false;
-      lio = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && !fired) { fired = true; stage.pulse(); } }), { threshold: 0.5 });
-      document.querySelectorAll('[data-levelup]').forEach((el) => lio.observe(el));
-    }
+    // start the hero count-ups once the hero scene is in view
     const heroIo = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) setSeen(true); }), { threshold: 0.4 });
     const hero = document.getElementById('lp-hero'); if (hero) heroIo.observe(hero);
-
-    return () => {
-      io.disconnect(); sio && sio.disconnect(); lio && lio.disconnect(); heroIo.disconnect();
-      if (stage) { clearTimeout(stage._t); stage.dispose(); }
-    };
+    return () => { io.disconnect(); heroIo.disconnect(); };
   }, []);
 
   return (
@@ -130,24 +100,14 @@ export default function Landing({ onStart }) {
       {/* film grain + drifting aurora texture */}
       <div className="lp-grain" aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none', opacity: 0.5, mixBlendMode: 'overlay' }} />
       <div className="lp-aurora" aria-hidden style={{ position: 'fixed', inset: '-20%', zIndex: 0, pointerEvents: 'none' }} />
-      <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }} />
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none',
-        background: 'radial-gradient(130% 90% at 50% 18%, transparent 40%, rgba(0,0,0,.5) 100%), radial-gradient(100% 60% at 50% 120%, rgba(0,0,0,.55), transparent 55%)' }} />
-      {status === 'poster' && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none',
-          background: 'radial-gradient(680px 760px at 64% 40%, rgba(245,181,114,.22), transparent 60%), #05070c' }}>
-          <div style={{ position: 'absolute', left: '62%', top: '50%', transform: 'translate(-50%,-50%)', width: 200, height: 380,
-            borderRadius: '46% 46% 40% 40% / 52% 52% 30% 30%', filter: 'blur(8px)',
-            background: 'linear-gradient(180deg, rgba(255,222,186,.5), rgba(245,181,114,.16) 64%, transparent)' }} />
-        </div>
-      )}
-
-      {/* loader */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18,
-        background: '#04060a', transition: 'opacity .9s ease', opacity: status === 'loading' ? 1 : 0, pointerEvents: 'none' }}>
-        <div style={{ width: 42, height: 42, borderRadius: '50%', border: '2px solid rgba(245,181,114,.22)', borderTopColor: GOLD, animation: 'lpspin 1s linear infinite' }} />
-        <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 12, letterSpacing: '.16em', textTransform: 'uppercase', color: '#8e9ab8' }}>Summoning your Twin…</span>
+      {/* the Charioteer — fixed cinematic character layer behind the story.
+          Bold in the hero, fades to an ambient presence as the story unfolds. */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+        opacity: Math.max(0.32, 1 - progress * 5), transition: 'opacity .3s linear' }}>
+        <CharioteerStage src={HERO_IMG} aura={GOLD} offsetX={64} />
       </div>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none',
+        background: 'radial-gradient(130% 90% at 50% 18%, transparent 45%, rgba(0,0,0,.55) 100%), radial-gradient(100% 60% at 50% 120%, rgba(0,0,0,.6), transparent 55%)' }} />
 
       {/* brand bar — condenses + blurs once you scroll, reveals a CTA */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -168,8 +128,8 @@ export default function Landing({ onStart }) {
 
       <div style={{ position: 'relative', zIndex: 2 }}>
         {/* S1 — the charioteer */}
-        <Scene>
-          <div data-reveal style={{ textAlign: 'center', maxWidth: 760 }}>
+        <Scene left>
+          <div data-reveal style={{ maxWidth: 640 }}>
             <Eyebrow>सारथि · the charioteer</Eyebrow>
             <h1 className="display" style={{ fontWeight: 400, fontSize: 'clamp(22px,3.2vw,38px)', lineHeight: 1.32, letterSpacing: '-.02em', color: '#cdd6e4' }}>
               The body is the chariot. The senses, its horses.<br />
@@ -180,8 +140,8 @@ export default function Landing({ onStart }) {
         </Scene>
 
         {/* S2 — hero */}
-        <Scene id="lp-hero">
-          <div data-reveal style={{ maxWidth: 820 }}>
+        <Scene id="lp-hero" left>
+          <div data-reveal style={{ maxWidth: 680 }}>
             <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(38px,6vw,76px)', lineHeight: 0.98, letterSpacing: '-.04em', marginBottom: 20 }}>
               <SplitText text="Own your health." /><br />
               <SplitText text="Talk to it." delay={0.18} /><br />
@@ -236,9 +196,14 @@ export default function Landing({ onStart }) {
         {/* Proof — honest product facts */}
         <ProofBand />
 
-        {/* Final CTA */}
+        {/* Final CTA — the ascended charioteer */}
         <Scene>
-          <div data-reveal style={{ textAlign: 'center' }}>
+          <div data-reveal style={{ textAlign: 'center', position: 'relative' }}>
+            <div style={{ position: 'relative', width: 'min(380px,76vw)', margin: '0 auto 10px' }}>
+              <div aria-hidden style={{ position: 'absolute', inset: '-12% -12% 6%', background: `radial-gradient(circle at 50% 42%, ${GOLD}33, transparent 62%)`, filter: 'blur(8px)' }} />
+              <img src={ASCENDED_IMG} alt="Sarathi — the ascended Charioteer" style={{ position: 'relative', width: '100%', display: 'block',
+                WebkitMaskImage: 'linear-gradient(180deg,#000 88%,transparent)', maskImage: 'linear-gradient(180deg,#000 88%,transparent)' }} />
+            </div>
             <h2 className="display" style={{ fontWeight: 700, fontSize: 'clamp(32px,5vw,60px)', letterSpacing: '-.03em', marginBottom: 8 }}><SplitText text="Meet your Twin." /></h2>
             <p style={{ color: '#8e9ab8', marginBottom: 24 }}>Sixty seconds to set up. A lifetime that's yours.</p>
             <MagneticCTA onClick={onStart} style={{ padding: '16px 30px', fontSize: 15 }}>Build your Twin</MagneticCTA>
@@ -291,9 +256,11 @@ export default function Landing({ onStart }) {
 
 const footLink = { background: 'none', border: 'none', color: '#8e9ab8', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' };
 
-function Scene({ children, id }) {
+function Scene({ children, id, left }) {
   return (
-    <section id={id} style={{ position: 'relative', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px', textAlign: 'center' }}>
+    <section id={id} style={{ position: 'relative', minHeight: '100vh', display: 'flex', flexDirection: 'column',
+      alignItems: left ? 'flex-start' : 'center', justifyContent: 'center',
+      padding: left ? '0 24px 0 max(24px, 7vw)' : '0 24px', textAlign: left ? 'left' : 'center' }}>
       {children}
     </section>
   );
