@@ -79,5 +79,45 @@ current hero, each on a **transparent or solid near-black (#05070d)** background
 - Engine: `web/src/screens/GuidedTour.jsx` — `BEATS[]` (add `pose`/Rive inputs), the rAF
   loop (set image src / Rive inputs), the image stack (swap to `<Rive>` for Option A).
 - Assets: `web/public/img/charioteer-b*.webp` (B) or `web/public/rive/charioteer.riv` (A);
-  both already served via the `/img` (and a new `/rive`) static mount in
-  `varunos/api/server.py` — add `/rive` the same way `/img` was added if going with Rive.
+  both already served via the `/img` (and `/rive`) static mounts in
+  `varunos/api/server.py` (the `/rive` mount is already in place — drop the `.riv` into
+  `web/public/rive/` and rebuild; it serves at `/rive/charioteer.riv`).
+
+---
+
+## Artist handoff (Rive route)
+
+**Style reference (send these with the brief):**
+`web/public/img/charioteer-hero.png` and `charioteer-ascended.png` — match the face, obsidian
+armor, gold halo + filigree, and proportions exactly. Original character; no other IP.
+
+**Deliverable checklist for the artist:**
+- [ ] `charioteer.riv` (runtime export), artboard `Charioteer`, transparent bg, < ~400 KB.
+- [ ] State machine `Tour` with inputs: `progress` (Number 0–1), `readiness` (Number 0–100),
+      `ascend` (Boolean), `reducedMotion` (Boolean).
+- [ ] 7 keyed poses along `progress` (the table above), continuous (scrub-able), looping idle.
+- [ ] `ascend` swaps to the ascended armor/halo (beat 6).
+- [ ] `reducedMotion=true` holds a single calm pose.
+- [ ] Source `.rev` file delivered too (for future edits).
+
+**Where to source a Rive artist:** the Rive community Discord, Rive's "Hire" listings,
+Toptal/Upwork/Contra (search "Rive animator"), or Dribbble/Behance "Rive" tag. Budget guide:
+a single rigged, state-machine character like this is typically a few days of work.
+
+## Drop-in integration (the day the `.riv` lands) — already scoped
+Our side is prepped: `/rive` is served, and the brief maps 1:1 to `GuidedTour.jsx`. Steps:
+1. `npm i @rive-app/react-canvas` (MIT).
+2. In `GuidedTour.jsx`, replace the two `<img>` elements with the Rive canvas and read the
+   inputs in the existing rAF loop (the camera transform code is removed; everything else —
+   spotlight, reticle, embers, panels, dots, CTA, smoothing — stays):
+
+```jsx
+import { useRive, useStateMachineInput } from '@rive-app/react-canvas';
+// inside GuidedTour():
+const { rive, RiveComponent } = useRive({ src: '/rive/charioteer.riv', stateMachines: 'Tour', autoplay: true });
+const progressIn = useStateMachineInput(rive, 'Tour', 'progress');
+const ascendIn   = useStateMachineInput(rive, 'Tour', 'ascend');
+// in the rAF frame(), instead of setCam(...):  if (progressIn) progressIn.value = cur;  if (ascendIn) ascendIn.value = ascend > 0.5;
+// render: <RiveComponent style={{ position:'absolute', inset:0 }} />   // replaces the <img> stack
+```
+That's the whole runtime change — a single file, ~20 lines.

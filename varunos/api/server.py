@@ -519,6 +519,10 @@ if _os.path.isdir(_PWA_DIR) and _os.environ.get("VARUNOS_SERVE_PWA", "1") != "0"
         # Self-hosted images (the Charioteer character art on the landing)
         app.mount("/img", StaticFiles(directory=_os.path.join(_WEB_DIST, "img")),
                   name="web-img")
+    if _os.path.isdir(_os.path.join(_WEB_DIST, "rive")):
+        # Rive runtime assets (the animated Charioteer .riv, when authored)
+        app.mount("/rive", StaticFiles(directory=_os.path.join(_WEB_DIST, "rive")),
+                  name="web-rive")
 
     @app.get("/")
     def root_index():
