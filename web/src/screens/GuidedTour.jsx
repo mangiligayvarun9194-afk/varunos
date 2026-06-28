@@ -39,6 +39,7 @@ export default function GuidedTour({ onStart }) {
   const ascRef = useRef(null);
   const spotRef = useRef(null);
   const burstRef = useRef(null);
+  const markRef = useRef(null);
   const canvasRef = useRef(null);
   const panelRefs = useRef([]);
   const dotRefs = useRef([]);
@@ -90,6 +91,9 @@ export default function GuidedTour({ onStart }) {
           `radial-gradient(circle at 50% 48%, ${accent}30 0%, transparent 26%),` +
           `radial-gradient(circle at 50% 48%, transparent 30%, rgba(4,6,10,.5) 64%, rgba(4,6,10,.92) 100%)`;
       }
+
+      // ---- focus reticle: ignites as the lens pushes into a body part ----
+      if (markRef.current) { markRef.current.style.borderColor = accent; markRef.current.style.opacity = clamp((zoom - 1.06) * 1.6, 0, 0.5).toFixed(3); }
 
       // ---- panels ----
       panelRefs.current.forEach((el, k) => {
@@ -159,6 +163,7 @@ export default function GuidedTour({ onStart }) {
         {/* spotlight that ignites the focal body part */}
         <div ref={spotRef} aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
         <div ref={burstRef} aria-hidden style={{ position: 'absolute', left: '50%', top: '48%', width: 'min(58vh,520px)', aspectRatio: '1', transform: 'translate(-50%,-50%)', border: '2px solid #f5b572', borderRadius: '50%', opacity: 0 }} />
+        <div ref={markRef} aria-hidden style={{ position: 'absolute', left: '50%', top: '48%', width: 'min(44vh,360px)', aspectRatio: '1', transform: 'translate(-50%,-50%)', border: '1px solid #f5b572', borderRadius: '50%', opacity: 0 }} />
         <canvas ref={canvasRef} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
 
         {/* narrative panels */}
