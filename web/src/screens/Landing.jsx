@@ -3,7 +3,7 @@
 // wrapped in a condensing brand bar, scroll-progress rail, film grain, and footer.
 // CTA → onStart() (sign up).
 import { useState } from 'react';
-import GuidedTour from './GuidedTour.jsx';
+import GuidedTour from './Tour3D.jsx';
 import { useScrollProgress } from '../lib/motion.js';
 import { LegalOverlay } from './Legal.jsx';
 
