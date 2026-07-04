@@ -6,7 +6,8 @@ import { motion } from 'framer-motion';
 import { api, API_BASE, API_KEY, setConnection, getProfile, saveProfileLocal, makePairLink } from '../api.js';
 import { Sheet, useToast, stagger, rise, PageHeader } from '../components/ui.jsx';
 import { LegalOverlay } from './Legal.jsx';
-import { IconWatch, IconLock, IconLink, IconShield, IconVault, IconDownload } from '../components/Icons.jsx';
+import { IconWatch, IconLock, IconLink, IconShield, IconVault, IconDownload, IconBody } from '../components/Icons.jsx';
+import { measurementsToMorphs, validateMeasurements } from '../lib/twinmorph.js';
 
 export default function Settings({ onTab, onSetupPin }) {
   const toast = useToast();
@@ -216,6 +217,17 @@ export default function Settings({ onTab, onSetupPin }) {
 
       <motion.div variants={rise} className="card">
         <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ color: 'var(--mint)' }}><IconBody width={18} height={18} /></span> Your measurements · True-Size Twin
+        </h3>
+        <p className="meta" style={{ marginBottom: 10 }}>
+          A few tape measurements shape your Twin to your real proportions — so progress you
+          see on the avatar is progress on you. All in cm (weight in kg); leave anything blank.
+        </p>
+        <TwinMeasurements />
+      </motion.div>
+
+      <motion.div variants={rise} className="card">
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ color: 'var(--mint)' }}><IconWatch width={18} height={18} /></span> Smartwatch sync
         </h3>
         <p className="meta" style={{ marginBottom: 10 }}>
@@ -406,6 +418,103 @@ export default function Settings({ onTab, onSetupPin }) {
       </Sheet>
       {legal && <LegalOverlay doc={legal} onClose={() => setLegal(null)} />}
     </motion.div>
+  );
+}
+
+// True-Size Twin measurements: 9 numeric fields, validated by the same pure
+// math (lib/twinmorph.js) the server mirrors, saved via PUT /v1/twin/measurements.
+const TWIN_FIELDS = [
+  ['height_cm', 'Height (cm)', '175'],
+  ['weight_kg', 'Weight (kg)', '70'],
+  ['chest_cm', 'Chest (cm)', '100'],
+  ['waist_cm', 'Waist (cm)', '80'],
+  ['hip_cm', 'Hip (cm)', '95'],
+  ['shoulder_cm', 'Shoulder width (cm)', '45'],
+  ['inseam_cm', 'Inseam (cm)', '79'],
+  ['sleeve_cm', 'Sleeve (cm)', '58'],
+  ['neck_cm', 'Neck (cm)', '38'],
+];
+const MORPH_ORDER = ['chest', 'waist', 'hips', 'shoulders', 'arms', 'legs', 'height'];
+
+function TwinMeasurements() {
+  const toast = useToast();
+  const [vals, setVals] = useState(() => Object.fromEntries(TWIN_FIELDS.map(([k]) => [k, ''])));
+  const [errs, setErrs] = useState({});
+  const [morphs, setMorphs] = useState(null);
+  const [status, setStatus] = useState(null); // {tone, msg}
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api('/v1/twin/measurements').then((r) => {
+      const m = (r && (r.measurements || r)) || {};
+      setVals((v) => {
+        const next = { ...v };
+        for (const [k] of TWIN_FIELDS) if (m[k] != null && m[k] !== '') next[k] = String(m[k]);
+        return next;
+      });
+      if (r && r.morphs) setMorphs(r.morphs);
+    }).catch(() => {}); // nothing saved yet, or backend without twin support — start blank
+  }, []);
+
+  const setF = (k) => (e) => {
+    const v = e.target.value;
+    setVals((prev) => {
+      const next = { ...prev, [k]: v };
+      setErrs(validateMeasurements(next));
+      return next;
+    });
+  };
+
+  async function save() {
+    const errors = validateMeasurements(vals);
+    setErrs(errors);
+    if (Object.keys(errors).length) {
+      setStatus({ tone: 'err', msg: 'Fix the highlighted fields first.' });
+      return;
+    }
+    const body = {};
+    for (const [k] of TWIN_FIELDS) {
+      const n = parseFloat(vals[k]);
+      if (Number.isFinite(n)) body[k] = n;
+    }
+    setSaving(true); setStatus(null);
+    try {
+      const r = await api('/v1/twin/measurements', { method: 'PUT', body });
+      setMorphs((r && r.morphs) || measurementsToMorphs(body));
+      setStatus({ tone: 'ok', msg: '✓ Twin updated' });
+      toast('Twin updated — your avatar now wears your numbers');
+    } catch (e) {
+      const m = String(e && e.message || e);
+      setStatus({ tone: 'err', msg: /404|405/.test(m)
+        ? 'Your server doesn’t support Twin measurements yet — update the backend.'
+        : 'Couldn’t save — check your connection and try again.' });
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div>
+      {TWIN_FIELDS.map(([k, label, ph]) => (
+        <div key={k}>
+          <div className="field">
+            <label>{label}</label>
+            <input type="number" step="0.1" placeholder={ph} value={vals[k]} onChange={setF(k)}
+              style={errs[k] ? { borderColor: 'var(--red)' } : undefined} />
+          </div>
+          {errs[k] && <p className="err" style={{ margin: '2px 0 6px', fontSize: 11, textAlign: 'right' }}>{errs[k]}</p>}
+        </div>
+      ))}
+      <button className="btn primary full" style={{ marginTop: 12 }} disabled={saving} onClick={save}>
+        {saving ? 'Saving…' : 'Save measurements'}
+      </button>
+      {status && <p className={status.tone} style={{ marginTop: 8 }}>{status.msg}</p>}
+      {morphs && (
+        <p className="meta mono" style={{ marginTop: 8, fontSize: 11, color: 'var(--mute)', lineHeight: 1.8 }}>
+          {MORPH_ORDER.filter((k) => morphs[k] != null)
+            .map((k) => `${k} ${Number(morphs[k]).toFixed(2)}`).join(' · ')}
+        </p>
+      )}
+    </div>
   );
 }
 

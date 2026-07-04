@@ -1,0 +1,39 @@
+{
+  "name": "VarunOS — 22 Momentum Notifier",
+  "description": "20:00 daily: asks the API to push today's single best momentum event to Telegram. The API enforces once per day.",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {"interval": [{"hours": 20}]},
+        "tz": "={{$env.VARUNOS_TZ || \"America/New_York\"}}"
+      },
+      "id": "cron-2000",
+      "name": "Cron 20:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/momentum/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-momentum-push",
+      "name": "POST /v1/momentum/push",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    }
+  ],
+  "connections": {
+    "Cron 20:00": {"main": [[{"node": "POST /v1/momentum/push", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

@@ -1,0 +1,82 @@
+{
+  "name": "VarunOS — 20 Wearable Poller",
+  "description": "07:30 daily: checks whether today's wearable sync exists. If not, sends a Telegram reminder to run the Apple Health Shortcut.",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {"interval": [{"hours": 7, "minutes": 30}]},
+        "tz": "={{$env.VARUNOS_TZ || \"America/New_York\"}}"
+      },
+      "id": "cron-0730",
+      "name": "Cron 07:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/sync/status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-sync-status",
+      "name": "GET /v1/sync/status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {
+              "leftValue": "={{$json.connected}}",
+              "rightValue": false,
+              "operator": {"type": "boolean", "operation": "equals"}
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-no-sync",
+      "name": "IF no sync today",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {"name": "chat_id", "value": "={{$env.TELEGRAM_CHAT_ID}}"},
+            {"name": "text", "value": "Morning sync is missing. Run the Apple Health Shortcut, then VarunOS can build today's readiness."},
+            {"name": "disable_web_page_preview", "value": "true"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "telegram-reminder",
+      "name": "Telegram sync reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 220]
+    }
+  ],
+  "connections": {
+    "Cron 07:30": {"main": [[{"node": "GET /v1/sync/status", "type": "main", "index": 0}]]},
+    "GET /v1/sync/status": {"main": [[{"node": "IF no sync today", "type": "main", "index": 0}]]},
+    "IF no sync today": {"main": [[{"node": "Telegram sync reminder", "type": "main", "index": 0}], []]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

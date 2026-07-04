@@ -300,6 +300,30 @@ def _migrate(c: sqlite3.Connection) -> None:
         expires_at  TEXT
     );
     CREATE INDEX IF NOT EXISTS ix_session_user ON session(user_id);
+
+    -- True-Size Twin: latest body measurements (1 row per user) plus an
+    -- append-only history so the Twin's shape over time is replayable.
+    CREATE TABLE IF NOT EXISTS twin_measurements (
+        user_id     TEXT PRIMARY KEY,
+        height_cm   REAL,
+        weight_kg   REAL,
+        chest_cm    REAL,
+        waist_cm    REAL,
+        hip_cm      REAL,
+        shoulder_cm REAL,
+        inseam_cm   REAL,
+        sleeve_cm   REAL,
+        neck_cm     REAL,
+        updated_at  TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS twin_measurements_history (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     TEXT,
+        snapshot    TEXT,   -- JSON of the full measurement set at save time
+        created_at  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS ix_twin_hist_user ON twin_measurements_history(user_id, created_at);
     """)
     # Additive migrations for wearable sync (idempotent; ALTER only if missing)
     _ensure_columns(c, "daily_checkin", {
@@ -696,6 +720,71 @@ def list_custom_programs(user_id: str) -> list[str]:
         "SELECT name FROM custom_program WHERE user_id=? ORDER BY name", (user_id,)
     ).fetchall()
     return [r["name"] for r in rows]
+
+
+# ========== TWIN MEASUREMENTS (True-Size Twin) ==========
+
+_TWIN_FIELDS = ["height_cm", "weight_kg", "chest_cm", "waist_cm", "hip_cm",
+                "shoulder_cm", "inseam_cm", "sleeve_cm", "neck_cm"]
+
+
+def get_twin_measurements(user_id: str) -> dict | None:
+    row = conn().execute(
+        "SELECT * FROM twin_measurements WHERE user_id=?", (user_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def upsert_twin_measurements(user_id: str, data: dict) -> dict:
+    """Merge-upsert the latest measurements and append a history snapshot.
+
+    Partial updates merge with existing data (only provided, non-None canonical
+    fields are overwritten). Every save appends the full post-save measurement
+    set to twin_measurements_history — append-only, never rewritten."""
+    provided = {f: data[f] for f in _TWIN_FIELDS if f in data and data[f] is not None}
+    with transaction() as c:
+        existing = c.execute("SELECT 1 FROM twin_measurements WHERE user_id=?",
+                             (user_id,)).fetchone()
+        if existing:
+            sets = "".join(f"{f}=?, " for f in provided)
+            c.execute(
+                f"UPDATE twin_measurements SET {sets}updated_at=? WHERE user_id=?",
+                (*provided.values(), _now(), user_id),
+            )
+        else:
+            cols = ", ".join(["user_id", *_TWIN_FIELDS, "updated_at"])
+            placeholders = ", ".join("?" for _ in range(len(_TWIN_FIELDS) + 2))
+            c.execute(
+                f"INSERT INTO twin_measurements ({cols}) VALUES ({placeholders})",
+                (user_id, *(provided.get(f) for f in _TWIN_FIELDS), _now()),
+            )
+        row = c.execute("SELECT * FROM twin_measurements WHERE user_id=?",
+                        (user_id,)).fetchone()
+        snapshot = {f: row[f] for f in _TWIN_FIELDS}
+        c.execute(
+            "INSERT INTO twin_measurements_history (user_id, snapshot, created_at) "
+            "VALUES (?,?,?)",
+            (user_id, json.dumps(snapshot), _now()),
+        )
+    return get_twin_measurements(user_id) or {}
+
+
+def list_twin_history(user_id: str, limit: int = 50) -> list[dict]:
+    """Measurement snapshots, newest first."""
+    rows = conn().execute(
+        "SELECT * FROM twin_measurements_history WHERE user_id=? "
+        "ORDER BY id DESC LIMIT ?",
+        (user_id, limit),
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["snapshot"] = json.loads(d.pop("snapshot") or "{}")
+        except Exception:
+            d["snapshot"] = {}
+        out.append(d)
+    return out
 
 
 # ========== HERMES (companion memory + relationship state) ==========

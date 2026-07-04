@@ -1,17 +1,13 @@
 // Tour3D — the homepage centerpiece: a pinned, scroll-scrubbed 3D sequence starring
-// the rigged Sarathi Charioteer (the user's own Meshy character: obsidian + molten-gold
-// armor, glowing teal vault-core, chariot-wheel belt, gold mandala, cape). One base mesh
-// with a real walk clip bound by bone name and crossfaded per scroll beat (idle/stance is
-// the rig rest pose; richer gesture clips drop in here later), a camera that orbits +
-// frames the body, gold rim + embers, the vault-core emblem lit emissive teal, and the
-// Sarathi narrative revealing in sync. ~1.6 MB total (Draco + WebP optimized).
+// the rigged "Sentinel" charioteer (the user's own Meshy character). One base mesh with
+// four real motion clips (stance / walk / run / power-spin-jump) bound by bone name and
+// crossfaded per scroll beat, a camera that orbits + frames the body, gold rim + embers,
+// and the Sarathi narrative revealing in sync. ~4 MB total (Draco + WebP optimized).
 // Reduced-motion / no-WebGL → a clean stacked story.
 import { useEffect, useRef, useState } from 'react';
 
-const BASE = '/models/charioteer-base.glb';
-// Gesture clips map 1:1 to scroll beats; only `walk` is wired today (Meshy library
-// retargeting was unstable at build time). Add more as charioteer-anim-*.glb files here.
-const ANIMS = { walk: '/models/charioteer-anim-walk.glb' };
+const BASE = '/models/sentinel-base.glb';
+const ANIMS = { stance: '/models/sentinel-anim-stance.glb', walk: '/models/sentinel-anim-walk.glb', run: '/models/sentinel-anim-run.glb', jump: '/models/sentinel-anim-jump.glb' };
 const reduced = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -22,10 +18,10 @@ const mix = (h1, h2, t) => { const a = hx(h1), b = hx(h2); return `rgb(${Math.ro
 const BEATS = [
   { clip: 'stance', eyebrow: 'सारथि · the charioteer', title: 'You are the chariot.', body: 'Your body carries you through every day. Sarathi is the charioteer that learns it, reads it, and steers it toward your own victory.', accent: '#f5b572', side: 'left', cam: { d: 3.7, y: 0.95, orbit: -0.2 } },
   { clip: 'stance', eyebrow: 'the mind · hermes', title: 'A coach that remembers.', body: 'Hermes reads every score, recalls every session, and speaks the one move that matters next.', accent: '#ffd9a8', side: 'right', cam: { d: 2.2, y: 1.42, orbit: 0.25 } },
-  { clip: 'walk', eyebrow: 'the hands · form coach', title: 'It moves with you.', body: 'On-device pose AI counts and grades every rep in real time. Nothing leaves your phone.', accent: '#7fd4f0', side: 'left', cam: { d: 3.5, y: 1.0, orbit: 0.5 } },
+  { clip: 'run', eyebrow: 'the hands · form coach', title: 'It moves with you.', body: 'On-device pose AI counts and grades every rep in real time. Nothing leaves your phone.', accent: '#7fd4f0', side: 'left', cam: { d: 3.5, y: 1.0, orbit: 0.5 } },
   { clip: 'stance', eyebrow: 'the heart · readiness', title: 'It knows when to rest.', body: 'Sleep, HRV and strain become one readiness score — so you push on the right days and recover on the rest.', accent: '#5fd0bd', side: 'right', cam: { d: 2.7, y: 1.15, orbit: -0.3 }, ring: 84 },
   { clip: 'walk', eyebrow: 'the path · the vault', title: 'Its memory is yours.', body: 'Every reading, meal and lift is written to a Health Vault in open Markdown you own forever. No lock-in.', accent: '#4cc9f0', side: 'left', cam: { d: 3.6, y: 1.0, orbit: 0.2 }, vault: true },
-  { clip: 'walk', eyebrow: 'become · the twin', title: 'Watch yourself level up.', body: 'Train, and your living Twin grows. Strength made visible — beat by beat.', accent: '#f5b572', side: 'right', cam: { d: 4.0, y: 1.1, orbit: 0 } },
+  { clip: 'jump', eyebrow: 'become · the twin', title: 'Watch yourself level up.', body: 'Train, and your living Twin grows. Strength made visible — beat by beat.', accent: '#f5b572', side: 'right', cam: { d: 4.0, y: 1.1, orbit: 0 } },
   { clip: 'stance', eyebrow: 'become', title: 'Meet your Twin.', body: 'Sixty seconds to begin. A lifetime that’s yours.', accent: '#ffdeba', side: 'center', cam: { d: 3.3, y: 1.0, orbit: 0 }, cta: true },
 ];
 const N = BEATS.length;
@@ -70,11 +66,7 @@ export default function Tour3D({ onStart }) {
       let base; try { base = await loader.loadAsync(BASE); } catch (e) { return; }
       if (dead) { renderer.dispose(); return; }
       const root = base.scene; pivot.add(root);
-      root.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; if (o.material) { o.material.envMapIntensity = 1.1;
-        // light the vault-core emblem: Meshy baked the teal glow into the emissive map,
-        // but at zero strength — activate it so the chest core actually emits.
-        if (o.material.emissiveMap) { o.material.emissive = new THREE.Color(0xffffff); o.material.emissiveIntensity = 2.4; o.material.needsUpdate = true; }
-      } } });
+      root.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; if (o.material) o.material.envMapIntensity = 1.1; } });
       // normalize → 1.85m, centered, feet at floor
       root.updateMatrixWorld(true);
       let box = new THREE.Box3().setFromObject(root); const sz = box.getSize(new THREE.Vector3());

@@ -24,7 +24,7 @@ from typing import Literal, Optional
 from fastapi import FastAPI, HTTPException, Body, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 # Import the deterministic core
@@ -45,7 +45,8 @@ from varunos.core.surveillance import (
     escalate_glucose, escalate_bp, escalate_afib, escalate_stroke_symptoms,
     assess_from_raw,
 )
-from varunos.auth import require_auth, configured as auth_configured
+from varunos.core import twinbody
+from varunos.auth import require_auth, current_user_id, configured as auth_configured
 from varunos import db
 
 from varunos.api.endpoints_extra import router as extra_router, public_router
@@ -472,6 +473,39 @@ def search_foods(q: str = "", limit: int = 20):
     return {"results": results, "n": len(results)}
 
 
+# ---- True-Size Twin: body measurements → avatar morphs --------------------
+
+def _twin_payload(uid: str) -> dict:
+    """Latest measurements + morphs derived live from the pure core."""
+    row = db.get_twin_measurements(uid)
+    if not row:
+        return {"measurements": None,
+                "morphs": twinbody.derive_morphs({}),
+                "updated_at": None}
+    measurements = {f: row.get(f) for f in twinbody.FIELDS}
+    return {"measurements": measurements,
+            "morphs": twinbody.derive_morphs(measurements),
+            "updated_at": row.get("updated_at")}
+
+
+@app.get("/v1/twin/measurements", dependencies=[Depends(require_auth)])
+def twin_measurements_get():
+    """The current user's measurements and the Twin's blend-shape morphs."""
+    return _twin_payload(current_user_id())
+
+
+@app.put("/v1/twin/measurements", dependencies=[Depends(require_auth)])
+def twin_measurements_put(payload: dict = Body(...)):
+    """Save (merge) measurements. Implausible values never touch the DB —
+    the pure validator gates every write; errors come back per-field."""
+    errors = twinbody.validate_measurements(payload or {})
+    if errors:
+        return JSONResponse(status_code=422, content={"errors": errors})
+    uid = current_user_id()
+    db.upsert_twin_measurements(uid, payload or {})
+    return _twin_payload(uid)
+
+
 # ---- Boot-time sanity check ----------------------------------------------
 
 @app.on_event("startup")
@@ -523,6 +557,10 @@ if _os.path.isdir(_PWA_DIR) and _os.environ.get("VARUNOS_SERVE_PWA", "1") != "0"
         # Rive runtime assets (the animated Charioteer .riv, when authored)
         app.mount("/rive", StaticFiles(directory=_os.path.join(_WEB_DIST, "rive")),
                   name="web-rive")
+    if _os.path.isdir(_os.path.join(_WEB_DIST, "video")):
+        # Self-hosted scene videos (the cinematic story intro/loops)
+        app.mount("/video", StaticFiles(directory=_os.path.join(_WEB_DIST, "video")),
+                  name="web-video")
 
     @app.get("/")
     def root_index():

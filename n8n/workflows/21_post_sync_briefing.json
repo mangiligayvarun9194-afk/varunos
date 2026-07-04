@@ -1,0 +1,85 @@
+{
+  "name": "VarunOS — 21 Post-Sync Briefing",
+  "description": "Webhook after wearable sync: pulls wakeup plus context advice and sends one Telegram morning briefing with tier/score/label data only.",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "varunos-post-sync-briefing",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-post-sync",
+      "name": "Webhook post-sync",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/wakeup",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-wakeup",
+      "name": "GET /v1/wakeup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.VARUNOS_API_BASE}}/v1/context/today",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{$env.VARUNOS_API_KEY}}"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "http-context",
+      "name": "GET /v1/context/today",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {"name": "chat_id", "value": "={{$env.TELEGRAM_CHAT_ID}}"},
+            {
+              "name": "text",
+              "value": "={{$node[\"GET /v1/wakeup\"].json.greeting + \"\\nReadiness \" + ($node[\"GET /v1/wakeup\"].json.readiness.overall || \"--\") + \" \" + ($node[\"GET /v1/wakeup\"].json.readiness.color || \"UNKNOWN\") + \"\\nWorkout: \" + (($node[\"GET /v1/wakeup\"].json.workout && $node[\"GET /v1/wakeup\"].json.workout.day_name) || \"No workout queued\") + \"\\n\" + (($json.available && $json.advice) ? (\"AQI advice: \" + $json.advice.headline + \" - \" + (($json.advice.notes || []).join(\" \"))) : \"Location not set for AQI advice\")}}"
+            },
+            {"name": "disable_web_page_preview", "value": "true"}
+          ]
+        },
+        "options": {"timeout": 10000}
+      },
+      "id": "telegram-briefing",
+      "name": "Telegram briefing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook post-sync": {"main": [[{"node": "GET /v1/wakeup", "type": "main", "index": 0}]]},
+    "GET /v1/wakeup": {"main": [[{"node": "GET /v1/context/today", "type": "main", "index": 0}]]},
+    "GET /v1/context/today": {"main": [[{"node": "Telegram briefing", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

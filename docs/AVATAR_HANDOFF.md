@@ -1,3 +1,109 @@
+# Sarathi "Twin" — Avatar Handoff (build a world-class avatar + VFX)
+
+This is a **self-contained brief + the exact current code** for Sarathi's 3D avatar
+("the Twin"). Hand this whole file to a 3D/graphics specialist or model. The goal:
+**replace/upgrade the avatar into a world-class, heavy-VFX character** while keeping
+the same data inputs and behaviors described below.
+
+---
+
+## 1. What the Twin is (product intent)
+
+The Twin is the emotional centerpiece of Sarathi (a private AI health/fitness OS).
+It is a 3D figure that:
+- **Grows with training** — arms/chest/legs scale with the user's `avatar_level`.
+- **Performs the actual lifts** — squat, deadlift, overhead press, curl, row — via a
+  pose-based rep engine with correct range-of-motion and tempo, holding a barbell.
+- **Shows muscle activation / recovery** — the worked muscles glow (ExRx target +
+  synergists); the same system will later show per-muscle recovery (green/amber/red).
+- **Levels up** — a cinematic LEVEL-UP / STAGE-UP moment (shockwave + count-up).
+- Has VFX: energy-ember aura, pulsing ground rings, motion trail on the bar,
+  iridescent PBR material, image-based-lighting reflections, ACES tone mapping, bloom.
+
+**Brand:** "Obsidian" dark theme — OLED black `#06080d`, mint `#2ee6a8`, cyan
+`#4cc9f0`, violet accents at high stages. Premium, futuristic, calm.
+
+## 2. What "world-class" should add (the ask)
+
+The current ceiling is the **mesh** (a generic Mixamo humanoid) — render is already
+premium (iridescent PBR + IBL + ACES + bloom). To go world-class, improve the parts
+code alone can't:
+- A **sculpted, high-fidelity rigged character** (athletic human or stylized
+  cyber-athlete), PBR textures (albedo/normal/roughness/AO), ideally with blendshapes.
+- **True per-muscle surface highlighting** (segmented mesh or a custom skinned shader
+  with vertex muscle-weights) instead of glow sprites placed at bone positions.
+- **Real muscle-growth morphing** (blendshapes/morph targets driven by `avatar_level`
+  and per-muscle volume) instead of bone scaling.
+- **Higher-fidelity lift animations** (mocap clips via AnimationMixer) instead of
+  procedural bone rotation — or keep procedural but add secondary motion, foot IK,
+  ground contact, weight shift.
+- Optional: custom GLSL (fresnel rim, energy-fiber flow, dissolve/regeneration on
+  recovery), screen-space AO, soft contact shadows, depth of field.
+
+Keep it **web-friendly** (three.js / WebGL, loads on mobile) and keep the data
+contract in §4 so the rest of the app keeps working.
+
+## 3. Tech stack & dependencies
+
+- **React 18 + Vite**, **three.js `^0.160`**, **framer-motion `^11`**.
+- three addons used (from `three/examples/jsm/...`): `GLTFLoader`,
+  `postprocessing/EffectComposer` + `RenderPass` + `UnrealBloomPass`,
+  `environments/RoomEnvironment` (+ `THREE.PMREMGenerator`).
+- Renderer: `outputColorSpace = SRGBColorSpace`, `toneMapping = ACESFilmicToneMapping`.
+- All addons are lazy-imported and try/caught so the screen degrades gracefully.
+
+## 4. Data contract — the ONLY input the avatar needs
+
+`GET /v1/avatar/state` (auth: `Authorization: Bearer <token>`) returns:
+
+```json
+{
+  "avatar": {
+    "stage": 4, "of": 5, "name": "strong", "label": "Strength is showing",
+    "level": 66, "next_at": 85, "stage_progress": 0.05
+  },
+  "streak_weeks": 2,
+  "volume_trend_pct_per_week": 210.0,
+  "days_since_pr": 0,
+  "muscles": { "legs": 63, "chest": 66, "back": 66, "shoulders": 66, "arms": 53, "core": 36 },
+  "consistency_4w": 0.25
+}
+```
+
+- `level` 0–100 → overall physique/growth.
+- `stage` 1–5 → `starting / warming_up / solid / strong / peak` (drives accent color).
+- `muscles.*` 0–100 → per-muscle growth (and, soon, recovery uses the same shape).
+- The current lift being shown is local UI state (`mode`: idle | squat | deadlift |
+  press | curl | row | celebrate), defaulting from the last logged exercise.
+
+A replacement avatar must consume the same fields. Nothing else is required.
+
+## 5. Design tokens
+
+```
+--bg:#06080d  --surface:#0c0f17  --surface-2:#121624
+--mint:#2ee6a8  --cyan:#4cc9f0  --green:#34d399  --amber:#fbbf24  --red:#fb7185
+--font-display:"Space Grotesk"
+Stage accent ramp (by stage 1..5): #7c8aa5, #2ee6a8, #2ee6a8, #4cc9f0, #a78bfa
+```
+
+## 6. Assets
+
+- Current model: `web/public/models/twin-demo.glb` — a Mixamo-rigged humanoid
+  (bones: `Hips, Spine, Spine1/2, Neck, Head, Left/RightArm, Left/RightForeArm,
+  Left/RightHand, Left/RightUpLeg, Left/RightLeg, Left/RightFoot`; the loader also
+  tolerates a `mixamorig` prefix). Replace this GLB with a better rigged model using
+  the **same bone names** and the existing code mostly "just works"; add morph targets
+  for muscle growth if available.
+- Users can supply their own avatar (selfie→GLB via avaturn.me) — keep that path.
+
+---
+
+## 7. THE CODE (exact current source)
+
+### 7a. Frontend — `web/src/screens/Twin.jsx` (the avatar + all VFX)
+
+```jsx
 // THE TWIN — the emotional center of Sarathi, now cinematic.
 // three.js GLB + procedural skeleton animation, wrapped in a VFX layer: an
 // UnrealBloom glow, a level-scaled energy aura (particles), pulsing ground rings,
@@ -9,27 +115,20 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, classifyExercise } from '../api.js';
 import { CountUp, useToast, stagger, rise, confettiBurst } from '../components/ui.jsx';
-import { Skeleton } from '../components/kit.jsx';
 import { IconBody, IconTrend, IconFlame, IconBolt, IconSparkle } from '../components/Icons.jsx';
-import { buildMuscleAttribute, GROUP_LABEL, GROUP_READINESS } from '../lib/twinSkin.js';
-import { boneScalesFromMorphs } from '../lib/twinmorph.js';
-import { getLocationPreset } from '../lib/weatherworld.js';
-import WeatherBackdrop from './WeatherBackdrop.jsx';
 
-const TWIN_DEMO_GLB = '/models/twin-custom.glb';
-// Lifts marked 🎞 play real motion-capture (baked GLB); the rest use the
-// grounded procedural rep engine.
+const TWIN_DEMO_GLB = '/models/twin-demo.glb';
 const ACTIONS = [
   { id: 'idle', label: 'Idle' },
-  { id: 'squat', label: 'Squat' },          // mocap
-  { id: 'curl', label: 'Curl' },            // mocap
-  { id: 'jumpingjacks', label: 'Jacks' },   // mocap
-  { id: 'deadlift', label: 'Deadlift' },    // procedural (grounded)
-  { id: 'row', label: 'Row' },              // procedural
+  { id: 'squat', label: 'Squat' },
+  { id: 'deadlift', label: 'Deadlift' },
+  { id: 'press', label: 'Press' },
+  { id: 'curl', label: 'Curl' },
+  { id: 'row', label: 'Row' },
   { id: 'celebrate', label: 'PR!' },
 ];
 // Each stage gets its own aura hue — the body literally changes colour as it ascends.
-const STAGE_HEX = ['#7c8aa5', '#f5b572', '#f5b572', '#4cc9f0', '#a78bfa'];
+const STAGE_HEX = ['#7c8aa5', '#2ee6a8', '#2ee6a8', '#4cc9f0', '#a78bfa'];
 const MUSCLES = [
   ['arms', 'Arms'], ['chest', 'Chest'], ['back', 'Back'],
   ['shoulders', 'Shoulders'], ['legs', 'Legs'], ['core', 'Core'],
@@ -59,49 +158,29 @@ function repPhase(t, tempo) {
   return 0;
 }
 
-// Joint axes were measured empirically against THIS rig (left & right are NOT
-// cleanly mirrored, so signs differ per side). Verified clean axes:
-//   knee flexion  : lLeg.x+ / rLeg.x+   (heel travels up & back)
-//   hip flexion   : lUpLeg.x- / rUpLeg.x- (thigh forward, knee drops/forward)
-//   elbow flexion : lFore.z+ / rFore.z-  (forearm curls up & in)
-//   torso hinge   : spine.x+             (lean forward)
-// Feet are kept planted every frame by the foot-lock, so the body sinks into a
-// rep instead of flying. The bar is shown only on lifts where the hands hold it.
 const EXdata = {
-  // Bodyweight squat — legs are cleanly mirrored, so this is anatomically right:
-  // knees bend, hips sink & hinge back, arms reach forward to counterbalance.
-  squat: { bar: false, glow: 'legs', tempo: { up: 1.2, hold: 0.25, down: 1.5, rest: 0.5 },
-    pose: (p) => ({ hipsY: -0.2 * p, spine: { x: 0.18 * p },
-      lUpLeg: { x: -0.45 * p }, rUpLeg: { x: -0.45 * p }, lLeg: { x: 1.0 * p }, rLeg: { x: 1.0 * p },
-      lFore: { z: 0.9 * p }, rFore: { z: -0.9 * p }, lArm: { x: -0.35 * p }, rArm: { x: 0.35 * p } }) },
-  // Deadlift — hip hinge: torso folds forward, soft knees, arms hang so the bar
-  // (held in the hands) lowers toward the floor and locks out at the top.
+  squat: { bar: true, glow: 'legs', tempo: { up: 1.3, hold: 0.25, down: 1.6, rest: 0.5 },
+    // front rack: elbows up, bar on front delts; hips sit back, knees track, to parallel
+    grip: { lArm: { x: -1.55 }, rArm: { x: -1.55 }, lFore: { x: -2.15 }, rFore: { x: -2.15 } },
+    pose: (p) => ({ hipsY: -0.46 * p, hipsZ: 0.06 * p, spine: { x: 0.24 * p }, spine2: { x: 0.08 * p },
+      lUpLeg: { x: -1.55 * p }, rUpLeg: { x: -1.55 * p }, lLeg: { x: 1.95 * p }, rLeg: { x: 1.95 * p },
+      lFoot: { x: -0.55 * p }, rFoot: { x: -0.55 * p } }) },
   deadlift: { bar: true, glow: 'back', tempo: { up: 1.2, hold: 0.2, down: 1.5, rest: 0.45 },
-    pose: (p) => ({ hipsY: -0.06 * p, spine: { x: 0.85 * p }, spine2: { x: 0.12 * p }, neck: { x: -0.45 * p },
-      lUpLeg: { x: -0.25 * p }, rUpLeg: { x: -0.25 * p }, lLeg: { x: 0.35 * p }, rLeg: { x: 0.35 * p } }) },
-  // Biceps curl — bar in hands, forearms flex up (elbow flexion axis, mirrored).
-  curl: { bar: true, glow: 'arms', tempo: { up: 0.9, hold: 0.35, down: 1.1, rest: 0.3 },
-    pose: (p) => ({ lFore: { z: 1.9 * p }, rFore: { z: -1.9 * p } }) },
-  // Bent-over row — hinge and hold (bar in hands), forearms pull the bar to the torso.
-  row: { bar: true, glow: 'back', tempo: { up: 0.85, hold: 0.35, down: 1.1, rest: 0.3 },
-    grip: { spine: { x: 0.8 }, spine2: { x: 0.18 }, neck: { x: -0.5 },
-      lUpLeg: { x: -0.28 }, rUpLeg: { x: -0.28 }, lLeg: { x: 0.38 }, rLeg: { x: 0.38 } },
-    pose: (p) => ({ lFore: { z: 1.1 * p }, rFore: { z: -1.1 * p } }) },
-  // Press — bar in hands driven up to the shoulders/chest (a clean upward path;
-  // a true overhead lockout needs shoulder axes this rig doesn't cleanly expose).
+    // hip hinge with a flat/neutral spine; arms hang straight; drive to full lockout
+    grip: { lArm: { x: 0.05 }, rArm: { x: 0.05 } },
+    pose: (p) => ({ hipsY: -0.16 * p, hipsZ: 0.04 * p, spine: { x: 0.95 * p }, spine2: { x: 0.12 * p }, neck: { x: -0.3 * p },
+      lUpLeg: { x: -0.5 * p }, rUpLeg: { x: -0.5 * p }, lLeg: { x: 0.72 * p }, rLeg: { x: 0.72 * p } }) },
   press: { bar: true, glow: 'shoulders', tempo: { up: 1.0, hold: 0.3, down: 1.3, rest: 0.35 },
-    pose: (p) => ({ lFore: { z: 1.7 * p }, rFore: { z: -1.7 * p }, spine: { x: -0.04 * p } }) },
-};
-
-// Real motion-capture clips baked onto THIS avatar's rig (Meshy 3d_rigging from
-// the WorkingOut library). Each is a self-contained animated GLB — we play its
-// embedded clip via AnimationMixer, so the motion is captured human movement,
-// not hand-authored joint angles. Modes listed here use mocap; the rest fall
-// back to the procedural rep engine above.
-const MOCAP = {
-  squat: '/models/mocap-air_squat.glb',
-  curl: '/models/mocap-bicep_curl.glb',
-  jumpingjacks: '/models/mocap-jumping_jacks.glb',
+    pose: (p) => ({ lArm: { x: -1.25 - 1.75 * p }, rArm: { x: -1.25 - 1.75 * p },
+      lFore: { x: -1.5 + 1.42 * p }, rFore: { x: -1.5 + 1.42 * p }, spine: { x: -0.05 * p } }) },
+  curl: { bar: true, glow: 'arms', tempo: { up: 0.9, hold: 0.35, down: 1.1, rest: 0.3 },
+    grip: { lArm: { x: -0.22 }, rArm: { x: -0.22 } },
+    pose: (p) => ({ lFore: { x: -0.15 - 2.05 * p }, rFore: { x: -0.15 - 2.05 * p } }) },
+  row: { bar: true, glow: 'back', tempo: { up: 0.85, hold: 0.35, down: 1.1, rest: 0.3 },
+    grip: { spine: { x: 0.85 }, spine2: { x: 0.22 }, neck: { x: -0.5 },
+      lUpLeg: { x: -0.32 }, rUpLeg: { x: -0.32 }, lLeg: { x: 0.42 }, rLeg: { x: 0.42 } },
+    pose: (p) => ({ lFore: { x: -0.25 - 1.25 * p }, rFore: { x: -0.25 - 1.25 * p },
+      lArm: { x: 0.1 - 0.55 * p }, rArm: { x: 0.1 - 0.55 * p } }) },
 };
 
 // Muscle activation per lift (ExRx target + key synergists). Each node is
@@ -114,59 +193,6 @@ const MUSCLE_NODES = {
   curl:     [['lArm', [0.03, -0.04, 0.06]], ['rArm', [-0.03, -0.04, 0.06]]],                              // biceps
   row:      [['spine2', [0, 0.04, -0.09]], ['lArm', [0.05, 0, -0.05]], ['rArm', [-0.05, 0, -0.05]]],      // lats + rear delts
 };
-
-// Which muscle a lift "lights up" — the just-trained group pulses on the Twin.
-const MODE_GROUP = { squat: 'legs', deadlift: 'legs', press: 'shoulders', curl: 'arms', row: 'back' };
-
-// Cheap 3D value-noise (hash-based) for muscle striations + coursing energy veins.
-const NOISE_GLSL = `
-varying vec3 vObjPos;
-varying vec3 vObjNormal;
-float h31(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-float vnoise(vec3 x){ vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix(h31(i+vec3(0,0,0)),h31(i+vec3(1,0,0)),f.x), mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),
-             mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x), mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x),f.y), f.z); }
-`;
-
-// GLSL injected into the avatar's PBR shader: each vertex carries a muscle-group id
-// (aMuscle) + a stable body coord (vObjPos). We light that group from within in molten
-// gold (fresh) → ember (fatigued), etch fine muscle STRIATIONS for definition, flow
-// coursing energy VEINS up the body, add a per-group just-trained pulse, and a warm
-// fresnel rim so the obsidian silhouette keeps its form.
-const EMISSIVE_INJECT = `#include <emissivemap_fragment>
-  int mg = int(vMuscle + 0.5);
-  float act = 0.0; float pul = 0.0; float scn = 0.0;
-  for (int i = 0; i < 8; i++) { if (i == mg) { act = uAct[i]; pul = uPulse[i]; scn = uScan[i]; } }
-  float a = clamp(act, 0.0, 1.0);
-  float a2 = a * a;                          // contrast: only truly-fresh muscles blaze
-  vec3 goldC = vec3(1.0, 0.66, 0.26);
-  vec3 emberC = vec3(0.85, 0.20, 0.08);
-  vec3 mcol = mix(emberC, goldC, a);
-  // TANGENT-ALIGNED fibers: build a surface frame from the object normal so striations
-  // run along each limb's length whatever its orientation (arms, legs, torso alike).
-  vec3 oN = normalize(vObjNormal);
-  vec3 tdir = normalize(vec3(0.0, 1.0, 0.0) - oN * dot(vec3(0.0, 1.0, 0.0), oN) + vec3(1e-4));
-  vec3 bdir = normalize(cross(oN, tdir));
-  float fiber = 0.62 + 0.38 * sin(dot(vObjPos, bdir) * 150.0 + vnoise(vObjPos * 8.0) * 5.0);
-  float vn = vnoise(vObjPos * 5.5 + vec3(0.0, -uTime * 0.45, 0.0));
-  float vein = smoothstep(0.80, 0.93, vn) * a;                                       // coursing energy
-  float flow = 0.70 + 0.30 * sin(uTime * 1.6 + dot(vObjPos, tdir) * 3.0 + vMuscle * 2.1);
-  // facing ratio → bright "lit from inside the muscle" core, dark toward the edges
-  float facing = clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
-  float core = pow(facing, 1.7);
-  float glow = a2 * flow * mix(0.66, 1.0, fiber) * (0.45 + 0.55 * core) + pul;
-  float fres = pow(1.0 - facing, 3.0);                                              // silhouette rim
-  // iridescent thin-film sheen on the obsidian (fades out where muscles glow)
-  vec3 irid = 0.5 + 0.5 * cos(6.2831 * (fres * vec3(1.0, 0.9, 0.8) + vec3(0.0, 0.33, 0.66)));
-  // scan-sweep band that lights the next muscle to train as it passes up the body
-  float yn = clamp((vObjPos.y - uBodyY0) / max(0.001, uBodyY1 - uBodyY0), 0.0, 1.0);
-  float band = exp(-pow((yn - uScanY) * 9.0, 2.0));
-  totalEmissiveRadiance += mcol * glow * 0.7
-    + goldC * vein * 0.5
-    + vec3(1.0, 0.78, 0.42) * fres * 0.4
-    + irid * fres * 0.14 * (1.0 - a2)
-    + goldC * band * scn * 0.9
-    + vec3(0.25, 0.45, 0.7) * band * 0.04;`;
 
 export default function Twin() {
   const toast = useToast();
@@ -181,21 +207,11 @@ export default function Twin() {
   const [url, setUrl] = useState('');
   const [bootId, setBootId] = useState(0);
   const [levelUp, setLevelUp] = useState(null); // { from, to, stageUp, label }
-  const [readiness, setReadiness] = useState(null); // per-muscle recovery for the panel
-  const [selMuscle, setSelMuscle] = useState(null); // { id } of a tapped muscle group
-  const readyRef = useRef(null);                    // 8-group activation target for the shader
-  const scanRef = useRef(null);                     // 8-group mask of the next muscles to train
-  const [wpreset, setWpreset] = useState(null);     // the Living World — real weather at the user's sky
 
-  // Weather-true world: geolocation → Open-Meteo → backdrop preset (graceful fallback inside).
   useEffect(() => {
-    let dead = false;
-    getLocationPreset().then((p) => { if (!dead) setWpreset(p); }).catch(() => {});
-    return () => { dead = true; };
+    const lastEx = localStorage.getItem('twin_last_ex');
+    if (lastEx) { const m = classifyExercise(lastEx); setMode(m); modeRef.current = m; }
   }, []);
-
-  // The Twin just stands in idle (the Living-Anatomy avatar). Exercise mocap was
-  // removed — the clips didn't animate cleanly, and the avatar is the centerpiece.
 
   // Stats render even if the 3D engine can't load — and drive the level-up moment.
   useEffect(() => {
@@ -216,26 +232,6 @@ export default function Twin() {
         localStorage.setItem('twin_last_level', String(lvl));
         localStorage.setItem('twin_last_stage', String(s.avatar.stage));
       } catch (_) { setStats({ unavailable: true }); }
-    })();
-  }, [bootId]);
-
-  // Per-muscle readiness → the molten-gold activation that lights each muscle group
-  // from within (fresh = bright gold, fatigued = dim ember). Drives the live shader.
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await api('/v1/readiness/muscles');
-        setReadiness(r);
-        const arr = new Array(8).fill(0.8);
-        for (let i = 0; i < 8; i++) {
-          const rec = r?.muscles?.[GROUP_READINESS[i]]?.recovery;
-          if (typeof rec === 'number') arr[i] = Math.max(0.12, rec / 100);
-        }
-        readyRef.current = arr;
-        // mask the shader groups whose readiness group is recommended to train today
-        const train = new Set(r?.train_today || []);
-        scanRef.current = GROUP_READINESS.map((k) => (train.has(k) ? 1 : 0));
-      } catch (_) { readyRef.current = null; scanRef.current = null; }
     })();
   }, [bootId]);
 
@@ -270,7 +266,7 @@ export default function Twin() {
         let g = 0;
         try { g = (levelRef.current || 0) / 100; } catch (_) {}
         const stageIdx = Math.min(4, Math.max(0, (stats?.avatar?.stage ?? 1) - 1));
-        const auraColor = new THREE.Color(STAGE_HEX[stageIdx] || '#f5b572');
+        const auraColor = new THREE.Color(STAGE_HEX[stageIdx] || '#2ee6a8');
 
         // Image-based lighting — a real environment so the iridescent/chrome
         // material has true reflections (the single biggest realism upgrade).
@@ -292,8 +288,8 @@ export default function Twin() {
         // Glowing floor disc + concentric pulse rings.
         const floor = new THREE.Mesh(
           new THREE.CircleGeometry(1.3, 64),
-          new THREE.MeshStandardMaterial({ color: 0x05080f, metalness: 1.0, roughness: 0.08,
-            envMapIntensity: 1.0 }));
+          new THREE.MeshStandardMaterial({ color: 0x070b12, metalness: 0.95, roughness: 0.18,
+            envMapIntensity: 0.7 }));
         floor.rotation.x = -Math.PI / 2; scene.add(floor);
         const rings = [];
         for (let k = 0; k < 3; k++) {
@@ -330,10 +326,6 @@ export default function Twin() {
         // Avatar (saved custom .glb may be a dead RPM link → fall back to demo).
         const savedUrl = localStorage.getItem('varunos_avatar_url');
         let glbUrl = savedUrl || TWIN_DEMO_GLB, gltf;
-        // TRUE-SIZE TWIN — fetch the user's measurement morphs before the rig loads
-        // so the body can be shaped at bind time (missing/legacy backend → null → base body).
-        let userMorphs = null;
-        try { const tm = await api('/v1/twin/measurements'); userMorphs = tm?.morphs || null; } catch (_) {}
         try { gltf = await new GLTFLoader().loadAsync(glbUrl); }
         catch (err) {
           if (!savedUrl) throw err;
@@ -342,78 +334,23 @@ export default function Twin() {
         }
         if (dead) { renderer.dispose(); return; }
         const root = gltf.scene; scene.add(root);
-        // Shape the rig to the user's real body: bone scales derived from measurements.
-        if (userMorphs) {
-          try {
-            const names = [];
-            root.traverse((o) => { if (o.isBone) names.push(o.name); });
-            const scales = boneScalesFromMorphs(userMorphs, names);
-            root.traverse((o) => {
-              const s = o.isBone && scales[o.name];
-              if (s) o.scale.set(o.scale.x * s.x, o.scale.y * s.y, o.scale.z * s.z);
-            });
-          } catch (_) { /* unknown rig → base body */ }
-        }
-
-        // LIVING ANATOMY — reskin the avatar as obsidian with muscles that glow from
-        // within, driven by per-muscle readiness. Shared uniforms updated each frame.
-        const muscleU = {
-          uTime: { value: 0 },
-          uAct: { value: new Array(8).fill(0.8) },   // glow target per group (lerped)
-          uPulse: { value: new Array(8).fill(0) },   // transient just-trained pulse
-          uScan: { value: new Array(8).fill(0) },    // 1 for the next-to-train groups
-          uScanY: { value: -1 },                     // scan band height (0..1), <0 = off
-          uBodyY0: { value: 0 }, uBodyY1: { value: 1 },
-        };
-        const bodyMeshes = [];
-        const installMuscle = (mat) => {
-          mat.onBeforeCompile = (sh) => {
-            sh.uniforms.uTime = muscleU.uTime;
-            sh.uniforms.uAct = muscleU.uAct;
-            sh.uniforms.uPulse = muscleU.uPulse;
-            sh.uniforms.uScan = muscleU.uScan;
-            sh.uniforms.uScanY = muscleU.uScanY;
-            sh.uniforms.uBodyY0 = muscleU.uBodyY0;
-            sh.uniforms.uBodyY1 = muscleU.uBodyY1;
-            sh.vertexShader = 'attribute float aMuscle;\nvarying float vMuscle;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;\n'
-              + sh.vertexShader.replace('void main() {', 'void main() {\n  vMuscle = aMuscle;\n  vObjPos = position;\n  vObjNormal = normal;');
-            sh.fragmentShader = 'varying float vMuscle;\nuniform float uTime;\nuniform float uAct[8];\nuniform float uPulse[8];\nuniform float uScan[8];\nuniform float uScanY;\nuniform float uBodyY0;\nuniform float uBodyY1;\n'
-              + NOISE_GLSL
-              + sh.fragmentShader.replace('#include <emissivemap_fragment>', EMISSIVE_INJECT);
-          };
-          mat.customProgramCacheKey = () => 'twin-muscle';
-        };
-        let yMin = Infinity, yMax = -Infinity;
+        // Restyle to a sleek "digital twin": a dark sculpted surface with a faint
+        // accent glow the bloom catches — premium, not a default flat mannequin.
         root.traverse((o) => {
-          if (!o.isMesh) return;
-          buildMuscleAttribute(THREE, o);   // tag every vertex with its muscle group
-          if (o.geometry.boundingBox) { yMin = Math.min(yMin, o.geometry.boundingBox.min.y); yMax = Math.max(yMax, o.geometry.boundingBox.max.y); }
-          const mat = new THREE.MeshStandardMaterial({
-            color: 0x05070d, metalness: 0.6, roughness: 0.48, envMapIntensity: 0.5,
-          });
-          installMuscle(mat);
-          o.material = mat;
-          o.frustumCulled = false;
-          bodyMeshes.push(o);
+          if (o.isMesh) {
+            o.material = new THREE.MeshPhysicalMaterial({
+              color: 0x0d1320, metalness: 0.92, roughness: 0.30,
+              clearcoat: 1.0, clearcoatRoughness: 0.22,
+              iridescence: 1.0, iridescenceIOR: 1.32, iridescenceThicknessRange: [120, 500],
+              envMapIntensity: 1.15, emissive: auraColor, emissiveIntensity: 0.06 });
+          }
         });
-        if (isFinite(yMin) && yMax > yMin) { muscleU.uBodyY0.value = yMin; muscleU.uBodyY1.value = yMax; }
 
         const bones = {};
         root.traverse((o) => { if (o.isBone) bones[o.name] = o; });
-        // Tolerant bone lookup: tries exact, mixamo-prefixed, and case-insensitive,
-        // across several candidate names (rigs vary: Spine2 vs Spine02, Neck vs neck).
-        const lc = {}; for (const k in bones) lc[k.toLowerCase()] = bones[k];
-        const B = (...cands) => {
-          for (const n of cands) {
-            const hit = bones[n] || bones['mixamorig' + n] || bones['mixamorig:' + n]
-              || lc[n.toLowerCase()] || lc[('mixamorig' + n).toLowerCase()];
-            if (hit) return hit;
-          }
-          return null;
-        };
+        const B = (n) => bones[n] || bones['mixamorig' + n] || bones['mixamorig:' + n] || null;
         const rig = {
-          hips: B('Hips'), spine: B('Spine', 'Spine01'),
-          spine2: B('Spine2', 'Spine1', 'Spine02', 'Spine01'),
+          hips: B('Hips'), spine: B('Spine'), spine2: B('Spine2') || B('Spine1'),
           neck: B('Neck'), head: B('Head'),
           lArm: B('LeftArm'), rArm: B('RightArm'),
           lFore: B('LeftForeArm'), rFore: B('RightForeArm'),
@@ -430,32 +367,12 @@ export default function Twin() {
         for (const [k, b] of Object.entries(rig))
           if (b) rest[k] = { rot: b.rotation.clone(), pos: b.position.clone() };
 
-        // Normalize ANY model to ~1.8 m tall, feet on the floor, centered on X/Z —
-        // so the camera and all VFX line up regardless of the source model's
-        // native scale, origin, or units (Meshy/Avaturn/Mixamo all differ).
         root.updateMatrixWorld(true);
-        let box = new THREE.Box3().setFromObject(root);
-        let size = box.getSize(new THREE.Vector3());
-        if (size.y > 0.0001) {
-          root.scale.multiplyScalar(1.8 / size.y);
-          root.updateMatrixWorld(true);
-          box = new THREE.Box3().setFromObject(root);
-        }
-        const center = box.getCenter(new THREE.Vector3());
-        root.position.x -= center.x;
-        root.position.z -= center.z;
-        root.position.y -= box.min.y;     // feet to floor (y=0)
-        root.updateMatrixWorld(true);
-        // Record the rest-pose floor level of the feet so we can keep them planted
-        // every frame (foot-lock) — the figure can never drift off the ground.
-        const _fa = new THREE.Vector3(), _fb = new THREE.Vector3();
-        let restFootY = Infinity;
-        if (rig.lFoot) { rig.lFoot.getWorldPosition(_fa); restFootY = Math.min(restFootY, _fa.y); }
-        if (rig.rFoot) { rig.rFoot.getWorldPosition(_fb); restFootY = Math.min(restFootY, _fb.y); }
-        if (!isFinite(restFootY)) restFootY = 0;
-        const h = 1.8;
-        camera.position.set(0, h * 0.62, h * 1.85);
-        camera.lookAt(0, h * 0.52, 0);
+        const headPos = new THREE.Vector3();
+        (rig.head || root).getWorldPosition(headPos);
+        const h = Math.max(0.9, headPos.y * 1.12);
+        camera.position.set(0, h * 0.6, h * 1.9);
+        camera.lookAt(0, h * 0.5, 0);
 
         // Growth: scale bones by avatar_level.
         const arm = 1 + g * 0.45, chest = 1 + g * 0.22, leg = 1 + g * 0.25;
@@ -518,35 +435,15 @@ export default function Twin() {
           ]);
           composer = new EffectComposer(renderer);
           composer.addPass(new RenderPass(scene, camera));
-          composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.34 + g * 0.3, 0.7, 0.88));
+          composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.5 + g * 0.5, 0.85, 0.82));
         } catch (_) { composer = null; }
 
         const twin = { renderer, composer, scene, camera, rig, rest, root, aura, amat,
           spd, rings, auraColor, baseAura: auraTarget, bar, trail, tp, tc, TN, glows,
-          restFootY,
           camRad: h * 1.9, camY: h * 0.62, camLookY: h * 0.5,
           _X: new THREE.Vector3(1, 0, 0), _l: new THREE.Vector3(), _r: new THREE.Vector3(),
-          _g: new THREE.Vector3(), lastMode: null, t: 0, raf: 0,
-          muscleU, bodyMeshes, lastPulseMode: null,
-          mocap: { cache: {}, active: null, loading: null, mixer: null } };
+          _g: new THREE.Vector3(), lastMode: null, t: 0, raf: 0 };
         twinRef.current = twin;
-
-        // Tap a muscle → inspect its readiness. Raycast the body, read the hit
-        // vertex's muscle-group tag, surface it in the panel.
-        const _ray = new THREE.Raycaster(); const _ndc = new THREE.Vector2();
-        const onPick = (ev) => {
-          const rect = renderer.domElement.getBoundingClientRect();
-          _ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-          _ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-          _ray.setFromCamera(_ndc, camera);
-          const hit = _ray.intersectObjects(bodyMeshes, false)[0];
-          if (hit && hit.face) {
-            const am = hit.object.geometry.getAttribute('aMuscle');
-            if (am) setSelMuscle({ id: Math.round(am.getX(hit.face.a)) });
-          }
-        };
-        renderer.domElement.addEventListener('pointerdown', onPick);
-        renderer.domElement.style.cursor = 'pointer';
 
         // Apply a set of {joint:{x,y,z}} (or hipsY) offsets onto the rest pose.
         const applyOffsets = (offs) => {
@@ -561,165 +458,74 @@ export default function Twin() {
           }
         };
 
-        // ---- Real mocap playback -------------------------------------------
-        // The baked GLBs are decimated to ~300 tris, so we DISCARD their mesh and
-        // borrow only the AnimationClip — playing it on the original high-poly
-        // textured avatar. Both share the same Meshy rig (identical bone names),
-        // so the clip's tracks bind by name: full-detail avatar + real captured
-        // motion. One mixer bound to the base avatar; clips swap per exercise.
-        const mocapMixer = new THREE.AnimationMixer(root);
-        const showMocap = (mode) => {
-          const url = MOCAP[mode];
-          if (!url) return;
-          const cache = twin.mocap.cache;
-          if (cache[mode]) {
-            mocapMixer.stopAllAction();
-            cache[mode].action.reset().play();
-            twin.mocap.mixer = mocapMixer; twin.mocap.active = mode;
-            return;
-          }
-          if (twin.mocap.loading === mode) return;     // already in flight
-          twin.mocap.loading = mode;
-          new GLTFLoader().loadAsync(url).then((gm) => {
-            if (dead) return;
-            twin.mocap.loading = null;
-            const clip = gm.animations && gm.animations[0];
-            if (!clip) return;
-            const action = mocapMixer.clipAction(clip);
-            cache[mode] = { action };
-            if (modeRef.current === mode) {
-              mocapMixer.stopAllAction();
-              action.reset().play();
-              twin.mocap.mixer = mocapMixer; twin.mocap.active = mode;
-            }
-          }).catch(() => { twin.mocap.loading = null; });
-        };
-        const hideMocap = () => {
-          mocapMixer.stopAllAction();
-          twin.mocap.mixer = null; twin.mocap.active = null;
-        };
-
         const loop = () => {
           twin.raf = requestAnimationFrame(loop);
           twin.t += 0.016;
           const t = twin.t;
+          for (const [k, b] of Object.entries(rig)) {
+            if (!b || !rest[k]) continue;
+            b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos);
+          }
+          const breathe = Math.sin(t * 1.8) * 0.5 + 0.5;
+          if (rig.spine2) rig.spine2.rotation.x += breathe * 0.025;
           const m = modeRef.current;
+          const ex = EXdata[m];
           let p = 0;
-
-          // Living-Anatomy glow: animate flow, ease activation toward readiness, decay
-          // the pulse, and flash the muscle of the lift the moment it changes.
-          muscleU.uTime.value = t;
-          const tgt = readyRef.current, sc = scanRef.current;
-          const A = muscleU.uAct.value, P = muscleU.uPulse.value, S = muscleU.uScan.value;
-          let anyScan = false;
-          for (let i = 0; i < 8; i++) {
-            const want = tgt ? tgt[i] : 0.8;
-            A[i] += (want - A[i]) * 0.05;
-            P[i] *= 0.93;
-            S[i] = sc ? sc[i] : 0;
-            if (S[i]) anyScan = true;
-          }
-          // a slow sweep up the body (every ~9s) lights the next muscle to train
-          muscleU.uScanY.value = anyScan ? ((t * 0.11) % 1.3) - 0.15 : -1;
-          if (m !== twin.lastPulseMode) {
-            twin.lastPulseMode = m;
-            const key = MODE_GROUP[m];
-            if (key) for (let i = 0; i < 8; i++) if (GROUP_READINESS[i] === key) P[i] = 1.3;
-          }
-
-          if (MOCAP[m]) {
-            // Real motion-capture on the high-poly avatar: advance the mixer, or
-            // stand in the rest pose while the clip is still loading.
-            if (twin.mocap.active !== m) showMocap(m);
-            if (twin.mocap.mixer) {
-              twin.mocap.mixer.update(0.016);
-            } else {
-              for (const [k, b] of Object.entries(rig)) {
-                if (b && rest[k]) { b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos); }
-              }
+          if (m === 'celebrate') {
+            const hop = Math.abs(Math.sin(t * 5));
+            if (rig.hips) rig.hips.position.y += hop * 0.07;
+            for (const k of ['lArm', 'rArm']) {
+              if (!rig[k]) continue;
+              rig[k].rotation.x += -2.6;
+              rig[k].rotation.z += (k === 'lArm' ? -0.4 : 0.4) * (0.7 + 0.3 * Math.sin(t * 5));
             }
-            // Keep feet planted (mocap is grounded; re-ground guards against drift).
-            root.updateMatrixWorld(true);
-            {
-              let minY = Infinity;
-              if (rig.lFoot) { rig.lFoot.getWorldPosition(twin._l); minY = Math.min(minY, twin._l.y); }
-              if (rig.rFoot) { rig.rFoot.getWorldPosition(twin._r); minY = Math.min(minY, twin._r.y); }
-              if (isFinite(minY)) { root.position.y += Math.max(twin.restFootY - minY, -0.5); root.updateMatrixWorld(true); }
-            }
-            twin.bar.visible = false; twin.trail.visible = false;
-            twin.glows.forEach((s) => { s.visible = false; });
+            if (rig.head) rig.head.rotation.z += Math.sin(t * 5) * 0.08;
+          } else if (ex) {
+            // a controlled rep: grip holds the setup, pose(p) drives the motion
+            p = repPhase(t, ex.tempo);
+            if (ex.grip) applyOffsets(ex.grip);
+            applyOffsets(ex.pose(p));
           } else {
-            if (twin.mocap.active) hideMocap();
-            for (const [k, b] of Object.entries(rig)) {
-              if (!b || !rest[k]) continue;
-              b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos);
-            }
-            const breathe = Math.sin(t * 1.8) * 0.5 + 0.5;
-            if (rig.spine2) rig.spine2.rotation.x += breathe * 0.025;
-            const ex = EXdata[m];
-            if (m === 'celebrate') {
-              const hop = Math.abs(Math.sin(t * 5));
-              if (rig.hips) rig.hips.position.y += hop * 0.07;
-              for (const k of ['lArm', 'rArm']) {
-                if (!rig[k]) continue;
-                rig[k].rotation.x += -2.6;
-                rig[k].rotation.z += (k === 'lArm' ? -0.4 : 0.4) * (0.7 + 0.3 * Math.sin(t * 5));
-              }
-              if (rig.head) rig.head.rotation.z += Math.sin(t * 5) * 0.08;
-            } else if (ex) {
-              // a controlled rep: grip holds the setup, pose(p) drives the motion
-              p = repPhase(t, ex.tempo);
-              if (ex.grip) applyOffsets(ex.grip);
-              applyOffsets(ex.pose(p));
-            } else {
-              // idle: relaxed breathing sway + subtle weight shift
-              for (const k of ['lArm', 'rArm']) rig[k] && (rig[k].rotation.z += (k === 'lArm' ? -1 : 1) * Math.sin(t * 1.8) * 0.02);
-              if (rig.hips) rig.hips.position.x += Math.sin(t * 0.9) * 0.012;
-            }
+            // idle: relaxed breathing sway + subtle weight shift
+            for (const k of ['lArm', 'rArm']) rig[k] && (rig[k].rotation.z += (k === 'lArm' ? -1 : 1) * Math.sin(t * 1.8) * 0.02);
+            if (rig.hips) rig.hips.position.x += Math.sin(t * 0.9) * 0.012;
+          }
 
-            // Foot-lock: re-ground every frame so the lowest foot stays on the floor.
-            root.updateMatrixWorld(true);
-            {
-              let minY = Infinity;
-              if (rig.lFoot) { rig.lFoot.getWorldPosition(twin._l); minY = Math.min(minY, twin._l.y); }
-              if (rig.rFoot) { rig.rFoot.getWorldPosition(twin._r); minY = Math.min(minY, twin._r.y); }
-              if (isFinite(minY)) { root.position.y += Math.max(twin.restFootY - minY, -0.22); root.updateMatrixWorld(true); }
-            }
-
-            // Barbell tracks the hands via forward kinematics + a fading motion trail.
-            const showBar = !!(ex && ex.bar && rig.lHand && rig.rHand);
-            twin.bar.visible = showBar; twin.trail.visible = showBar;
-            if (showBar) {
-              rig.lHand.getWorldPosition(twin._l);
-              rig.rHand.getWorldPosition(twin._r);
-              const mx = (twin._l.x + twin._r.x) / 2, my = (twin._l.y + twin._r.y) / 2, mz = (twin._l.z + twin._r.z) / 2;
-              twin.bar.position.set(mx, my, mz);
-              const ax = twin._r.clone().sub(twin._l);
-              if (ax.lengthSq() > 1e-5) twin.bar.quaternion.setFromUnitVectors(twin._X, ax.normalize());
-              const { tp, tc, TN } = twin;
-              if (twin.lastMode !== m) for (let i = 0; i < TN; i++) { tp[i*3]=mx; tp[i*3+1]=my; tp[i*3+2]=mz; }
-              for (let i = TN - 1; i > 0; i--) { tp[i*3]=tp[(i-1)*3]; tp[i*3+1]=tp[(i-1)*3+1]; tp[i*3+2]=tp[(i-1)*3+2]; }
-              tp[0]=mx; tp[1]=my; tp[2]=mz;
-              const c = twin.auraColor;
-              for (let i = 0; i < TN; i++) { const a = (1 - i / TN) ** 1.5; tc[i*3]=c.r*a; tc[i*3+1]=c.g*a; tc[i*3+2]=c.b*a; }
-              twin.trail.geometry.attributes.position.needsUpdate = true;
-              twin.trail.geometry.attributes.color.needsUpdate = true;
-            }
-
-            // Muscle activation — target muscles glow, brightening at peak contraction.
-            const nodes = MUSCLE_NODES[m];
-            twin.glows.forEach((s, i) => {
-              const node = nodes && nodes[i];
-              const bone = node && rig[node[0]];
-              if (!bone) { s.visible = false; return; }
-              bone.getWorldPosition(twin._g);
-              s.position.set(twin._g.x + node[1][0], twin._g.y + node[1][1], twin._g.z + node[1][2]);
-              s.visible = true;
-              s.material.opacity = 0.18 + p * 0.82;
-              s.scale.setScalar(0.32 + p * 0.16);
-            });
+          // Barbell tracks the hands via forward kinematics + a fading motion trail.
+          root.updateMatrixWorld(true);
+          const showBar = !!(ex && ex.bar && rig.lHand && rig.rHand);
+          twin.bar.visible = showBar; twin.trail.visible = showBar;
+          if (showBar) {
+            rig.lHand.getWorldPosition(twin._l);
+            rig.rHand.getWorldPosition(twin._r);
+            const mx = (twin._l.x + twin._r.x) / 2, my = (twin._l.y + twin._r.y) / 2, mz = (twin._l.z + twin._r.z) / 2;
+            twin.bar.position.set(mx, my, mz);
+            const ax = twin._r.clone().sub(twin._l);
+            if (ax.lengthSq() > 1e-5) twin.bar.quaternion.setFromUnitVectors(twin._X, ax.normalize());
+            const { tp, tc, TN } = twin;
+            if (twin.lastMode !== m) for (let i = 0; i < TN; i++) { tp[i*3]=mx; tp[i*3+1]=my; tp[i*3+2]=mz; }
+            for (let i = TN - 1; i > 0; i--) { tp[i*3]=tp[(i-1)*3]; tp[i*3+1]=tp[(i-1)*3+1]; tp[i*3+2]=tp[(i-1)*3+2]; }
+            tp[0]=mx; tp[1]=my; tp[2]=mz;
+            const c = twin.auraColor;
+            for (let i = 0; i < TN; i++) { const a = (1 - i / TN) ** 1.5; tc[i*3]=c.r*a; tc[i*3+1]=c.g*a; tc[i*3+2]=c.b*a; }
+            twin.trail.geometry.attributes.position.needsUpdate = true;
+            twin.trail.geometry.attributes.color.needsUpdate = true;
           }
           twin.lastMode = m;
+
+          // Muscle activation — the ExRx target/synergist muscles glow, brightening
+          // as the figure contracts (an "x-ray" of what each lift works).
+          const nodes = MUSCLE_NODES[m];
+          twin.glows.forEach((s, i) => {
+            const node = nodes && nodes[i];
+            const bone = node && rig[node[0]];
+            if (!bone) { s.visible = false; return; }
+            bone.getWorldPosition(twin._g);
+            s.position.set(twin._g.x + node[1][0], twin._g.y + node[1][1], twin._g.z + node[1][2]);
+            s.visible = true;
+            s.material.opacity = 0.18 + p * 0.82;
+            s.scale.setScalar(0.32 + p * 0.16);
+          });
 
           // --- VFX ---
           // aura swells at peak contraction — the effort glow.
@@ -791,38 +597,18 @@ export default function Twin() {
 
       {/* 3D stage with aurora backdrop + HUD */}
       <motion.div variants={rise} className="card" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
-        {/* animated stage aura behind the figure — a breathing halo + slow drift,
-            tinted by the avatar's stage colour. */}
+        {/* animated aurora behind the figure */}
         <motion.div aria-hidden
-          animate={{ opacity: [0.45, 0.85, 0.45], scale: [1, 1.06, 1] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+          animate={{ opacity: [0.5, 0.8, 0.5] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
           style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: `radial-gradient(ellipse 60% 50% at 50% 34%, ${accent}33 0%, transparent 62%)`,
-          }} />
-        <motion.div aria-hidden
-          animate={{ opacity: [0.18, 0.4, 0.18], rotate: [0, 8, 0] }}
-          transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
-          style={{
-            position: 'absolute', inset: '-10%', pointerEvents: 'none',
-            background: `conic-gradient(from 200deg at 50% 40%, transparent, ${accent}22, transparent 45%)`,
-            filter: 'blur(24px)',
+            background: `radial-gradient(ellipse at 50% 24%, ${accent}26 0%, transparent 60%)`,
           }} />
         <div ref={stageRef} key={bootId} style={{
-          width: '100%', height: 460, position: 'relative', overflow: 'hidden',
+          width: '100%', height: 460, position: 'relative',
           background: 'radial-gradient(ellipse at 50% 26%, #0e1730 0%, #06080d 80%)',
-        }}>
-          {/* the Living World — the user's real sky, rendered around the Twin */}
-          {wpreset && <WeatherBackdrop preset={wpreset} />}
-          {wpreset && (
-            <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 3, display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(8,11,18,0.7)', border: `1px solid ${wpreset.tint}55`, borderRadius: 999, padding: '5px 11px',
-              backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', pointerEvents: 'none' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: wpreset.tint, boxShadow: `0 0 8px ${wpreset.tint}` }} />
-              <span style={{ fontSize: 10.5, fontFamily: 'var(--font-eyebrow)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--dim)' }}>{wpreset.label} · your sky</span>
-            </div>
-          )}
-        </div>
+        }} />
 
         {/* HUD: stage chip + XP-to-next ring */}
         {phase === 'ready' && av && (
@@ -843,42 +629,10 @@ export default function Twin() {
             </div>
           </>
         )}
-        {phase === 'ready' && !usingOwn && !selMuscle && (
+        {phase === 'ready' && !usingOwn && (
           <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: 'var(--mute)' }}>
             Demo avatar — make it you below
           </div>
-        )}
-
-        {/* tap-to-inspect muscle panel */}
-        {phase === 'ready' && (
-          <AnimatePresence>
-            {selMuscle ? (() => {
-              const key = GROUP_READINESS[selMuscle.id];
-              const mm = readiness?.muscles?.[key];
-              const col = !mm ? 'var(--mute)' : mm.status === 'fresh' ? 'var(--green)' : mm.status === 'fatigued' ? 'var(--red)' : 'var(--amber)';
-              return (
-                <motion.div key="mpanel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                  style={{ position: 'absolute', bottom: 12, left: 12, right: 12, display: 'flex', alignItems: 'center', gap: 10,
-                    background: 'rgba(8,11,18,0.82)', border: `1px solid ${col}55`, borderRadius: 14, padding: '10px 13px',
-                    backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: col, boxShadow: `0 0 10px ${col}`, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{GROUP_LABEL[selMuscle.id]}</div>
-                    <div style={{ fontSize: 11, color: 'var(--dim)' }}>
-                      {mm ? <>{mm.recovery}% recovered · <span style={{ color: col, textTransform: 'capitalize' }}>{mm.status}</span>{mm.hours_since != null ? ` · trained ${Math.round(mm.hours_since)}h ago` : ''}</> : 'No training logged yet — fully fresh.'}
-                    </div>
-                  </div>
-                  <button onClick={() => setSelMuscle(null)} aria-label="Close"
-                    style={{ background: 'none', border: 'none', color: 'var(--mute)', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 2 }}>×</button>
-                </motion.div>
-              );
-            })() : (
-              <motion.div key="mhint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                style={{ position: 'absolute', bottom: 12, right: 14, fontSize: 10.5, color: 'var(--mute)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent, #f5b572)' }} /> tap a muscle
-              </motion.div>
-            )}
-          </AnimatePresence>
         )}
 
         {/* loading */}
@@ -922,11 +676,28 @@ export default function Twin() {
         </AnimatePresence>
       </motion.div>
 
-      {/* living-anatomy legend */}
-      <motion.div variants={rise} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, margin: '10px 0 2px', fontSize: 11, color: 'var(--mute)', flexWrap: 'wrap' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'linear-gradient(90deg,#f5b572,#ffd9a3)' }} /> fresh</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'linear-gradient(90deg,#d97a45,#f24322)' }} /> fatigued</span>
-        <span style={{ color: 'var(--dim)' }}>· your muscles glow by recovery — tap any to read it</span>
+      {/* action pills (scroll horizontally — the Twin performs each lift) */}
+      <motion.div variants={rise} style={{
+        display: 'flex', gap: 6, margin: '12px 0', background: 'var(--surface)',
+        border: '1px solid var(--line)', borderRadius: 16, padding: 5,
+        overflowX: 'auto', scrollbarWidth: 'none',
+      }}>
+        {ACTIONS.map((a) => {
+          const active = mode === a.id;
+          return (
+            <button key={a.id} onClick={() => setAction(a.id)} style={{
+              position: 'relative', flex: '0 0 auto', background: 'none', border: 'none', cursor: 'pointer',
+              padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap',
+              fontFamily: 'var(--font-display)', color: active ? '#04150e' : 'var(--dim)', transition: 'color 0.18s',
+            }}>
+              {active && (
+                <motion.span layoutId="twin-action" transition={{ type: 'spring', stiffness: 480, damping: 36 }}
+                  style={{ position: 'absolute', inset: 0, borderRadius: 12, background: 'var(--mint)' }} />
+              )}
+              <span style={{ position: 'relative' }}>{a.label}</span>
+            </button>
+          );
+        })}
       </motion.div>
 
       {/* stage progression track */}
@@ -959,7 +730,7 @@ export default function Twin() {
 
       {/* drivers */}
       <motion.div variants={rise} className="card" style={{ padding: 18 }}>
-        {!stats && <Skeleton height={60} />}
+        {!stats && <div className="skel" style={{ height: 60 }} />}
         {stats?.unavailable && <p className="meta">Stats unavailable — log workouts to grow your Twin.</p>}
         {av && (
           <>
@@ -1119,3 +890,117 @@ function GrowthStat({ Icon, value, label, tone, sign }) {
     </div>
   );
 }
+```
+
+### 7b. Backend — growth math (`varunos/core/momentum.py`, pure functions)
+
+```python
+def avatar_level(
+    *,
+    volume_trend_pct: float = 0.0,   # 4-week volume slope, % per week (-20..+20 useful range)
+    streak_weeks: int = 0,
+    days_since_pr: Optional[int] = None,
+    consistency: float = 0.0,        # 0..1
+) -> int:
+    """Physique score 0–100 for the avatar. Deterministic and explainable.
+
+    30% volume trend · 20% streak · 25% PR recency · 25% consistency.
+    """
+    vol = max(0.0, min(1.0, (volume_trend_pct + 5) / 15))     # -5% → 0, +10% → 1
+    stk = max(0.0, min(1.0, streak_weeks / 8))                # 8-week streak maxes it
+    if days_since_pr is None:
+        pr = 0.0
+    else:
+        pr = max(0.0, min(1.0, 1 - days_since_pr / 30))       # linear decay over 30 days
+    cons = max(0.0, min(1.0, consistency))
+    return round(100 * (0.30 * vol + 0.20 * stk + 0.25 * pr + 0.25 * cons))
+
+
+def avatar_stage(level: int) -> dict:
+    """Map level 0–100 to one of 5 physique stages for the mascot."""
+    stages = [
+        (0, "starting", "Just getting going"),
+        (20, "warming_up", "Building the habit"),
+        (40, "solid", "Visibly consistent"),
+        (65, "strong", "Strength is showing"),
+        (85, "peak", "Peak form"),
+    ]
+    name, label = stages[0][1], stages[0][2]
+    idx = 0
+    for i, (cut, n, l) in enumerate(stages):
+        if level >= cut:
+            name, label, idx = n, l, i
+    cur_cut = stages[idx][0]
+    next_at = stages[idx + 1][0] if idx + 1 < len(stages) else None
+    if next_at is None:
+        progress = 1.0
+    else:
+        span = next_at - cur_cut
+        progress = round((level - cur_cut) / span, 3) if span else 1.0
+    return {"stage": idx + 1, "of": len(stages), "name": name, "label": label,
+```
+
+### 7c. Backend — per-muscle map + avatar_state endpoint (`varunos/api/endpoints_extra.py`)
+
+```python
+_MUSCLE_KEYWORDS = {
+    "legs": ("squat", "leg", "lunge", "deadlift", "rdl", "calf", "glute", "hip"),
+    "chest": ("bench", "chest", "fly", "dip", "push_up", "pushup"),
+    "back": ("row", "pull", "lat", "chin", "deadlift"),
+    "shoulders": ("overhead", "ohp", "shoulder", "lateral", "raise", "press"),
+    "arms": ("curl", "tricep", "extension", "pushdown", "skull"),
+    "core": ("plank", "crunch", "ab", "situp", "leg_raise"),
+}
+
+
+def _muscle_growth(all_sets: list[dict], level: int) -> dict:
+    """Per-muscle growth 0-100. Overall level scaled by how much of your training
+    volume hit each group, so the group you train most visibly grows most.
+    No data -> the level spread evenly (honest, never fabricated emphasis)."""
+    groups = list(_MUSCLE_KEYWORDS)
+    vol = {g: 0.0 for g in groups}
+    for s in all_sets:
+        if not (s.get("weight_kg") and s.get("reps")):
+            continue
+        ex = (s.get("exercise_id") or "").lower()
+        v = s["weight_kg"] * s["reps"]
+        for g, kws in _MUSCLE_KEYWORDS.items():
+            if any(k in ex for k in kws):
+                vol[g] += v
+    total = sum(vol.values())
+    out = {}
+    for g in groups:
+        if total <= 0:
+            out[g] = level
+        else:
+            share = vol[g] / total              # 0..1 of total volume
+            emphasis = 0.55 + min(1.0, share * len(groups)) * 0.45  # 0.55..1.0
+            out[g] = round(min(100, level * emphasis))
+    return out
+
+
+@router.get("/v1/logs/sets/last")
+def last_sets():
+    """Most recent logged set per exercise — powers the 'beat this' prefill."""
+    uid = _user_id_from_default()
+    rows = db.list_sets_since(uid, "1970-01-01")
+    latest: dict[str, dict] = {}
+    for s in rows:  # oldest→newest, so later writes win
+        if s.get("weight_kg") and s.get("reps"):
+            latest[s["exercise_id"]] = {
+                "weight_kg": s["weight_kg"], "reps": s["reps"],
+                "rpe": s.get("rpe"), "ts": s["ts"],
+            }
+    return {"last_sets": latest}
+
+@router.get("/v1/avatar/state")
+def avatar_state():
+    """Physique stage for the mascot. Deterministic from training history."""
+    uid = _user_id_from_default()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    st = _momentum_state(uid, today)
+    return {"avatar": st["avatar"], "streak_weeks": st["streak_weeks"],
+            "volume_trend_pct_per_week": st["volume_trend_pct_per_week"],
+            "days_since_pr": st["days_since_pr"], "muscles": st["muscles"],
+            "consistency_4w": st["consistency_4w"]}
+```
