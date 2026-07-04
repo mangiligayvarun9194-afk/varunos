@@ -11,7 +11,9 @@ non-negotiable per-user isolation.
 import pytest
 from fastapi.testclient import TestClient
 
-from varunos.core.twinbody import validate_measurements, derive_morphs
+from varunos.core.twinbody import (
+    validate_measurements, derive_morphs, derive_goal_measurements, RANGES,
+)
 
 
 # The shared test vector — the cross-team contract for the morph math.
@@ -137,6 +139,94 @@ class TestMorphs:
         assert derive_morphs(SHARED_VECTOR) == derive_morphs(dict(SHARED_VECTOR))
 
 
+# ---- Goal projection ----------------------------------------------------------
+
+# The pinned cross-team vector for the goal math.
+T1 = {"height_cm": 175.0, "chest_cm": 100.0, "waist_cm": 80.0, "shoulder_cm": 45.0}
+
+
+class TestGoalMeasurements:
+    def test_recomp_pinned_vector(self):
+        g = derive_goal_measurements(T1, "recomp")
+        assert g["chest_cm"] == pytest.approx(104.0)
+        assert g["waist_cm"] == pytest.approx(75.2)
+        assert g["shoulder_cm"] == pytest.approx(46.35)
+        assert g["height_cm"] == 175.0  # untouched field passes through
+
+    def test_default_goal_is_recomp(self):
+        assert derive_goal_measurements(T1) == derive_goal_measurements(T1, "recomp")
+
+    def test_unknown_goal_treated_as_recomp(self):
+        assert derive_goal_measurements(T1, "shred") == derive_goal_measurements(T1, "recomp")
+
+    def test_cut_multipliers(self):
+        m = {"waist_cm": 90.0, "hip_cm": 100.0, "weight_kg": 80.0, "chest_cm": 100.0}
+        g = derive_goal_measurements(m, "cut")
+        assert g["waist_cm"] == pytest.approx(90 * 0.92)
+        assert g["hip_cm"] == pytest.approx(100 * 0.96)
+        assert g["weight_kg"] == pytest.approx(80 * 0.92)
+        assert g["chest_cm"] == 100.0  # cut does not touch chest
+
+    def test_lean_bulk_multipliers(self):
+        m = {"chest_cm": 100.0, "shoulder_cm": 45.0, "sleeve_cm": 58.0, "waist_cm": 80.0}
+        g = derive_goal_measurements(m, "lean_bulk")
+        assert g["chest_cm"] == pytest.approx(106.0)
+        assert g["shoulder_cm"] == pytest.approx(47.25)
+        assert g["sleeve_cm"] == pytest.approx(58 * 1.04)
+        assert g["waist_cm"] == pytest.approx(78.4)
+
+    def test_bulk_multipliers(self):
+        m = {"chest_cm": 100.0, "shoulder_cm": 45.0, "waist_cm": 80.0, "weight_kg": 70.0}
+        g = derive_goal_measurements(m, "bulk")
+        assert g["chest_cm"] == pytest.approx(108.0)
+        assert g["shoulder_cm"] == pytest.approx(47.7)
+        assert g["waist_cm"] == pytest.approx(81.6)
+        assert g["weight_kg"] == pytest.approx(75.6)
+
+    def test_cut_waist_at_low_edge_clamps_to_floor(self):
+        # 52 * 0.92 = 47.84 < 50 (waist range floor) → clamped up to 50.
+        g = derive_goal_measurements({"waist_cm": 52.0}, "cut")
+        assert g["waist_cm"] == RANGES["waist_cm"][0] == 50.0
+
+    def test_bulk_chest_near_ceiling_clamps_to_cap(self):
+        # 165 * 1.08 = 178.2 > 170 (chest range cap) → clamped down to 170.
+        g = derive_goal_measurements({"chest_cm": 165.0}, "bulk")
+        assert g["chest_cm"] == RANGES["chest_cm"][1] == 170.0
+
+    def test_only_present_fields_are_adjusted(self):
+        g = derive_goal_measurements({"height_cm": 175.0}, "recomp")
+        assert g == {"height_cm": 175.0}  # no chest/waist/shoulder invented
+
+    def test_none_fields_pass_through_unadjusted(self):
+        g = derive_goal_measurements({"waist_cm": None, "chest_cm": 100.0}, "recomp")
+        assert g["waist_cm"] is None
+        assert g["chest_cm"] == pytest.approx(104.0)
+
+    def test_pure_input_never_mutated(self):
+        m = dict(T1)
+        out = derive_goal_measurements(m, "bulk")
+        assert m == T1
+        assert out is not m
+
+    def test_empty_and_none_inputs(self):
+        assert derive_goal_measurements({}, "cut") == {}
+        assert derive_goal_measurements(None, "cut") == {}
+
+    def test_deterministic(self):
+        assert derive_goal_measurements(T1, "cut") == derive_goal_measurements(dict(T1), "cut")
+
+    def test_goal_morphs_chain_recomp_chest_grows(self):
+        # The whole point: the goal Twin's chest visibly outgrows today's.
+        today = derive_morphs(SHARED_VECTOR)
+        goal = derive_morphs(derive_goal_measurements(SHARED_VECTOR, "recomp"))
+        assert goal["chest"] > today["chest"]
+        assert goal["waist"] < today["waist"]
+
+    def test_goal_morphs_pinned_for_t1(self):
+        goal = derive_morphs(derive_goal_measurements(T1, "recomp"))
+        assert round(goal["chest"], 3) == round(104.0 / (0.55 * 175), 3)
+
+
 # ---- API: /v1/twin/measurements ---------------------------------------------
 
 @pytest.fixture
@@ -228,3 +318,50 @@ class TestTwinAPI:
         assert a_body["measurements"]["chest_cm"] == 100.0
         assert b_body["measurements"] is None  # B cannot see A's data
         assert b_body["morphs"] == {ch: 1.0 for ch in ALL_CHANNELS}
+
+
+class TestTwinGoalAPI:
+    """GET /v1/twin/measurements now also ships goal_morphs."""
+
+    def test_empty_get_has_neutral_goal_morphs(self, client):
+        body = client.get("/v1/twin/measurements", headers=_auth()).json()
+        assert body["goal"] == "recomp"  # no profile → default
+        assert body["goal_morphs"] == {ch: 1.0 for ch in ALL_CHANNELS}
+
+    def test_goal_morphs_default_recomp(self, client):
+        client.put("/v1/twin/measurements", headers=_auth(), json=SHARED_VECTOR)
+        body = client.get("/v1/twin/measurements", headers=_auth()).json()
+        assert body["goal"] == "recomp"
+        expected = derive_morphs(derive_goal_measurements(SHARED_VECTOR, "recomp"))
+        assert body["goal_morphs"] == pytest.approx(expected)
+        # today's morphs are untouched by the goal projection
+        assert body["morphs"] == pytest.approx(derive_morphs(SHARED_VECTOR))
+
+    def test_goal_query_param_overrides(self, client):
+        client.put("/v1/twin/measurements", headers=_auth(), json=SHARED_VECTOR)
+        body = client.get("/v1/twin/measurements?goal=cut", headers=_auth()).json()
+        assert body["goal"] == "cut"
+        expected = derive_morphs(derive_goal_measurements(SHARED_VECTOR, "cut"))
+        assert body["goal_morphs"] == pytest.approx(expected)
+
+    def test_invalid_goal_param_falls_back_to_recomp(self, client):
+        client.put("/v1/twin/measurements", headers=_auth(), json=SHARED_VECTOR)
+        body = client.get("/v1/twin/measurements?goal=getSwole", headers=_auth()).json()
+        assert body["goal"] == "recomp"
+
+    def test_profile_goal_is_used(self, client):
+        r = client.put("/v1/user/profile", headers=_auth(), json={"goal": "bulk"})
+        assert r.status_code == 200, r.text
+        client.put("/v1/twin/measurements", headers=_auth(), json=SHARED_VECTOR)
+        body = client.get("/v1/twin/measurements", headers=_auth()).json()
+        assert body["goal"] == "bulk"
+        expected = derive_morphs(derive_goal_measurements(SHARED_VECTOR, "bulk"))
+        assert body["goal_morphs"] == pytest.approx(expected)
+        # ...and the query param still wins over the stored profile goal
+        cut = client.get("/v1/twin/measurements?goal=cut", headers=_auth()).json()
+        assert cut["goal"] == "cut"
+
+    def test_put_response_also_ships_goal_morphs(self, client):
+        body = client.put("/v1/twin/measurements", headers=_auth(),
+                          json=SHARED_VECTOR).json()
+        assert "goal_morphs" in body and body["goal"] == "recomp"

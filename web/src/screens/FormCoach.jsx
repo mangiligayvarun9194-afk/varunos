@@ -96,6 +96,7 @@ export default function FormCoach({ onTab }) {
       }});
       teardown(); setStatus('idle'); setReview(null);
       setLogged({ reps: repCount, group: m.group, load });
+      window.dispatchEvent(new CustomEvent('sarathi:workout-logged'));  // the Twin celebrates
       toast('Logged — your Twin just grew 💪');
     } catch (_) {
       toast('Couldn’t log that set — try again.');

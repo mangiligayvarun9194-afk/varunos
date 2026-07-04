@@ -324,6 +324,18 @@ def _migrate(c: sqlite3.Connection) -> None:
         created_at  TEXT
     );
     CREATE INDEX IF NOT EXISTS ix_twin_hist_user ON twin_measurements_history(user_id, created_at);
+
+    -- Twin Try-On: "I'd wear this" signals. Append-only intent log — the
+    -- honest demand metric behind the investor dashboard.
+    CREATE TABLE IF NOT EXISTS tryon_intents (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     TEXT,
+        item_id     TEXT,
+        size        TEXT,
+        mode        TEXT,    -- 'today' | 'goal'
+        created_at  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS ix_tryon_user ON tryon_intents(user_id, created_at);
     """)
     # Additive migrations for wearable sync (idempotent; ALTER only if missing)
     _ensure_columns(c, "daily_checkin", {
@@ -785,6 +797,79 @@ def list_twin_history(user_id: str, limit: int = 50) -> list[dict]:
             d["snapshot"] = {}
         out.append(d)
     return out
+
+
+# ========== TRY-ON INTENTS (Twin Try-On demand signals) ==========
+
+def add_tryon_intent(user_id: str, item_id: str, size: str, mode: str) -> int:
+    """Record one 'I'd wear this' signal. Append-only."""
+    with transaction() as c:
+        cur = c.execute(
+            "INSERT INTO tryon_intents (user_id, item_id, size, mode, created_at) "
+            "VALUES (?,?,?,?,?)",
+            (user_id, item_id, size, mode, _now()),
+        )
+        return cur.lastrowid
+
+
+def list_tryon_intents(user_id: str, limit: int = 50) -> list[dict]:
+    """One user's intents, newest first."""
+    rows = conn().execute(
+        "SELECT * FROM tryon_intents WHERE user_id=? ORDER BY id DESC LIMIT ?",
+        (user_id, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_tryon_intents(since_iso: str | None = None) -> int:
+    """Global intent count, optionally only since a timestamp."""
+    if since_iso:
+        row = conn().execute(
+            "SELECT COUNT(*) AS n FROM tryon_intents WHERE created_at >= ?",
+            (since_iso,)).fetchone()
+    else:
+        row = conn().execute("SELECT COUNT(*) AS n FROM tryon_intents").fetchone()
+    return int(row["n"]) if row else 0
+
+
+# ========== METRICS (global aggregates — investor dashboard) ==========
+
+def count_accounts() -> int:
+    """Registered accounts (the signup table)."""
+    row = conn().execute("SELECT COUNT(*) AS n FROM account").fetchone()
+    return int(row["n"]) if row else 0
+
+
+def count_twin_measurements() -> int:
+    """Users with at least one saved measurement set (1 row per user)."""
+    row = conn().execute("SELECT COUNT(*) AS n FROM twin_measurements").fetchone()
+    return int(row["n"]) if row else 0
+
+
+def count_twin_history() -> int:
+    """Total measurement snapshots ever saved (append-only history)."""
+    row = conn().execute("SELECT COUNT(*) AS n FROM twin_measurements_history").fetchone()
+    return int(row["n"]) if row else 0
+
+
+def count_workouts(since_iso: str | None = None, before_iso: str | None = None) -> int:
+    """Global workout-session count, optionally windowed [since, before)."""
+    q = "SELECT COUNT(*) AS n FROM workout_log WHERE 1=1"
+    args: list[str] = []
+    if since_iso:
+        q += " AND ts >= ?"
+        args.append(since_iso)
+    if before_iso:
+        q += " AND ts < ?"
+        args.append(before_iso)
+    row = conn().execute(q, args).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def workout_user_ids() -> list[str]:
+    """Distinct users who have logged at least one workout."""
+    rows = conn().execute("SELECT DISTINCT user_id FROM workout_log").fetchall()
+    return [r["user_id"] for r in rows if r["user_id"]]
 
 
 # ========== HERMES (companion memory + relationship state) ==========

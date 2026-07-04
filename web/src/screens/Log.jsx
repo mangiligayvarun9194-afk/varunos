@@ -284,6 +284,7 @@ function ExerciseCard({ ex, prev, plan }) {
         sets: [{ exercise_id: ex.id, set_index: 1, weight_kg: w, reps, rpe }],
       }});
       localStorage.setItem('twin_last_ex', ex.id);
+      window.dispatchEvent(new CustomEvent('sarathi:workout-logged'));  // the Twin celebrates
       setRes({ ok: true, pr: r.pr });
       if (r.pr.is_pr) confettiBurst();
       startRest(ex.rest_s || 90);
@@ -374,6 +375,7 @@ function MealSheet() {
     try {
       const r = await api('/v1/logs/meals', { method: 'POST', body: { food_id: id, portions: 1, context: mealContext() } });
       setDayTotal(Math.round(r.day_kcal_total));
+      if (/protein|whey|shake/i.test(name || id)) window.dispatchEvent(new CustomEvent('sarathi:protein-logged'));  // the Twin shakes his shaker
       toast(`✓ ${name} logged`);
     } catch (e) { setErr(e.message); }
   }
@@ -392,6 +394,7 @@ function MealSheet() {
     try {
       const r = await api('/v1/logs/meals', { method: 'POST', body: { food_id: picked.id, portions, context: ctx } });
       setDayTotal(Math.round(r.day_kcal_total));
+      if (/protein|whey|shake/i.test(picked.name || picked.id)) window.dispatchEvent(new CustomEvent('sarathi:protein-logged'));
       setPicked(null); setQ(''); setResults([]);
       toast(`✓ Logged ${r.kcal} kcal`);
     } catch (e) { setErr(e.message); }

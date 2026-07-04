@@ -13,8 +13,11 @@ import { Skeleton } from '../components/kit.jsx';
 import { IconBody, IconTrend, IconFlame, IconBolt, IconSparkle } from '../components/Icons.jsx';
 import { buildMuscleAttribute, GROUP_LABEL, GROUP_READINESS } from '../lib/twinSkin.js';
 import { boneScalesFromMorphs } from '../lib/twinmorph.js';
+import { lerpMorphs, becomingLabel, becomingWeeks } from '../lib/becoming.js';
+import { CLIPS } from '../lib/twinacts.js';
 import { getLocationPreset } from '../lib/weatherworld.js';
 import WeatherBackdrop from './WeatherBackdrop.jsx';
+import TryOnPanel from './TryOnPanel.jsx';
 
 const TWIN_DEMO_GLB = '/models/twin-custom.glb';
 // Lifts marked 🎞 play real motion-capture (baked GLB); the rest use the
@@ -186,6 +189,10 @@ export default function Twin() {
   const readyRef = useRef(null);                    // 8-group activation target for the shader
   const scanRef = useRef(null);                     // 8-group mask of the next muscles to train
   const [wpreset, setWpreset] = useState(null);     // the Living World — real weather at the user's sky
+  const [beco, setBeco] = useState(0);              // Becoming slider position (0 = today, 1 = goal-you)
+  const [hasBody, setHasBody] = useState(false);    // measurements present → slider + true-size active
+  const reshapeRef = useRef(null);                  // applyBodyShape(morphs) exposed by the 3D boot
+  const morphsDataRef = useRef(null);               // { today, goal } morph dicts from the API
 
   // Weather-true world: geolocation → Open-Meteo → backdrop preset (graceful fallback inside).
   useEffect(() => {
@@ -330,10 +337,15 @@ export default function Twin() {
         // Avatar (saved custom .glb may be a dead RPM link → fall back to demo).
         const savedUrl = localStorage.getItem('varunos_avatar_url');
         let glbUrl = savedUrl || TWIN_DEMO_GLB, gltf;
-        // TRUE-SIZE TWIN — fetch the user's measurement morphs before the rig loads
-        // so the body can be shaped at bind time (missing/legacy backend → null → base body).
+        // TRUE-SIZE TWIN — fetch today + goal morphs before the rig loads so the body
+        // can be shaped at bind time and the Becoming slider can lerp between them.
         let userMorphs = null;
-        try { const tm = await api('/v1/twin/measurements'); userMorphs = tm?.morphs || null; } catch (_) {}
+        try {
+          const tm = await api('/v1/twin/measurements');
+          userMorphs = tm?.morphs || null;
+          morphsDataRef.current = { today: tm?.morphs || null, goal: tm?.goal_morphs || tm?.morphs || null };
+          if (tm?.measurements && !dead) setHasBody(true);
+        } catch (_) {}
         try { gltf = await new GLTFLoader().loadAsync(glbUrl); }
         catch (err) {
           if (!savedUrl) throw err;
@@ -342,18 +354,8 @@ export default function Twin() {
         }
         if (dead) { renderer.dispose(); return; }
         const root = gltf.scene; scene.add(root);
-        // Shape the rig to the user's real body: bone scales derived from measurements.
-        if (userMorphs) {
-          try {
-            const names = [];
-            root.traverse((o) => { if (o.isBone) names.push(o.name); });
-            const scales = boneScalesFromMorphs(userMorphs, names);
-            root.traverse((o) => {
-              const s = o.isBone && scales[o.name];
-              if (s) o.scale.set(o.scale.x * s.x, o.scale.y * s.y, o.scale.z * s.z);
-            });
-          } catch (_) { /* unknown rig → base body */ }
-        }
+        // (body shaping happens below via applyBodyShape — one function unifies
+        //  measurement morphs, the Becoming slider, and level growth)
 
         // LIVING ANATOMY — reskin the avatar as obsidian with muscles that glow from
         // within, driven by per-muscle readiness. Shared uniforms updated each frame.
@@ -457,11 +459,25 @@ export default function Twin() {
         camera.position.set(0, h * 0.62, h * 1.85);
         camera.lookAt(0, h * 0.52, 0);
 
-        // Growth: scale bones by avatar_level.
-        const arm = 1 + g * 0.45, chest = 1 + g * 0.22, leg = 1 + g * 0.25;
-        for (const k of ['lArm', 'rArm']) rig[k] && rig[k].scale.setScalar(arm);
-        rig.spine2 && rig.spine2.scale.set(chest, 1 + g * 0.06, chest);
-        for (const k of ['lUpLeg', 'rUpLeg']) rig[k] && rig[k].scale.setScalar(leg);
+        // BODY SHAPE = measurement morphs (True-Size / Becoming) × level growth.
+        // One function, re-callable live: the Becoming slider passes lerped morphs here.
+        // (Fixes the T1 bug where growth setScalar() stomped measurement scales.)
+        const arm = 1 + g * 0.45, chest = 1 + g * 0.22, leg = 1 + g * 0.25, chestY = 1 + g * 0.06;
+        const allBoneNames = Object.keys(bones);
+        const applyBodyShape = (morphDict) => {
+          let scales = {};
+          try { scales = morphDict ? boneScalesFromMorphs(morphDict, allBoneNames) : {}; } catch (_) {}
+          root.traverse((o) => {
+            if (!o.isBone) return;
+            const s = scales[o.name];
+            o.scale.set(s ? s.x : 1, s ? s.y : 1, s ? s.z : 1);
+          });
+          for (const k of ['lArm', 'rArm']) rig[k] && rig[k].scale.multiplyScalar(arm);
+          rig.spine2 && rig.spine2.scale.multiply(new THREE.Vector3(chest, chestY, chest));
+          for (const k of ['lUpLeg', 'rUpLeg']) rig[k] && rig[k].scale.multiplyScalar(leg);
+        };
+        applyBodyShape(userMorphs);
+        reshapeRef.current = applyBodyShape;
 
         // Barbell — a real loaded bar the hands carry (placed between the hand
         // bones each frame via forward kinematics), so it racks/hangs/presses
@@ -677,6 +693,21 @@ export default function Twin() {
               if (rig.hips) rig.hips.position.x += Math.sin(t * 0.9) * 0.012;
             }
 
+            // LIVING GESTURE overlay (greeting / celebrate / shake) — additive on top of
+            // whatever the mode engine posed this frame; clears itself at clip end.
+            if (twin.gesture) {
+              const gt = (performance.now() - twin.gesture.t0) / 1000 / twin.gesture.clip.duration;
+              if (gt >= 1) { twin.gesture = null; }
+              else {
+                const gpose = twin.gesture.clip.poseAt(gt);
+                const GMAP = { head: 'head', spine: 'spine2', hips: 'hips', lArm: 'lArm', rArm: 'rArm', lForeArm: 'lFore', rForeArm: 'rFore', lLeg: 'lUpLeg', rLeg: 'rUpLeg' };
+                for (const part in GMAP) {
+                  const b = rig[GMAP[part]], pr = gpose[part];
+                  if (b && pr) { b.rotation.x += pr.rx; b.rotation.y += pr.ry; b.rotation.z += pr.rz; }
+                }
+              }
+            }
+
             // Foot-lock: re-ground every frame so the lowest foot stays on the floor.
             root.updateMatrixWorld(true);
             {
@@ -746,6 +777,17 @@ export default function Twin() {
 
           (twin.composer || twin.renderer).render(scene, camera);
         };
+        // Living gestures: greeting on arrival; celebrate/shake fired by real app events
+        // (Log/FormCoach dispatch window CustomEvents when a workout or protein is logged).
+        twin.gesture = null;
+        twin.playGesture = (id) => {
+          try { const mk = CLIPS[id]; const c = mk && mk(); if (c) twin.gesture = { clip: c, t0: performance.now() }; } catch (_) {}
+        };
+        twin._onWorkout = () => twin.playGesture('celebrate');
+        twin._onShake = () => twin.playGesture('shake');
+        window.addEventListener('sarathi:workout-logged', twin._onWorkout);
+        window.addEventListener('sarathi:protein-logged', twin._onShake);
+        setTimeout(() => { if (!dead) twin.playGesture('greeting'); }, 900);
         loop();
         setPhase('ready');
       } catch (e) {
@@ -756,6 +798,8 @@ export default function Twin() {
       dead = true;
       const twin = twinRef.current;
       if (twin) {
+        if (twin._onWorkout) window.removeEventListener('sarathi:workout-logged', twin._onWorkout);
+        if (twin._onShake) window.removeEventListener('sarathi:protein-logged', twin._onShake);
         cancelAnimationFrame(twin.raf);
         twin.composer?.dispose?.();
         twin.renderer.dispose();
@@ -823,6 +867,31 @@ export default function Twin() {
             </div>
           )}
         </div>
+
+        {/* BECOMING — drag between today-you and goal-you; the body reshapes live */}
+        {phase === 'ready' && hasBody && (
+          <div style={{ padding: '14px 16px 6px', borderTop: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+              <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: beco > 0.85 ? '#2ec4b6' : 'var(--mint)' }}>
+                becoming · {becomingLabel(beco)}
+              </span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--dim)' }}>
+                {becomingWeeks(beco) === 0 ? 'now' : `≈ ${becomingWeeks(beco)} weeks at current pace`}
+              </span>
+            </div>
+            <input type="range" min="0" max="100" value={Math.round(beco * 100)} aria-label="Becoming: today to goal"
+              onChange={(e) => {
+                const t = Number(e.target.value) / 100;
+                setBeco(t);
+                const md = morphsDataRef.current;
+                if (md?.today && reshapeRef.current) reshapeRef.current(lerpMorphs(md.today, md.goal || md.today, t));
+              }}
+              style={{ width: '100%', accentColor: beco > 0.85 ? '#2ec4b6' : '#f5b572', cursor: 'pointer' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, color: 'var(--mute)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2 }}>
+              <span>today</span><span>goal-you</span>
+            </div>
+          </div>
+        )}
 
         {/* HUD: stage chip + XP-to-next ring */}
         {phase === 'ready' && av && (
@@ -995,6 +1064,11 @@ export default function Twin() {
             placeholder="https://…/avatar.glb" style={{ flex: 1, fontSize: 13 }} />
           <button className="btn primary" onClick={saveUrl}>Use it</button>
         </div>
+      </motion.div>
+
+      {/* TWIN WARDROBE — true-size try-on: fits today, fits goal-you */}
+      <motion.div variants={rise} className="card" style={{ padding: 18 }}>
+        <TryOnPanel />
       </motion.div>
     </motion.div>
   );

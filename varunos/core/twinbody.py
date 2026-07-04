@@ -69,6 +69,44 @@ def _clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
 
+# ---- Goal projection --------------------------------------------------------
+# "What will my Twin look like if I hit my goal?" Each goal applies fixed
+# multipliers to the measurements it plausibly changes; everything else passes
+# through untouched. Results are clamped back into the validation RANGES so a
+# projected body is always one the validator (and the rig) would accept.
+
+GOALS: tuple[str, ...] = ("cut", "recomp", "lean_bulk", "bulk")
+DEFAULT_GOAL = "recomp"
+
+_GOAL_MULTIPLIERS: dict[str, dict[str, float]] = {
+    "cut":       {"waist_cm": 0.92, "hip_cm": 0.96, "weight_kg": 0.92},
+    "recomp":    {"waist_cm": 0.94, "chest_cm": 1.04, "shoulder_cm": 1.03},
+    "lean_bulk": {"chest_cm": 1.06, "shoulder_cm": 1.05, "sleeve_cm": 1.04,
+                  "waist_cm": 0.98},
+    "bulk":      {"chest_cm": 1.08, "shoulder_cm": 1.06, "waist_cm": 1.02,
+                  "weight_kg": 1.08},
+}
+
+
+def derive_goal_measurements(m: dict, goal: str = DEFAULT_GOAL) -> dict:
+    """Project measurements to where the user's goal would take them.
+
+    Pure and deterministic: returns a NEW dict (the input is never mutated).
+    Unknown goals fall back to 'recomp'. Multipliers apply only to fields
+    actually present (and numeric); each adjusted field is clamped back into
+    its plausibility range. Untouched fields pass through unchanged.
+    """
+    multipliers = _GOAL_MULTIPLIERS.get(goal, _GOAL_MULTIPLIERS[DEFAULT_GOAL])
+    out = dict(m or {})
+    for field, factor in multipliers.items():
+        value = out.get(field)
+        if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        lo, hi = RANGES[field]
+        out[field] = _clamp(float(value) * factor, lo, hi)
+    return out
+
+
 def validate_measurements(m: dict) -> dict:
     """Check a measurement dict for plausibility.
 

@@ -46,6 +46,7 @@ from varunos.core.surveillance import (
     assess_from_raw,
 )
 from varunos.core import twinbody
+from varunos.core import tryon
 from varunos.auth import require_auth, current_user_id, configured as auth_configured
 from varunos import db
 
@@ -475,23 +476,47 @@ def search_foods(q: str = "", limit: int = 20):
 
 # ---- True-Size Twin: body measurements → avatar morphs --------------------
 
-def _twin_payload(uid: str) -> dict:
-    """Latest measurements + morphs derived live from the pure core."""
+def _resolve_goal(uid: str, override: Optional[str] = None) -> str:
+    """The goal driving the Twin's projection: explicit override if valid,
+    else the user's stored profile goal, else 'recomp'."""
+    if override in twinbody.GOALS:
+        return override
+    profile = db.get_profile(uid) or {}
+    stored = profile.get("goal")
+    return stored if stored in twinbody.GOALS else twinbody.DEFAULT_GOAL
+
+
+def _twin_measurements_dict(uid: str) -> dict:
+    """The user's stored measurements as a plain dict ({} when none saved)."""
+    row = db.get_twin_measurements(uid)
+    return {f: row.get(f) for f in twinbody.FIELDS} if row else {}
+
+
+def _twin_payload(uid: str, goal_override: Optional[str] = None) -> dict:
+    """Latest measurements + today/goal morphs derived live from the pure core."""
+    goal = _resolve_goal(uid, goal_override)
     row = db.get_twin_measurements(uid)
     if not row:
         return {"measurements": None,
                 "morphs": twinbody.derive_morphs({}),
+                "goal": goal,
+                "goal_morphs": twinbody.derive_morphs({}),
                 "updated_at": None}
     measurements = {f: row.get(f) for f in twinbody.FIELDS}
+    goal_m = twinbody.derive_goal_measurements(measurements, goal)
     return {"measurements": measurements,
             "morphs": twinbody.derive_morphs(measurements),
+            "goal": goal,
+            "goal_morphs": twinbody.derive_morphs(goal_m),
             "updated_at": row.get("updated_at")}
 
 
 @app.get("/v1/twin/measurements", dependencies=[Depends(require_auth)])
-def twin_measurements_get():
-    """The current user's measurements and the Twin's blend-shape morphs."""
-    return _twin_payload(current_user_id())
+def twin_measurements_get(goal: Optional[str] = None):
+    """The current user's measurements and the Twin's blend-shape morphs,
+    plus goal_morphs — the same body projected to the user's goal (stored
+    profile goal by default; override with ?goal=cut|recomp|lean_bulk|bulk)."""
+    return _twin_payload(current_user_id(), goal)
 
 
 @app.put("/v1/twin/measurements", dependencies=[Depends(require_auth)])
@@ -504,6 +529,99 @@ def twin_measurements_put(payload: dict = Body(...)):
     uid = current_user_id()
     db.upsert_twin_measurements(uid, payload or {})
     return _twin_payload(uid)
+
+
+# ---- Twin Try-On: fit the catalog to today's body and the goal body -------
+
+@app.get("/v1/tryon/catalog", dependencies=[Depends(require_auth)])
+def tryon_catalog():
+    """Every catalog item fitted against the user's stored measurements (today)
+    and their goal projection. No measurements → every fit 'need_measurements'."""
+    uid = current_user_id()
+    m = _twin_measurements_dict(uid)
+    goal_m = twinbody.derive_goal_measurements(m, _resolve_goal(uid))
+    return {"items": tryon.fit_catalog(m, goal_m)}
+
+
+@app.post("/v1/tryon/intent", dependencies=[Depends(require_auth)])
+def tryon_intent(payload: dict = Body(...)):
+    """Record an 'I'd wear this' signal: {item_id, size, mode}. Validated
+    against the catalog; invalid input → 422 {"errors": {...}}."""
+    payload = payload or {}
+    errors: dict[str, str] = {}
+    item_id = payload.get("item_id")
+    size = payload.get("size")
+    mode = payload.get("mode")
+    item = tryon.CATALOG_BY_ID.get(item_id)
+    if item is None:
+        errors["item_id"] = "unknown item"
+    if mode not in ("today", "goal"):
+        errors["mode"] = "must be 'today' or 'goal'"
+    if item is not None and size not in item["sizes"]:
+        errors["size"] = "unknown size for this item"
+    if errors:
+        return JSONResponse(status_code=422, content={"errors": errors})
+    db.add_tryon_intent(current_user_id(), item_id, size, mode)
+    return {"ok": True}
+
+
+# ---- Investor metrics: global aggregates, never fabricated -----------------
+
+@app.get("/v1/metrics/investor", dependencies=[Depends(require_auth)])
+def metrics_investor():
+    """Honest global aggregates for the investor dashboard. Every number is
+    computed from real rows; anything we can't compute is 0 with a note."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+    notes: list[str] = []
+
+    users_total = db.count_accounts()
+    notes.append("users_total counts registered accounts (email signups); "
+                 "legacy single-API-key usage is not a registered account.")
+
+    workouts_total = db.count_workouts()
+    workouts_7d = db.count_workouts(since_iso=seven_days_ago)
+
+    # Weekly workout series: 8 trailing 7-day windows ending now, oldest→newest.
+    weekly_workouts = []
+    for i in range(7, -1, -1):
+        start = (now - timedelta(days=7 * (i + 1))).isoformat()
+        end = (now - timedelta(days=7 * i)).isoformat()
+        weekly_workouts.append(db.count_workouts(since_iso=start, before_iso=end))
+
+    # Average avatar ("twin") level across users who have logged workouts,
+    # using the same deterministic momentum math as /v1/avatar/state.
+    from varunos.api.endpoints_extra import _momentum_state
+    today = now.strftime("%Y-%m-%d")
+    levels: list[int] = []
+    for uid in db.workout_user_ids():
+        try:
+            levels.append(int(_momentum_state(uid, today)["avatar"]["level"]))
+        except Exception:
+            continue  # a bad row must never take the dashboard down
+    if levels:
+        avg_twin_level = round(sum(levels) / len(levels), 1)
+        notes.append(f"avg_twin_level averages the deterministic 0-100 avatar "
+                     f"level across the {len(levels)} user(s) with logged workouts.")
+    else:
+        avg_twin_level = 0
+        notes.append("avg_twin_level is 0 because no user has logged a workout "
+                     "yet — there are no avatar levels to average.")
+
+    return {
+        "users_total": users_total,
+        "measurements_set": db.count_twin_measurements(),
+        "workouts_total": workouts_total,
+        "workouts_7d": workouts_7d,
+        "avg_twin_level": avg_twin_level,
+        "tryon_intents_total": db.count_tryon_intents(),
+        "tryon_intents_7d": db.count_tryon_intents(since_iso=seven_days_ago),
+        "measurement_history_points": db.count_twin_history(),
+        "series": {"weekly_workouts": weekly_workouts},
+        "notes": notes,
+        "generated_at": now.isoformat(),
+    }
 
 
 # ---- Boot-time sanity check ----------------------------------------------
