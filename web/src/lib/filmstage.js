@@ -24,11 +24,23 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
   // ── the figure: master texture on a 2:3 plane with a radial-falloff alpha mask ──
   const tex = await new THREE.TextureLoader().loadAsync(heroUrl);
   tex.colorSpace = THREE.SRGBColorSpace;
+  // Per-pixel elliptical falloff — fully transparent well before the plane's edge,
+  // so the billboard's rectangle can never read against the void.
   const am = document.createElement('canvas'); am.width = 256; am.height = 384;
   const actx = am.getContext('2d');
-  const grad = actx.createRadialGradient(128, 176, 40, 128, 176, 200);
-  grad.addColorStop(0, '#fff'); grad.addColorStop(0.62, '#fff'); grad.addColorStop(1, '#000');
-  actx.fillStyle = grad; actx.fillRect(0, 0, 256, 384);
+  const img = actx.createImageData(256, 384);
+  const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  for (let y = 0; y < 384; y++) {
+    for (let x = 0; x < 256; x++) {
+      const nx = (x - 128) / 118, ny = (y - 184) / 176;      // elliptical, biased slightly up
+      const d = Math.sqrt(nx * nx + ny * ny);
+      const a = 1 - smooth(0.52, 0.88, d);
+      const i = (y * 256 + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.round(255 * a);
+      img.data[i + 3] = 255;
+    }
+  }
+  actx.putImageData(img, 0, 0);
   const alphaMap = new THREE.CanvasTexture(am);
   const fig = new THREE.Mesh(
     new THREE.PlaneGeometry(2, 3),
@@ -90,6 +102,13 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
   });
   scene.add(orbGroup);
 
+  // ── the heart: a teal bloom PINNED to the chest in world space, so it tracks
+  //    every camera move exactly (driven per-frame by coreI from the conductor) ──
+  const heart = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(THREE, '#2ec4b6'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  heart.position.set(0, 0.24, 0.04);
+  heart.scale.set(0.52, 0.52, 1);
+  scene.add(heart);
+
   // ── volumetric dust with real z-depth ──────────────────────────────────────
   const DUST = 380;
   const pos = new Float32Array(DUST * 3);
@@ -117,8 +136,13 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
   const accentColor = new THREE.Color('#f5b572');
   let dead = false;
 
-  function setShot(cam, idx, p, t, mx, my, accentHex) {
+  function setShot(cam, idx, p, t, mx, my, accentHex, coreI = 0) {
     if (dead) return;
+    // heartbeat: double-thump pulse, only alive while the conductor says so (water)
+    const beat = Math.pow(Math.max(0, Math.sin(t * 0.0026 * Math.PI * 2)), 6) + 0.55 * Math.pow(Math.max(0, Math.sin(t * 0.0026 * Math.PI * 2 + 0.9)), 8);
+    heart.material.opacity = coreI * (0.35 + 0.5 * beat);
+    const hs = 0.52 * (1 + 0.16 * beat * coreI);
+    heart.scale.set(hs, hs, 1);
     // camera: dolly along the body in true perspective
     const ty = 1.5 - (cam.fy / 100) * 3;
     camera.position.set(mx * 0.14, ty + my * 0.1, 4.35 / cam.s);

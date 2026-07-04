@@ -21,30 +21,30 @@ const mixc = (h1, h2, t) => { const a = hx(h1), b = hx(h2); const c = (i) => Mat
 
 // The film's segments. cam = virtual camera on the master (scale + focus point on the body).
 const SEGS = [
-  { id: 'gate',    w: 1.0,  mode: 'gold',  accent: GOLD,      cam: { s: 1.0,  fx: 50, fy: 30 },
+  { id: 'gate',    w: 1.0,  mode: 'gold',  accent: GOLD,      cam: { s: 0.98, fx: 50, fy: 31 },
     eyebrow: 'सारथि · private ai health os', title: 'Own your health.\nTalk to it.\nWatch yourself level up.',
     body: 'Your body is the field where every battle is fought — and won. Sarathi, the charioteer, knows the field: he reads the five elements in you and brings them into balance.', shloka: null },
-  { id: 'akasha',  w: 1.1,  mode: 'space', accent: '#c5b3ff', cam: { s: 2.1,  fx: 50, fy: 10 }, word: 'आकाश', el: 'space',
+  { id: 'akasha',  w: 1.1,  mode: 'space', accent: '#c5b3ff', cam: { s: 2.35, fx: 50, fy: 9 }, word: 'आकाश', el: 'space',
     eyebrow: '01 · akasha · space · the mind', title: 'Space remembers.',
     body: 'Hermes is your Akasha: every session, every meal, every heartbeat written into living memory — guidance that speaks with your whole history behind it.',
     shloka: { sa: 'mattaḥ smṛtir jñānam', en: 'from me: memory, and knowing', src: 'Gita 15.15' } },
-  { id: 'vayu',    w: 1.1,  mode: 'air',   accent: '#7fd4f0', cam: { s: 1.8,  fx: 50, fy: 24 }, word: 'वायु', el: 'air',
+  { id: 'vayu',    w: 1.1,  mode: 'air',   accent: '#7fd4f0', cam: { s: 1.9,  fx: 50, fy: 22 }, word: 'वायु', el: 'air',
     eyebrow: '02 · vayu · air · the breath', title: 'Air moves you.',
     body: 'The five winds move everything within you — breath and body alike. Sarathi reads motion the way a charioteer reads the wind: every rep counted, graded, corrected live.',
     shloka: { sa: 'prāṇāpāna-samāyuktaḥ', en: 'joined with the winds of breath', src: 'Gita 15.14' } },
-  { id: 'agni',    w: 1.1,  mode: 'fire',  accent: '#ff9e5e', cam: { s: 2.0,  fx: 50, fy: 46 }, word: 'अग्नि', el: 'fire',
+  { id: 'agni',    w: 1.1,  mode: 'fire',  accent: '#ff9e5e', cam: { s: 2.5,  fx: 50, fy: 48 }, word: 'अग्नि', el: 'fire',
     eyebrow: '03 · agni · fire · the furnace', title: 'Fire transforms you.',
     body: 'The Gita names the fire in your belly: Vaiśvānara, digester of all food. Log any meal in one line — Sarathi reads the fuel and keeps the flame clean.',
     shloka: { sa: 'ahaṁ vaiśvānaro bhūtvā', en: 'I am the fire that digests all food', src: 'Gita 15.14' } },
-  { id: 'apas',    w: 1.3,  mode: 'water', accent: '#2ec4b6', cam: { s: 2.2,  fx: 50, fy: 27 }, word: 'आपस्', el: 'water', core: true,
+  { id: 'apas',    w: 1.3,  mode: 'water', accent: '#2ec4b6', cam: { s: 2.3,  fx: 50, fy: 26 }, word: 'आपस्', el: 'water', core: true,
     eyebrow: '04 · apas · water · the tides', title: 'Water restores you.',
     body: 'The gods churned the ocean and it yielded amṛta — the nectar of immortality. Your nights are that churning: sleep, HRV and strain flow into one readiness score.',
     shloka: { sa: 'āpo hi ṣṭhā mayobhuvaḥ', en: 'O Waters, source of all wellbeing', src: 'Rig Veda 10.9' } },
-  { id: 'prithvi', w: 1.1,  mode: 'earth', accent: '#d9b26a', cam: { s: 1.9,  fx: 50, fy: 78 }, word: 'पृथ्वी', el: 'earth',
+  { id: 'prithvi', w: 1.1,  mode: 'earth', accent: '#d9b26a', cam: { s: 2.1,  fx: 50, fy: 80 }, word: 'पृथ्वी', el: 'earth',
     eyebrow: '05 · prithvi · earth · the foundation', title: 'Earth is what you build.',
     body: 'When the herb could not be found, Hanuman lifted the mountain. That is training: bone and muscle built grain by grain — your Twin grows visibly stronger as you do.',
     shloka: { sa: 'mātā bhūmiḥ putro ’haṁ pṛthivyāḥ', en: 'Earth is my mother; I am her son', src: 'Atharva Veda 12.1' } },
-  { id: 'balance', w: 1.4,  mode: 'align', accent: '#ffdeba', cam: { s: 1.0,  fx: 50, fy: 30 }, cta: true,
+  { id: 'balance', w: 1.4,  mode: 'align', accent: '#ffdeba', cam: { s: 0.94, fx: 50, fy: 32 }, cta: true,
     eyebrow: 'the five in balance', title: 'When the five align, you rise.',
     body: 'Lift yourself by your own self, says the Gita — the self alone is the friend of the self. That friend is your Twin. Sixty seconds to begin.',
     shloka: { sa: 'ātmaiva hy ātmano bandhuḥ', en: 'the self alone is the friend of the self', src: 'Gita 6.5' } },
@@ -148,11 +148,12 @@ export default function SarathiStory({ onStart }) {
       if (idx !== lastSeg) { lastSeg = idx; setSeg(idx); setActive(idx); }
       // continuous camera: lerp from previous segment cam during the first 35%
       const prev = SEGS[Math.max(0, idx - 1)].cam, cur = S.cam;
-      const ct = idx === 0 ? 1 : ease3(clamp01(p / 0.35));
+      const ct = idx === 0 ? 1 : ease3(clamp01(p / 0.45));
       const s = lerp(prev.s, cur.s, ct), fx = lerp(prev.fx, cur.fx, ct), fy = lerp(prev.fy, cur.fy, ct);
       const mx = mouse.current.x, my = mouse.current.y;
+      const coreI = S.core ? clamp01((p - 0.2) / 0.15) * (1 - clamp01((p - 0.9) / 0.1)) : 0;
       if (stageApi.current) {
-        stageApi.current.setShot({ s, fx, fy }, idx, p, t, mx, my, S.accent);
+        stageApi.current.setShot({ s, fx, fy }, idx, p, t, mx, my, S.accent, coreI);
       } else if (figRef.current) {
         figRef.current.style.transformOrigin = `${fx}% ${fy}%`;
         figRef.current.style.transform = `translate3d(${mx * 10}px, ${my * 6}px, 0) scale(${s.toFixed(4)})`;
@@ -161,7 +162,7 @@ export default function SarathiStory({ onStart }) {
       const tinT = Math.sin(Math.PI * p);
       if (ambRef.current) ambRef.current.style.background = `radial-gradient(90% 70% at 50% 42%, ${mixc('#05070c', S.accent, 0.16 * tinT + 0.05)} 0%, #030406 72%)`;
       // heart core (apas only)
-      if (coreRef.current) coreRef.current.style.opacity = S.core ? (clamp01((p - 0.2) / 0.15) * (1 - clamp01((p - 0.9) / 0.1))).toFixed(2) : '0';
+      if (coreRef.current) coreRef.current.style.opacity = stageApi.current ? '0' : coreI.toFixed(2);
       // scroll hint + progress rail
       if (hintRef.current) hintRef.current.style.opacity = (idx === 0 && p < 0.08) ? '1' : '0';
       if (railFill.current) railFill.current.style.width = `${((G / TOTAL_W) * 100).toFixed(2)}%`;
