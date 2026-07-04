@@ -19,6 +19,11 @@ const pick = hash === '#pitch' ? 'pitch'
   : hash === '#investors' ? 'investors'
   : DEMO || (hash === '#sarathi-story' ? 'story' : hash === '#sarathi-cinematic' ? 'cinematic' : hash === '#sarathi-hero' ? 'carousel' : null);
 const goApp = () => { window.location.hash = ''; window.location.reload(); };
+// Route picks happen at load; hash-only navigation (e.g. typing #investors in the same
+// tab) doesn't remount React — reload so the pick re-evaluates.
+if (typeof window !== 'undefined') {
+  window.addEventListener('hashchange', () => window.location.reload());
+}
 
 // The legacy PWA may have registered a service worker that caches the old
 // shell. Unregister it so this app always serves fresh.

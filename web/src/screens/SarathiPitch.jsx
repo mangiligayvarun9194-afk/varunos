@@ -168,10 +168,9 @@ export default function SarathiPitch() {
             {S.points && (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {S.points.map((p, k) => (
-                  <motion.li key={k} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 + k * 0.14 }}
-                    style={{ display: 'flex', gap: 12, alignItems: 'flex-start', fontSize: 'clamp(13.5px,1.3vw,16px)', lineHeight: 1.55, color: '#c3cbdf' }}>
+                  <li key={k} className="pt-in" style={{ animationDelay: `${0.25 + k * 0.14}s`, display: 'flex', gap: 12, alignItems: 'flex-start', fontSize: 'clamp(13.5px,1.3vw,16px)', lineHeight: 1.55, color: '#c3cbdf' }}>
                     <span style={{ marginTop: 7, width: 22, height: 2, flexShrink: 0, background: `linear-gradient(90deg,${GOLD},transparent)` }} />{p}
-                  </motion.li>
+                  </li>
                 ))}
               </ul>
             )}
@@ -183,10 +182,9 @@ export default function SarathiPitch() {
             {S.layout === 'demo' && (
               <div style={{ display: 'flex', gap: 'clamp(16px,3vw,44px)', marginTop: 18, flexWrap: 'wrap' }}>
                 {[<RepDemo key="r" />, <ReadinessDemo key="d" />, <TwinDemo key="t" />].map((D, k) => (
-                  <motion.div key={k} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 + k * 0.15 }}
-                    style={{ background: 'rgba(8,10,16,0.66)', border: '1px solid rgba(245,181,114,0.16)', borderRadius: 18, padding: '18px 26px', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
+                  <div key={k} className="pt-in" style={{ animationDelay: `${0.25 + k * 0.15}s`, background: 'rgba(8,10,16,0.66)', border: '1px solid rgba(245,181,114,0.16)', borderRadius: 18, padding: '18px 26px', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
                     {D}
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             )}
@@ -204,7 +202,10 @@ export default function SarathiPitch() {
       <button onClick={() => go(1)} aria-label="next" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '8vw', zIndex: 8, background: 'none', border: 'none', cursor: i < SLIDES.length - 1 ? 'e-resize' : 'default' }} />
       <div style={{ position: 'absolute', bottom: 26, right: 26, zIndex: 10, fontFamily: 'var(--font-eyebrow)', fontSize: 9.5, letterSpacing: '0.2em', color: '#59648a', textTransform: 'uppercase' }}>← → to navigate</div>
 
-      <style>{`.pt-grain{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");background-size:180px 180px}`}</style>
+      <style>{`.pt-grain{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");background-size:180px 180px}
+.pt-in{opacity:0;animation:ptIn .6s cubic-bezier(.22,1,.36,1) forwards}
+@keyframes ptIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.pt-in{animation:none;opacity:1}}`}</style>
     </div>
   );
 }
