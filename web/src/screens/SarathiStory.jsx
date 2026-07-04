@@ -7,7 +7,7 @@
 // card (the UI is the story: you gather the five). Persistent pill nav · scroll-to-begin hint
 // · progress rail. Scene videos drop in later as film layers. Reduced-motion → static story.
 import { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { createFilmStage } from '../lib/filmstage.js';
 
 const GOLD = '#f5b572';
@@ -262,8 +262,9 @@ export default function SarathiStory({ onStart }) {
           <div ref={cardRef} style={{ position: 'absolute', left: '50%', bottom: 'max(28px, 4.5vh)', transform: 'translateX(-50%)', width: 'min(880px, 92vw)', zIndex: 5,
             background: 'rgba(8,10,16,0.66)', border: '1px solid rgba(245,181,114,0.16)', borderRadius: 20, backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
             boxShadow: '0 30px 80px -30px rgba(0,0,0,.8)', padding: 'clamp(18px, 2.6vh, 28px) clamp(20px, 2.6vw, 34px)' }}>
-            <AnimatePresence mode="wait">
-              <motion.div key={S.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
+            {/* enter-only keyed swap — AnimatePresence mode="wait" wedges under rapid
+                scroll (interrupted exits never resolve; found by live QA) */}
+              <motion.div key={S.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
                 <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.accent, marginBottom: 10 }}>{S.eyebrow}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px 28px', justifyContent: 'space-between' }}>
                   <h2 style={{ fontFamily: 'var(--font-display)', fontSize: seg === 0 ? 'clamp(1.5rem, 2.6vw, 2.2rem)' : 'clamp(1.7rem, 3vw, 2.6rem)', lineHeight: 1.1, fontWeight: 600, letterSpacing: '-0.02em', color: '#f6f8ff', margin: 0, whiteSpace: 'pre-line', flex: '1 1 340px' }}>{S.title}</h2>
@@ -275,13 +276,12 @@ export default function SarathiStory({ onStart }) {
                 </div>
                 <p style={{ fontSize: 'clamp(13px, 1.2vw, 15px)', lineHeight: 1.6, color: '#aab4cc', margin: '12px 0 0', maxWidth: '68ch' }}>{S.body}</p>
                 {S.cta && (
-                  <motion.button initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, ...{ duration: 0.4 } }} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
+                  <motion.button initial={false} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
                     onClick={onStart} className="st-cta" style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: '#1a0f06', background: GOLD, border: `1px solid ${GOLD}`, borderRadius: '999px', padding: '13px 26px', cursor: 'pointer' }}>
                     Meet your Twin <Arrow size={16} />
                   </motion.button>
                 )}
               </motion.div>
-            </AnimatePresence>
             {/* the collection — elements gathered so far live IN the card */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(151,168,205,0.1)', minHeight: 26, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#59648a' }}>{seg === 0 ? 'the five elements await' : 'gathered'}</span>
