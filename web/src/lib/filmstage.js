@@ -2,6 +2,13 @@
 // The photoreal master rides as a billboard inside a real perspective scene:
 //  · a perspective camera dollies along the body (driven by the story conductor)
 //  · a 3D golden mandala — two counter-rotating rings + 24 spokes — spins behind the head
+//  · ELEMENT POWER STREAMS — each element visibly pours its shakti INTO the body:
+//    space-threads spiral into the crown (the mind that remembers), wind sweeps into
+//    the lungs (Hanuman, son of Vayu), embers rise into the belly (Vaiśvānara's fire),
+//    nectar falls into the heart (the churned ocean's amṛta), earth-dust accretes onto
+//    the limbs (Hanuman carrying the mountain). Once an element has given its power,
+//    that centre STAYS LIT for the rest of the film — the charioteer awakens centre by
+//    centre, and the finale pours all five in at once.
 //  · five element orbs orbit in depth, brighten as each element is gathered, and in the
 //    finale converge into a vertical column through the figure
 //  · a volumetric dust-field drifts toward the camera (real z-parallax)
@@ -64,7 +71,7 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
     scene.add(plane);
     vidPlanes[segIdx] = plane;
   }
-  if (typeof window !== 'undefined') window.__sarathiFilm = { vidPlanes };  // debug/verify hook
+  const dbg = (typeof window !== 'undefined') ? (window.__sarathiFilm = { vidPlanes }) : {};  // debug/verify hook
 
   // ── 3D mandala behind the head ─────────────────────────────────────────────
   const gold = new THREE.Color('#f5b572');
@@ -102,6 +109,91 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
   });
   scene.add(orbGroup);
 
+  // ── ELEMENT POWER TRANSFER — the story's soul, made visible ────────────────
+  // Five centres on the body (crown/lungs/belly/heart/base). During each element's
+  // chapter, ~240 particles ride coherent bezier rivulets from that element's realm
+  // (the sky, the sides, the underworld, the heavens, the ground) INTO its centre.
+  // `awakened[i]` persists once earned, so gathered centres stay lit ever after.
+  const CHAKRA = [
+    { pos: [0, 1.14, 0.05], s: 0.30 },   // आकाश → crown: the mind that remembers
+    { pos: [0, 0.42, 0.05], s: 0.30 },   // वायु → lungs: the breath that moves
+    { pos: [0, -0.05, 0.05], s: 0.32 },  // अग्नि → belly: Vaiśvānara, digester of food
+    { pos: [0, 0.24, 0.04], s: 0.28 },   // आपस् → heart: amṛta from the churned ocean
+    { pos: [0, -0.55, 0.05], s: 0.34 },  // पृथ्वी → base: the foundation that carries
+  ];
+  const chakras = CHAKRA.map((c, i) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(THREE, accents[i]), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    sp.position.set(...c.pos); sp.scale.set(c.s, c.s, 1); sp.userData.s0 = c.s;
+    sp.renderOrder = 6;
+    scene.add(sp); return sp;
+  });
+  const awakened = [0, 0, 0, 0, 0];
+
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  // Per-element rivulet seeds: where the element's power comes FROM, and the bend
+  // of its journey to the body. 8 coherent rivulets each → reads as flowing streams.
+  function streamSeed(el, k) {
+    const a = (k / 8) * Math.PI * 2;
+    if (el === 0) return { src: [Math.cos(a) * 2.3, rnd(1.7, 2.9), -0.7 + Math.sin(a) * 0.7], ctrl: [Math.cos(a + 1.2) * 0.9, 2.0, 0.15] };            // space: dome above, spiral in
+    if (el === 1) { const sg = k % 2 ? 1 : -1; return { src: [sg * rnd(2.2, 2.9), rnd(0.05, 1.0), rnd(0.1, 0.7)], ctrl: [-sg * 1.2, 0.6, 0.95] }; }   // wind: sweeps across the torso's front
+    if (el === 2) return { src: [rnd(-1.4, 1.4), rnd(-2.5, -1.8), rnd(-0.4, 0.3)], ctrl: [rnd(-0.5, 0.5), -0.6, 0.4] };                                 // fire: rises from below
+    if (el === 3) return { src: [rnd(-0.95, 0.95), rnd(2.0, 2.9), rnd(-0.3, 0.3)], ctrl: [rnd(-0.4, 0.4), 1.05, 0.5] };                                 // water: falls from the heavens
+    return { src: [Math.cos(a) * rnd(1.2, 2.2), -1.55, Math.sin(a) * rnd(0.4, 1.0)], ctrl: [Math.cos(a) * 0.55, -1.0, 0.35] };                          // earth: rises off the ground
+  }
+  const LIMBS = [[0.5, 0.3, 0.06], [-0.5, 0.3, 0.06], [0.18, -0.85, 0.06], [-0.18, -0.85, 0.06]];
+  const N_STREAM = 240;
+  const softDot = glowTex(THREE, '#ffffff');   // round, soft-edged particle sprite
+  const streams = accents.map((hex, el) => {
+    const seeds = Array.from({ length: 8 }, (_, k) => streamSeed(el, k));
+    const parts = Array.from({ length: N_STREAM }, (_, i) => {
+      const s = seeds[i % 8];
+      const j = (v, r) => [v[0] + rnd(-r, r), v[1] + rnd(-r, r), v[2] + rnd(-r, r)];
+      const tgt = el === 4 ? j(LIMBS[i % 4], 0.06) : j(CHAKRA[el].pos, 0.05);
+      return { u: Math.random(), sp: rnd(0.004, 0.009), src: j(s.src, 0.28), ctrl: j(s.ctrl, 0.22), tgt };
+    });
+    const posA = new Float32Array(N_STREAM * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(posA, 3));
+    const mat = new THREE.PointsMaterial({ size: 0.075, sizeAttenuation: true, map: softDot, alphaMap: softDot, transparent: true, opacity: 0, color: new THREE.Color(hex), blending: THREE.AdditiveBlending, depthWrite: false });
+    const pts = new THREE.Points(geo, mat);
+    pts.visible = false; pts.frustumCulled = false;
+    pts.renderOrder = 5;   // above the figure billboard — never occluded by its plane
+    scene.add(pts);
+    return { pts, mat, geo, posA, parts };
+  });
+  function flowStreams(S, pw) {
+    S.mat.opacity = 0.9 * pw;
+    const on = pw > 0.02;
+    S.pts.visible = on;
+    if (!on) return;
+    const a = S.posA;
+    for (let i = 0; i < N_STREAM; i++) {
+      const q = S.parts[i];
+      q.u += q.sp; if (q.u > 1) q.u -= 1;
+      const u = q.u, v = 1 - u;
+      a[i * 3]     = v * v * q.src[0] + 2 * v * u * q.ctrl[0] + u * u * q.tgt[0];
+      a[i * 3 + 1] = v * v * q.src[1] + 2 * v * u * q.ctrl[1] + u * u * q.tgt[1];
+      a[i * 3 + 2] = v * v * q.src[2] + 2 * v * u * q.ctrl[2] + u * u * q.tgt[2];
+    }
+    S.geo.attributes.position.needsUpdate = true;
+  }
+
+  dbg.streams = streams; dbg.chakras = chakras;
+
+  // आकाश extra: a constellation web above the crown — memory wiring itself together.
+  const starPts = Array.from({ length: 16 }, (_, i) => {
+    const a = (i / 16) * Math.PI * 2;
+    return [Math.cos(a) * rnd(0.6, 1.5), rnd(1.25, 2.2), -0.7 + Math.sin(a) * rnd(0.3, 0.8)];
+  });
+  const linePos = [];
+  for (let i = 0; i < 16; i++) { linePos.push(...starPts[i], ...starPts[(i + 3) % 16], ...starPts[i], ...starPts[(i + 1) % 16]); }
+  const constGeo = new THREE.BufferGeometry();
+  constGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(linePos), 3));
+  const constel = new THREE.LineSegments(constGeo, new THREE.LineBasicMaterial({ color: new THREE.Color(accents[0]), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  constel.visible = false;
+  constel.renderOrder = 5;
+  scene.add(constel);
+
   // ── the heart: a teal bloom PINNED to the chest in world space, so it tracks
   //    every camera move exactly (driven per-frame by coreI from the conductor) ──
   const heart = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(THREE, '#2ec4b6'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -115,7 +207,7 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
   for (let i = 0; i < DUST; i++) { pos[i * 3] = (Math.random() - 0.5) * 7; pos[i * 3 + 1] = (Math.random() - 0.5) * 5; pos[i * 3 + 2] = -3.5 + Math.random() * 5.5; }
   const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const dustMat = new THREE.PointsMaterial({ size: 0.02, sizeAttenuation: true, transparent: true, opacity: 0.5, color: new THREE.Color('#f5b572'), blending: THREE.AdditiveBlending, depthWrite: false });
+  const dustMat = new THREE.PointsMaterial({ size: 0.02, sizeAttenuation: true, map: softDot, alphaMap: softDot, transparent: true, opacity: 0.5, color: new THREE.Color('#f5b572'), blending: THREE.AdditiveBlending, depthWrite: false });
   const dust = new THREE.Points(dustGeo, dustMat);
   scene.add(dust);
 
@@ -173,6 +265,29 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
     const a = dustGeo.attributes.position.array;
     for (let i = 0; i < DUST; i++) { a[i * 3 + 2] += 0.0035; if (a[i * 3 + 2] > 2.2) a[i * 3 + 2] = -3.5; }
     dustGeo.attributes.position.needsUpdate = true;
+    // ── element power transfer: the element pours its shakti into the body ──
+    const sm01 = (x) => { const c = Math.max(0, Math.min(1, x)); return c * c * (3 - 2 * c); };
+    const elIdx = idx - 1;                                  // 0..4 during element chapters
+    const inEl = elIdx >= 0 && elIdx < 5;
+    const ramp = inEl ? sm01((p - 0.08) / 0.22) * (1 - sm01((p - 0.96) / 0.04)) : 0;
+    const finaleP = idx >= 6 ? sm01((p - 0.05) / 0.3) : 0;
+    if (inEl) awakened[elIdx] = Math.max(awakened[elIdx], sm01((p - 0.2) / 0.5));
+    streams.forEach((S, i) => flowStreams(S, (inEl && i === elIdx) ? ramp : finaleP * 0.5));
+    chakras.forEach((c, i) => {
+      const cur = inEl && i === elIdx ? ramp : 0;
+      // gathered centres stay lit; the active one burns; the finale floods all five
+      const base = Math.min(1, awakened[i] * 0.32 + cur * 0.72 + finaleP * 0.5);
+      const flick = i === 2
+        ? 0.8 + 0.2 * Math.abs(Math.sin(t * 0.012) * Math.sin(t * 0.0067 + 1.7))   // the belly-fire flickers
+        : 0.9 + 0.1 * Math.sin(t * 0.0028 + i * 1.3);
+      c.material.opacity = base * flick;
+      const cs = c.userData.s0 * (1 + 0.28 * cur + 0.35 * finaleP + 0.1 * Math.sin(t * 0.0021 + i));
+      c.scale.set(cs, cs, 1);
+    });
+    const constOp = ((inEl && elIdx === 0) ? ramp : finaleP * 0.35) * 0.5;
+    constel.material.opacity = constOp;
+    constel.visible = constOp > 0.02;
+    constel.rotation.y = t * 0.00006;
     // orbs: orbit → gather → converge
     const conv = idx >= 6 ? Math.min(1, Math.max(0, (p - 0.2) / 0.55)) : 0;
     const cc = conv * conv * (3 - 2 * conv);
@@ -190,8 +305,9 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
       o.scale.set(s, s, s);
       o.material.opacity = idx >= 6 ? 0.95 : current ? 0.95 : reached ? 0.8 : 0.3;
     });
-    // rays breathe
-    rays.forEach((r, i) => { r.material.opacity = 0.07 + 0.05 * Math.abs(Math.sin(t * 0.0009 + i)); });
+    // rays breathe — and blaze in the finale as the five align
+    rays.forEach((r, i) => { r.material.opacity = 0.07 + 0.05 * Math.abs(Math.sin(t * 0.0009 + i)) + 0.1 * cc; });
+    ring1.material.opacity = 0.8 * mp * (1 + 0.5 * cc);
     renderer.render(scene, camera);
   }
 

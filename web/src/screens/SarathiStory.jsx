@@ -22,41 +22,46 @@ const mixc = (h1, h2, t) => { const a = hx(h1), b = hx(h2); const c = (i) => Mat
 // The film's segments. cam = virtual camera on the master (scale + focus point on the body).
 const SEGS = [
   { id: 'gate',    w: 1.0,  mode: 'gold',  accent: GOLD,      cam: { s: 0.98, fx: 50, fy: 31 },
-    eyebrow: 'सारथि · private ai health os', title: 'Own your health.\nTalk to it.\nWatch yourself level up.',
-    body: 'Your body is the field where every battle is fought — and won. Sarathi, the charioteer, knows the field: he reads the five elements in you and brings them into balance.', shloka: null },
+    eyebrow: 'सारथि · the charioteer within', title: 'You are the chariot.\nSarathi holds the reins.',
+    body: 'In the old chariot teaching, the body is the vehicle, the senses are the horses, and the guiding intelligence keeps the journey true. Sarathi becomes that guide for your training, recovery, food and memory.', shloka: null },
   { id: 'akasha',  w: 1.1,  mode: 'space', accent: '#c5b3ff', cam: { s: 2.35, fx: 50, fy: 9 }, word: 'आकाश', el: 'space', phase: 1,
     eyebrow: '01 · akasha · space · the mind', title: 'Space remembers.',
-    body: 'Hermes is your Akasha: every session, every meal, every heartbeat written into living memory — guidance that speaks with your whole history behind it.',
+    body: 'From space begins the field of memory. Every session, meal, heartbeat and note becomes a living record, so Sarathi speaks with your whole history behind it.',
     shloka: { sa: 'mattaḥ smṛtir jñānam', en: 'from me: memory, and knowing', src: 'Gita 15.15' },
-    pins: [{ x: '16%', y: '30%', t: 'Health Vault · every record yours' }, { x: '60%', y: '22%', t: 'Hermes memory' }, { x: '58%', y: '48%', t: 'Syncs Apple Health' }] },
+    pins: [{ x: '58%', y: '24%', t: 'Health Vault · every record yours' }, { x: '66%', y: '40%', t: 'Lifelong memory' }, { x: '56%', y: '56%', t: 'Syncs Apple Health' }] },
   { id: 'vayu',    w: 1.1,  mode: 'air',   accent: '#7fd4f0', cam: { s: 1.9,  fx: 50, fy: 22 }, word: 'वायु', el: 'air', phase: 2,
     eyebrow: '02 · vayu · air · the breath', title: 'Air moves you.',
-    body: 'The five winds move everything within you — breath and body alike. Sarathi reads motion the way a charioteer reads the wind: every rep counted, graded, corrected live.',
+    body: 'Vayu is breath becoming motion. Sarathi reads your movement like wind over a battlefield: every rep counted, graded and corrected while you move.',
     shloka: { sa: 'prāṇāpāna-samāyuktaḥ', en: 'joined with the winds of breath', src: 'Gita 15.14' },
-    pins: [{ x: '15%', y: '26%', t: 'Form Coach · live rep grading' }, { x: '62%', y: '34%', t: 'On-device camera AI' }, { x: '20%', y: '52%', t: '3D replay · every rep scored' }] },
+    pins: [{ x: '58%', y: '24%', t: 'Form Coach · live rep grading' }, { x: '67%', y: '42%', t: 'On-device camera AI' }, { x: '56%', y: '58%', t: '3D replay · every rep scored' }] },
   { id: 'agni',    w: 1.1,  mode: 'fire',  accent: '#ff9e5e', cam: { s: 2.5,  fx: 50, fy: 48 }, word: 'अग्नि', el: 'fire', phase: 3,
     eyebrow: '03 · agni · fire · the furnace', title: 'Fire transforms you.',
-    body: 'The Gita names the fire in your belly: Vaiśvānara, digester of all food. Log any meal in one line — Sarathi reads the fuel and keeps the flame clean.',
+    body: 'The Gita names the fire in the body: Vaiśvānara. Log a meal in one line and Sarathi turns fuel into guidance: macros, protein, timing and the flame you train with.',
     shloka: { sa: 'ahaṁ vaiśvānaro bhūtvā', en: 'I am the fire that digests all food', src: 'Gita 15.14' },
-    pins: [{ x: '16%', y: '32%', t: 'One-line meal logging' }, { x: '62%', y: '26%', t: 'Macros read instantly' }, { x: '58%', y: '52%', t: 'Protein ritual · Twin drinks with you' }] },
+    pins: [{ x: '58%', y: '26%', t: 'One-line meal logging' }, { x: '66%', y: '43%', t: 'Macros read instantly' }, { x: '56%', y: '60%', t: 'Protein ritual · Twin drinks with you' }] },
   { id: 'apas',    w: 1.3,  mode: 'water', accent: '#2ec4b6', cam: { s: 2.3,  fx: 50, fy: 26 }, word: 'आपस्', el: 'water', core: true, phase: 4,
     eyebrow: '04 · apas · water · the tides', title: 'Water restores you.',
-    body: 'The gods churned the ocean and it yielded amṛta — the nectar of immortality. Your nights are that churning: sleep, HRV and strain flow into one readiness score.',
+    body: 'When the ocean was churned, amrita rose from the depths. Your nights are that churn: sleep, HRV and strain flow together, then return as a readiness score you can trust.',
     shloka: { sa: 'āpo hi ṣṭhā mayobhuvaḥ', en: 'O Waters, source of all wellbeing', src: 'Rig Veda 10.9' },
-    pins: [{ x: '15%', y: '28%', t: 'Readiness score each dawn' }, { x: '62%', y: '36%', t: 'Sleep · HRV · strain' }, { x: '18%', y: '54%', t: 'Per-muscle recovery map' }] },
+    pins: [{ x: '59%', y: '25%', t: 'Readiness score each dawn' }, { x: '67%', y: '41%', t: 'Sleep · HRV · strain' }, { x: '56%', y: '57%', t: 'Per-muscle recovery map' }] },
   { id: 'prithvi', w: 1.1,  mode: 'earth', accent: '#d9b26a', cam: { s: 2.1,  fx: 50, fy: 80 }, word: 'पृथ्वी', el: 'earth', phase: 5,
     eyebrow: '05 · prithvi · earth · the foundation', title: 'Earth is what you build.',
-    body: 'When the herb could not be found, Hanuman lifted the mountain. That is training: bone and muscle built grain by grain — your Twin grows visibly stronger as you do.',
+    body: 'When the herb could not be found, Hanuman lifted the mountain. Training is that kind of devotion: bone, muscle and habit built grain by grain, visible in your Twin.',
     shloka: { sa: 'mātā bhūmiḥ putro ’haṁ pṛthivyāḥ', en: 'Earth is my mother; I am her son', src: 'Atharva Veda 12.1' },
-    pins: [{ x: '16%', y: '30%', t: 'True-size Twin · your measurements' }, { x: '62%', y: '28%', t: 'Becoming slider · today → goal' }, { x: '58%', y: '54%', t: 'Try-on · fits goal-you' }] },
+    pins: [{ x: '58%', y: '26%', t: 'True-size Twin · your measurements' }, { x: '66%', y: '43%', t: 'Becoming slider · today → goal' }, { x: '56%', y: '59%', t: 'Try-on · fits goal-you' }] },
   { id: 'balance', w: 1.4,  mode: 'align', accent: '#ffdeba', cam: { s: 0.94, fx: 50, fy: 32 }, cta: true,
     eyebrow: 'the five in balance', title: 'When the five align, you rise.',
-    body: 'Lift yourself by your own self, says the Gita — the self alone is the friend of the self. That friend is your Twin. Sixty seconds to begin.',
+    body: 'The five powers return to one body: memory, motion, fuel, recovery and strength. Begin with sixty seconds, and let the guide grow with you.',
     shloka: { sa: 'ātmaiva hy ātmano bandhuḥ', en: 'the self alone is the friend of the self', src: 'Gita 6.5' } },
 ];
 const TOTAL_W = SEGS.reduce((a, s) => a + s.w, 0);
 const ELEMENTS = SEGS.filter((s) => s.el);
 const ELEMENT_COLORS = ELEMENTS.map((s) => s.accent);
+const PROOFS = [
+  { k: 'Vayu', t: 'Form Coach', d: 'Camera form checks, rep count and replay grading.', c: '#7fd4f0' },
+  { k: 'Apas', t: 'Readiness', d: 'Sleep, HRV and strain folded into one morning signal.', c: '#2ec4b6' },
+  { k: 'Prithvi', t: 'The Twin', d: 'A visible body model that changes with your training.', c: '#d9b26a' },
+];
 
 function Arrow({ size = 15 }) {
   return <svg className="sf-arrow" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
@@ -198,8 +203,8 @@ export default function SarathiStory({ onStart }) {
       if (pinsRef.current) pinsRef.current.classList.toggle('sf-pins-on', !!S.pins && p > 0.24 && p < 0.93);
       // "Scroll to Phase N" pull: the named reward at each phase's end
       if (nextRef.current) nextRef.current.style.opacity = (idx < SEGS.length - 1 && p > 0.84) ? '1' : '0';
-      // card presence: dip between segments (the breath, inside the film)
-      if (cardRef.current) { const edge = Math.min(clamp01(p / 0.09), clamp01((1 - p) / 0.09)); cardRef.current.style.opacity = (0.25 + 0.75 * ease3(edge)).toFixed(3); }
+      // story panel presence: breathe between segments without making the copy unreadable.
+      if (cardRef.current) { const edge = Math.min(clamp01(p / 0.09), clamp01((1 - p) / 0.09)); cardRef.current.style.opacity = (0.88 + 0.12 * ease3(edge)).toFixed(3); }
       // particles: crossfade current mode in, previous mode out
       const cv = cvRef.current;
       if (cv) {
@@ -276,6 +281,17 @@ export default function SarathiStory({ onStart }) {
           <div ref={ambRef} aria-hidden style={{ position: 'absolute', inset: 0, background: '#04060a' }} />
           {/* the TRUE-3D stage: figure billboard + rotating mandala + element orbs + depth dust */}
           <div ref={stageDivRef} aria-hidden style={{ position: 'absolute', inset: 0 }} />
+          <div
+            aria-hidden
+            className="sf-element-field"
+            data-mode={S.mode}
+            style={{ '--accent': S.accent, '--focus-x': `${S.cam.fx}%`, '--focus-y': `${S.cam.fy}%` }}
+          >
+            <span className="sf-element-glyph">{S.word || 'सारथि'}</span>
+            <span className="sf-power-line sf-power-a" />
+            <span className="sf-power-line sf-power-b" />
+            <span className="sf-power-line sf-power-c" />
+          </div>
           {/* the charioteer — 2D fallback (hidden when the 3D stage is live) */}
           <div ref={figRef} aria-hidden style={{ position: 'absolute', inset: 0, willChange: 'transform',
             backgroundImage: `url(${HERO})`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center 32%',
@@ -296,14 +312,12 @@ export default function SarathiStory({ onStart }) {
               </div>
             ))}
           </div>
-          {/* legibility scrim behind the card zone */}
-          <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(3,4,6,.42) 0%, transparent 18%, transparent 55%, rgba(3,4,6,.6) 100%)' }} />
+          {/* legibility scrim: reserves a darkness lane for story while the figure owns light */}
+          <div aria-hidden className="sf-story-scrim" />
           <div aria-hidden className="sf-grain" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.35, mixBlendMode: 'overlay' }} />
 
           {/* THE CARD — the single home of all words (Cula's pinned card, in obsidian) */}
-          <div ref={cardRef} style={{ position: 'absolute', left: '50%', bottom: 'max(28px, 4.5vh)', transform: 'translateX(-50%)', width: 'min(880px, 92vw)', zIndex: 5,
-            background: 'rgba(8,10,16,0.66)', border: '1px solid rgba(245,181,114,0.16)', borderRadius: 20, backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
-            boxShadow: '0 30px 80px -30px rgba(0,0,0,.8)', padding: 'clamp(18px, 2.6vh, 28px) clamp(20px, 2.6vw, 34px)' }}>
+          <div ref={cardRef} className="sf-story-panel" style={{ '--accent': S.accent }}>
             {/* enter-only keyed swap — AnimatePresence mode="wait" wedges under rapid
                 scroll (interrupted exits never resolve; found by live QA) */}
               <motion.div key={S.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
@@ -316,14 +330,14 @@ export default function SarathiStory({ onStart }) {
                   <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.accent }}>{S.eyebrow}</div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px 28px', justifyContent: 'space-between' }}>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: seg === 0 ? 'clamp(1.5rem, 2.6vw, 2.2rem)' : 'clamp(1.7rem, 3vw, 2.6rem)', lineHeight: 1.1, fontWeight: 600, letterSpacing: '-0.02em', color: '#f6f8ff', margin: 0, whiteSpace: 'pre-line', flex: '1 1 340px' }}>{S.title}</h2>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: seg === 0 ? 'clamp(1.65rem, 3vw, 2.65rem)' : 'clamp(1.85rem, 3.35vw, 3rem)', lineHeight: 1.08, fontWeight: 600, letterSpacing: 0, color: '#f6f8ff', margin: 0, whiteSpace: 'pre-line', flex: '1 1 340px' }}>{S.title}</h2>
                   {S.shloka && (
                     <div style={{ flex: '1 1 260px', maxWidth: 380, fontStyle: 'italic', fontSize: 12.5, lineHeight: 1.5, color: '#9aa6c4', textAlign: 'right' }}>
                       “{S.shloka.sa}”<br />{S.shloka.en} · <span style={{ fontStyle: 'normal', fontFamily: 'var(--font-eyebrow)', fontSize: 9.5, letterSpacing: '0.12em', color: S.accent, textTransform: 'uppercase' }}>{S.shloka.src}</span>
                     </div>
                   )}
                 </div>
-                <p style={{ fontSize: 'clamp(13px, 1.2vw, 15px)', lineHeight: 1.6, color: '#aab4cc', margin: '12px 0 0', maxWidth: '68ch' }}>{S.body}</p>
+                <p style={{ fontSize: 'clamp(14px, 1.25vw, 16px)', lineHeight: 1.65, color: '#d0d7e8', margin: '14px 0 0', maxWidth: '62ch' }}>{S.body}</p>
                 {S.cta && (
                   <motion.button initial={false} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
                     onClick={onStart} className="st-cta" style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: '#1a0f06', background: GOLD, border: `1px solid ${GOLD}`, borderRadius: '999px', padding: '13px 26px', cursor: 'pointer' }}>
@@ -365,6 +379,25 @@ export default function SarathiStory({ onStart }) {
         </div>
       </div>
 
+      <section className="sf-proof" aria-label="Sarathi product proof">
+        <div className="sf-proof-inner">
+          <div>
+            <div className="sf-proof-eyebrow">the engine beneath the myth</div>
+            <h2>Every element resolves into a real Sarathi power.</h2>
+          </div>
+          <div className="sf-proof-grid">
+            {PROOFS.map((p) => (
+              <article key={p.t} className="sf-proof-card" style={{ '--accent': p.c }}>
+                <div className="sf-proof-orb" />
+                <div className="sf-proof-k">{p.k}</div>
+                <h3>{p.t}</h3>
+                <p>{p.d}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <footer style={{ position: 'relative', padding: '28px 24px 40px', textAlign: 'center', color: '#59648a', fontSize: 12, background: '#04060a' }}>
         © {new Date().getFullYear()} Sarathi · Private AI Health OS · सारथि — <em>yatra yogeśvaraḥ, tatra vijayaḥ</em>
       </footer>
@@ -372,10 +405,39 @@ export default function SarathiStory({ onStart }) {
       <style>{`
         .sf-grain{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");background-size:180px 180px}
         .sf-pill{background:rgba(12,15,23,0.6);border:1px solid rgba(151,168,205,0.14);border-radius:999px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+        .sf-story-scrim{position:absolute;inset:0;z-index:4;pointer-events:none;background:linear-gradient(90deg,rgba(3,4,6,.96) 0%,rgba(3,4,6,.88) 20%,rgba(3,4,6,.48) 40%,transparent 68%),linear-gradient(180deg,rgba(3,4,6,.55),transparent 20%,transparent 62%,rgba(3,4,6,.72))}
+        .sf-story-panel{position:absolute;left:clamp(68px,7vw,128px);top:50%;transform:translateY(-43%);width:min(520px,38vw);z-index:6;background:linear-gradient(135deg,rgba(8,10,16,.9),rgba(8,10,16,.68));border:1px solid rgba(151,168,205,.18);border-left:2px solid var(--accent);border-radius:8px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 30px 90px -38px rgba(0,0,0,.9),0 0 40px -32px var(--accent);padding:clamp(20px,2.6vh,30px) clamp(20px,2.5vw,34px)}
+        .sf-element-field{position:absolute;inset:0;z-index:2;overflow:hidden;pointer-events:none;mix-blend-mode:screen}
+        .sf-element-field::before,.sf-element-field::after{content:"";position:absolute;inset:-18%;opacity:.26;filter:blur(.2px);background:radial-gradient(circle at var(--focus-x) var(--focus-y),var(--accent) 0%,transparent 24%),radial-gradient(circle at 50% 50%,rgba(245,181,114,.12),transparent 56%);animation:sfFieldPulse 5.6s ease-in-out infinite}
+        .sf-element-field::after{opacity:.16;filter:blur(18px);animation-duration:7.5s}
+        .sf-element-field[data-mode="space"]::before{background:radial-gradient(circle at 50% 12%,var(--accent),transparent 22%),repeating-radial-gradient(circle at 50% 16%,rgba(197,179,255,.18) 0 1px,transparent 1px 64px)}
+        .sf-element-field[data-mode="air"]::before{background:repeating-linear-gradient(154deg,transparent 0 32px,rgba(127,212,240,.2) 33px,transparent 36px),radial-gradient(circle at 50% 28%,rgba(127,212,240,.22),transparent 34%)}
+        .sf-element-field[data-mode="fire"]::before{background:radial-gradient(42% 52% at 50% 56%,rgba(255,158,94,.42),transparent 58%),repeating-linear-gradient(84deg,transparent 0 44px,rgba(255,158,94,.18) 45px,transparent 48px)}
+        .sf-element-field[data-mode="water"]::before{background:repeating-radial-gradient(circle at 50% 40%,rgba(46,196,182,.26) 0 1px,transparent 2px 74px),radial-gradient(circle at 50% 40%,rgba(46,196,182,.3),transparent 36%)}
+        .sf-element-field[data-mode="earth"]::before{background:linear-gradient(0deg,rgba(217,178,106,.34),transparent 38%),repeating-radial-gradient(circle at 50% 92%,rgba(217,178,106,.2) 0 2px,transparent 3px 54px)}
+        .sf-element-field[data-mode="align"]::before{background:linear-gradient(90deg,transparent 46%,rgba(255,222,186,.42) 50%,transparent 54%),radial-gradient(circle at 50% 38%,rgba(255,222,186,.28),transparent 44%)}
+        .sf-element-glyph{position:absolute;right:clamp(28px,7vw,120px);top:clamp(92px,14vh,150px);font-family:var(--font-display);font-size:clamp(4rem,10vw,11rem);font-weight:700;color:var(--accent);opacity:.075;line-height:.9;text-shadow:0 0 44px var(--accent);transform:translateZ(0)}
+        .sf-power-line{position:absolute;left:var(--focus-x);top:var(--focus-y);width:min(46vw,760px);height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.36;filter:drop-shadow(0 0 9px var(--accent));transform-origin:0 50%;animation:sfStream 2.9s linear infinite}
+        .sf-power-a{transform:rotate(205deg)}
+        .sf-power-b{transform:rotate(158deg);animation-delay:.45s}
+        .sf-power-c{transform:rotate(242deg);animation-delay:.9s}
+        .sf-proof{position:relative;background:linear-gradient(180deg,#04060a,#080b12);border-top:1px solid rgba(151,168,205,.12);padding:clamp(64px,9vw,112px) 24px}
+        .sf-proof-inner{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:minmax(260px,360px) 1fr;gap:clamp(28px,5vw,74px);align-items:start}
+        .sf-proof-eyebrow{font-family:var(--font-eyebrow);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#f5b572;margin-bottom:14px}
+        .sf-proof h2{font-family:var(--font-display);font-size:clamp(2rem,4vw,3.6rem);font-weight:650;line-height:1.04;letter-spacing:0;color:#f6f8ff;margin:0}
+        .sf-proof-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+        .sf-proof-card{min-height:230px;border:1px solid rgba(151,168,205,.15);border-radius:8px;background:linear-gradient(160deg,rgba(14,17,25,.9),rgba(8,10,16,.76));padding:22px;position:relative;overflow:hidden}
+        .sf-proof-card::before{content:"";position:absolute;inset:auto -20% -40% -20%;height:70%;background:radial-gradient(circle at 50% 0,var(--accent),transparent 60%);opacity:.12;pointer-events:none}
+        .sf-proof-orb{width:34px;height:34px;border-radius:50%;background:var(--accent);box-shadow:0 0 26px var(--accent);margin-bottom:42px}
+        .sf-proof-k{font-family:var(--font-eyebrow);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+        .sf-proof-card h3{font-family:var(--font-display);font-size:1.35rem;line-height:1.1;letter-spacing:0;margin:0 0 10px;color:#f6f8ff}
+        .sf-proof-card p{font-size:14px;line-height:1.6;color:#aab4cc;margin:0}
         .sf-navlink{transition:color .2s}
         .sf-navlink:hover{color:#fff}
         .sf-ctamini{transition:transform .2s, box-shadow .2s}
         .sf-ctamini:hover{transform:translateY(-1px);box-shadow:0 10px 26px -8px rgba(245,181,114,.55)}
+        @keyframes sfFieldPulse{0%,100%{transform:scale(1);opacity:.2}50%{transform:scale(1.04);opacity:.32}}
+        @keyframes sfStream{0%{clip-path:inset(0 100% 0 0);opacity:0}14%{opacity:.45}62%{clip-path:inset(0 0 0 0);opacity:.36}100%{clip-path:inset(0 0 0 100%);opacity:0}}
         .sf-core{animation:sfHeart 2.4s ease-in-out infinite}
         @keyframes sfHeart{0%,100%{transform:translate(-50%,-50%) scale(.92)}18%{transform:translate(-50%,-50%) scale(1.12)}32%{transform:translate(-50%,-50%) scale(1)}48%{transform:translate(-50%,-50%) scale(1.08)}}
         .sf-bounce{animation:sfB 1.6s ease-in-out infinite}
@@ -388,8 +450,9 @@ export default function SarathiStory({ onStart }) {
         @keyframes sfPin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
         .sf-pindot{width:9px;height:9px;border-radius:50%;flex:none}
         .sf-pinlabel{font-family:var(--font-body);font-size:11.5px;font-weight:600;color:#eef1fa;background:rgba(10,12,18,.55);border:1px solid rgba(151,168,205,.22);padding:5px 12px;border-radius:999px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);white-space:nowrap}
-        @media (max-width:880px){.sf-rail{display:none}.sf-navlinks a{display:none}}
-        @media (max-width:680px){.sf-pinlabel{font-size:10px;padding:4px 9px}.sf-pindot{width:7px;height:7px}}
+        @media (max-width:980px){.sf-proof-inner{grid-template-columns:1fr}.sf-proof-grid{grid-template-columns:1fr}.sf-story-panel{left:50%;right:auto;top:auto;bottom:max(42px,5vh);transform:translateX(-50%);width:min(680px,92vw);padding:18px 20px}.sf-story-scrim{background:linear-gradient(180deg,rgba(3,4,6,.22) 0%,transparent 30%,rgba(3,4,6,.92) 67%,rgba(3,4,6,.98) 100%)}}
+        @media (max-width:880px){.sf-rail{display:none}.sf-navlinks a{display:none}.sf-element-glyph{right:20px;top:96px;font-size:clamp(3.6rem,18vw,7rem)}}
+        @media (max-width:680px){.sf-pinlabel{font-size:10px;padding:4px 9px}.sf-pindot{width:7px;height:7px}.sf-story-panel h2{font-size:clamp(1.45rem,8vw,2.1rem)!important}.sf-proof-card{min-height:190px}.sf-power-line{width:86vw}}
       `}</style>
     </div>
   );
