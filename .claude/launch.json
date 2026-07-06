@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "varunos",
-      "runtimeExecutable": "python3",
+      "runtimeExecutable": "/Users/varunkumar/minimax@2/varunos/.venv/bin/python",
       "runtimeArgs": ["-m", "uvicorn", "varunos.api.server:app", "--port", "8000"],
       "port": 8000
     },
