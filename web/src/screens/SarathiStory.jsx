@@ -24,26 +24,31 @@ const SEGS = [
   { id: 'gate',    w: 1.0,  mode: 'gold',  accent: GOLD,      cam: { s: 0.98, fx: 50, fy: 31 },
     eyebrow: 'सारथि · private ai health os', title: 'Own your health.\nTalk to it.\nWatch yourself level up.',
     body: 'Your body is the field where every battle is fought — and won. Sarathi, the charioteer, knows the field: he reads the five elements in you and brings them into balance.', shloka: null },
-  { id: 'akasha',  w: 1.1,  mode: 'space', accent: '#c5b3ff', cam: { s: 2.35, fx: 50, fy: 9 }, word: 'आकाश', el: 'space',
+  { id: 'akasha',  w: 1.1,  mode: 'space', accent: '#c5b3ff', cam: { s: 2.35, fx: 50, fy: 9 }, word: 'आकाश', el: 'space', phase: 1,
     eyebrow: '01 · akasha · space · the mind', title: 'Space remembers.',
     body: 'Hermes is your Akasha: every session, every meal, every heartbeat written into living memory — guidance that speaks with your whole history behind it.',
-    shloka: { sa: 'mattaḥ smṛtir jñānam', en: 'from me: memory, and knowing', src: 'Gita 15.15' } },
-  { id: 'vayu',    w: 1.1,  mode: 'air',   accent: '#7fd4f0', cam: { s: 1.9,  fx: 50, fy: 22 }, word: 'वायु', el: 'air',
+    shloka: { sa: 'mattaḥ smṛtir jñānam', en: 'from me: memory, and knowing', src: 'Gita 15.15' },
+    pins: [{ x: '16%', y: '30%', t: 'Health Vault · every record yours' }, { x: '60%', y: '22%', t: 'Hermes memory' }, { x: '58%', y: '48%', t: 'Syncs Apple Health' }] },
+  { id: 'vayu',    w: 1.1,  mode: 'air',   accent: '#7fd4f0', cam: { s: 1.9,  fx: 50, fy: 22 }, word: 'वायु', el: 'air', phase: 2,
     eyebrow: '02 · vayu · air · the breath', title: 'Air moves you.',
     body: 'The five winds move everything within you — breath and body alike. Sarathi reads motion the way a charioteer reads the wind: every rep counted, graded, corrected live.',
-    shloka: { sa: 'prāṇāpāna-samāyuktaḥ', en: 'joined with the winds of breath', src: 'Gita 15.14' } },
-  { id: 'agni',    w: 1.1,  mode: 'fire',  accent: '#ff9e5e', cam: { s: 2.5,  fx: 50, fy: 48 }, word: 'अग्नि', el: 'fire',
+    shloka: { sa: 'prāṇāpāna-samāyuktaḥ', en: 'joined with the winds of breath', src: 'Gita 15.14' },
+    pins: [{ x: '15%', y: '26%', t: 'Form Coach · live rep grading' }, { x: '62%', y: '34%', t: 'On-device camera AI' }, { x: '20%', y: '52%', t: '3D replay · every rep scored' }] },
+  { id: 'agni',    w: 1.1,  mode: 'fire',  accent: '#ff9e5e', cam: { s: 2.5,  fx: 50, fy: 48 }, word: 'अग्नि', el: 'fire', phase: 3,
     eyebrow: '03 · agni · fire · the furnace', title: 'Fire transforms you.',
     body: 'The Gita names the fire in your belly: Vaiśvānara, digester of all food. Log any meal in one line — Sarathi reads the fuel and keeps the flame clean.',
-    shloka: { sa: 'ahaṁ vaiśvānaro bhūtvā', en: 'I am the fire that digests all food', src: 'Gita 15.14' } },
-  { id: 'apas',    w: 1.3,  mode: 'water', accent: '#2ec4b6', cam: { s: 2.3,  fx: 50, fy: 26 }, word: 'आपस्', el: 'water', core: true,
+    shloka: { sa: 'ahaṁ vaiśvānaro bhūtvā', en: 'I am the fire that digests all food', src: 'Gita 15.14' },
+    pins: [{ x: '16%', y: '32%', t: 'One-line meal logging' }, { x: '62%', y: '26%', t: 'Macros read instantly' }, { x: '58%', y: '52%', t: 'Protein ritual · Twin drinks with you' }] },
+  { id: 'apas',    w: 1.3,  mode: 'water', accent: '#2ec4b6', cam: { s: 2.3,  fx: 50, fy: 26 }, word: 'आपस्', el: 'water', core: true, phase: 4,
     eyebrow: '04 · apas · water · the tides', title: 'Water restores you.',
     body: 'The gods churned the ocean and it yielded amṛta — the nectar of immortality. Your nights are that churning: sleep, HRV and strain flow into one readiness score.',
-    shloka: { sa: 'āpo hi ṣṭhā mayobhuvaḥ', en: 'O Waters, source of all wellbeing', src: 'Rig Veda 10.9' } },
-  { id: 'prithvi', w: 1.1,  mode: 'earth', accent: '#d9b26a', cam: { s: 2.1,  fx: 50, fy: 80 }, word: 'पृथ्वी', el: 'earth',
+    shloka: { sa: 'āpo hi ṣṭhā mayobhuvaḥ', en: 'O Waters, source of all wellbeing', src: 'Rig Veda 10.9' },
+    pins: [{ x: '15%', y: '28%', t: 'Readiness score each dawn' }, { x: '62%', y: '36%', t: 'Sleep · HRV · strain' }, { x: '18%', y: '54%', t: 'Per-muscle recovery map' }] },
+  { id: 'prithvi', w: 1.1,  mode: 'earth', accent: '#d9b26a', cam: { s: 2.1,  fx: 50, fy: 80 }, word: 'पृथ्वी', el: 'earth', phase: 5,
     eyebrow: '05 · prithvi · earth · the foundation', title: 'Earth is what you build.',
     body: 'When the herb could not be found, Hanuman lifted the mountain. That is training: bone and muscle built grain by grain — your Twin grows visibly stronger as you do.',
-    shloka: { sa: 'mātā bhūmiḥ putro ’haṁ pṛthivyāḥ', en: 'Earth is my mother; I am her son', src: 'Atharva Veda 12.1' } },
+    shloka: { sa: 'mātā bhūmiḥ putro ’haṁ pṛthivyāḥ', en: 'Earth is my mother; I am her son', src: 'Atharva Veda 12.1' },
+    pins: [{ x: '16%', y: '30%', t: 'True-size Twin · your measurements' }, { x: '62%', y: '28%', t: 'Becoming slider · today → goal' }, { x: '58%', y: '54%', t: 'Try-on · fits goal-you' }] },
   { id: 'balance', w: 1.4,  mode: 'align', accent: '#ffdeba', cam: { s: 0.94, fx: 50, fy: 32 }, cta: true,
     eyebrow: 'the five in balance', title: 'When the five align, you rise.',
     body: 'Lift yourself by your own self, says the Gita — the self alone is the friend of the self. That friend is your Twin. Sixty seconds to begin.',
@@ -82,22 +87,45 @@ function drawParticles(ctx, st, mode, alpha, accent, W, H, t, p) {
   ctx.restore();
 }
 
-// ── persistent pill nav ─────────────────────────────────────────────────────
-function Nav({ onStart }) {
+// ── persistent pill nav + phase tracker ─────────────────────────────────────
+// NRG "Build Your Data Center" mechanic: once the journey begins, the header's
+// right side becomes a live phase tracker (① · name). At the finale the tracker
+// itself morphs into the CTA — the progress instrument becomes the ask.
+const elName = (el) => el ? el[0].toUpperCase() + el.slice(1) : '';
+function Nav({ onStart, S }) {
+  const inPhase = !!S?.el, isCta = !!S?.cta;
   return (
     <nav style={{ position: 'fixed', top: 18, left: 0, right: 0, zIndex: 90, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 22px', pointerEvents: 'none' }}>
       <div className="sf-pill" style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px' }}>
         <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: '#f2f5fc' }}>सारथि</span>
         <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#59648a' }}>Sarathi</span>
       </div>
-      <div className="sf-pill sf-navlinks" style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 26, padding: '10px 12px 10px 24px' }}>
-        {['Story', 'Coach', 'Twin', 'Vault'].map((l) => (
-          <a key={l} href="#" className="sf-navlink" style={{ fontSize: 13, fontWeight: 500, color: '#c7cfe2', textDecoration: 'none' }}>{l}</a>
-        ))}
-        <button onClick={onStart} className="sf-ctamini" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: '#1a0f06', background: GOLD, border: 'none', borderRadius: '999px', padding: '9px 16px', cursor: 'pointer' }}>
-          Meet your Twin <Arrow size={13} />
-        </button>
-      </div>
+      {isCta ? (
+        <motion.button key="nav-cta" initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          onClick={onStart} className="sf-ctamini" style={{ pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: '#1a0f06', background: GOLD, border: 'none', borderRadius: '999px', padding: '11px 20px', cursor: 'pointer', boxShadow: '0 10px 30px -8px rgba(245,181,114,.55)' }}>
+          Begin your Becoming <Arrow size={14} />
+        </motion.button>
+      ) : inPhase ? (
+        <motion.div key={S.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="sf-pill" style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '6px 16px 6px 6px' }}>
+          <span style={{ width: 28, height: 28, borderRadius: '50%', background: S.accent, color: '#0a0c12', fontWeight: 700, fontSize: 13, display: 'grid', placeItems: 'center', boxShadow: `0 0 14px ${S.accent}66` }}>{S.phase}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#f2f5fc', whiteSpace: 'nowrap' }}>{S.word} · {elName(S.el)}</span>
+          <span style={{ display: 'flex', gap: 4, marginLeft: 2 }} aria-hidden>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <span key={n} style={{ width: 5, height: 5, borderRadius: '50%', background: n < S.phase ? GOLD : n === S.phase ? S.accent : 'rgba(151,168,205,.3)', boxShadow: n === S.phase ? `0 0 8px ${S.accent}` : 'none', transition: 'all .4s' }} />
+            ))}
+          </span>
+        </motion.div>
+      ) : (
+        <div className="sf-pill sf-navlinks" style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 26, padding: '10px 12px 10px 24px' }}>
+          {['Story', 'Coach', 'Twin', 'Vault'].map((l) => (
+            <a key={l} href="#" className="sf-navlink" style={{ fontSize: 13, fontWeight: 500, color: '#c7cfe2', textDecoration: 'none' }}>{l}</a>
+          ))}
+          <button onClick={onStart} className="sf-ctamini" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: '#1a0f06', background: GOLD, border: 'none', borderRadius: '999px', padding: '9px 16px', cursor: 'pointer' }}>
+            Meet your Twin <Arrow size={13} />
+          </button>
+        </div>
+      )}
     </nav>
   );
 }
@@ -107,7 +135,7 @@ export default function SarathiStory({ onStart }) {
   const rm = useReducedMotion() || reducedQ();
   const [seg, setSeg] = useState(0);
   const [active, setActive] = useState(0);
-  const wrapRef = useRef(null), figRef = useRef(null), ambRef = useRef(null), cvRef = useRef(null), coreRef = useRef(null), hintRef = useRef(null), railFill = useRef(null), cardRef = useRef(null);
+  const wrapRef = useRef(null), figRef = useRef(null), ambRef = useRef(null), cvRef = useRef(null), coreRef = useRef(null), hintRef = useRef(null), railFill = useRef(null), cardRef = useRef(null), pinsRef = useRef(null), nextRef = useRef(null);
   const stageDivRef = useRef(null), stageApi = useRef(null);
   const P = useRef({ mode: null, parts: null, W: 0, H: 0 });
   const P2 = useRef({ mode: null, parts: null });
@@ -166,6 +194,10 @@ export default function SarathiStory({ onStart }) {
       // scroll hint + progress rail
       if (hintRef.current) hintRef.current.style.opacity = (idx === 0 && p < 0.08) ? '1' : '0';
       if (railFill.current) railFill.current.style.width = `${((G / TOTAL_W) * 100).toFixed(2)}%`;
+      // feature pins: pop in mid-phase, retire before the handoff (NRG's labeled pins)
+      if (pinsRef.current) pinsRef.current.classList.toggle('sf-pins-on', !!S.pins && p > 0.24 && p < 0.93);
+      // "Scroll to Phase N" pull: the named reward at each phase's end
+      if (nextRef.current) nextRef.current.style.opacity = (idx < SEGS.length - 1 && p > 0.84) ? '1' : '0';
       // card presence: dip between segments (the breath, inside the film)
       if (cardRef.current) { const edge = Math.min(clamp01(p / 0.09), clamp01((1 - p) / 0.09)); cardRef.current.style.opacity = (0.25 + 0.75 * ease3(edge)).toFixed(3); }
       // particles: crossfade current mode in, previous mode out
@@ -200,7 +232,7 @@ export default function SarathiStory({ onStart }) {
   if (rm) {
     return (
       <div style={{ background: '#04060a', minHeight: '100vh' }}>
-        <Nav onStart={onStart} />
+        <Nav onStart={onStart} S={SEGS[0]} />
         <div style={{ maxWidth: 720, margin: '0 auto', padding: '120px 24px 80px' }}>
           <img src={HERO} alt="Sarathi" style={{ width: '100%', borderRadius: 18 }} />
           {SEGS.map((x) => (
@@ -219,7 +251,7 @@ export default function SarathiStory({ onStart }) {
 
   return (
     <div style={{ position: 'relative', background: '#030406' }}>
-      <Nav onStart={onStart} />
+      <Nav onStart={onStart} S={S} />
       {/* progress */}
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 95, pointerEvents: 'none' }}>
         <div ref={railFill} style={{ height: '100%', width: '0%', background: `linear-gradient(90deg,#ffdeba,${GOLD} 60%,#d97a45)`, boxShadow: '0 0 12px rgba(245,181,114,.6)' }} />
@@ -254,6 +286,16 @@ export default function SarathiStory({ onStart }) {
             background: 'radial-gradient(50% 50% at 50% 50%, #2ec4b6cc 0%, #2ec4b655 26%, #2ec4b614 50%, transparent 72%)', mixBlendMode: 'screen', filter: 'blur(2px)' }} />
           {/* element particles */}
           <canvas ref={cvRef} aria-hidden style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+          {/* feature pins — NRG's labeled diorama pins: each phase names the real product
+              on the stage itself. Visibility gated by the conductor (sf-pins-on). */}
+          <div ref={pinsRef} aria-hidden className="sf-pins" style={{ position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none' }}>
+            {(S.pins || []).map((pin, i) => (
+              <div key={S.id + i} className="sf-pin" style={{ position: 'absolute', left: pin.x, top: pin.y, '--d': `${0.1 + i * 0.22}s` }}>
+                <span className="sf-pindot" style={{ background: S.accent, boxShadow: `0 0 12px ${S.accent}` }} />
+                <span className="sf-pinlabel">{pin.t}</span>
+              </div>
+            ))}
+          </div>
           {/* legibility scrim behind the card zone */}
           <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(3,4,6,.42) 0%, transparent 18%, transparent 55%, rgba(3,4,6,.6) 100%)' }} />
           <div aria-hidden className="sf-grain" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.35, mixBlendMode: 'overlay' }} />
@@ -265,7 +307,14 @@ export default function SarathiStory({ onStart }) {
             {/* enter-only keyed swap — AnimatePresence mode="wait" wedges under rapid
                 scroll (interrupted exits never resolve; found by live QA) */}
               <motion.div key={S.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
-                <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.accent, marginBottom: 10 }}>{S.eyebrow}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px 10px', marginBottom: 10, flexWrap: 'wrap' }}>
+                  {(S.phase || S.cta) && (
+                    <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: S.accent, border: `1px solid ${S.accent}55`, borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>
+                      {S.cta ? 'all five gathered' : `phase ${S.phase} of 5`}
+                    </span>
+                  )}
+                  <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.accent }}>{S.eyebrow}</div>
+                </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px 28px', justifyContent: 'space-between' }}>
                   <h2 style={{ fontFamily: 'var(--font-display)', fontSize: seg === 0 ? 'clamp(1.5rem, 2.6vw, 2.2rem)' : 'clamp(1.7rem, 3vw, 2.6rem)', lineHeight: 1.1, fontWeight: 600, letterSpacing: '-0.02em', color: '#f6f8ff', margin: 0, whiteSpace: 'pre-line', flex: '1 1 340px' }}>{S.title}</h2>
                   {S.shloka && (
@@ -296,6 +345,15 @@ export default function SarathiStory({ onStart }) {
                   </span>
                 );
               })}
+              {/* the named forward pull — "Scroll to Phase N" (opacity driven by conductor) */}
+              {seg < SEGS.length - 1 && (
+                <span ref={nextRef} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7, opacity: 0, transition: 'opacity .45s', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: SEGS[seg + 1].accent }}>
+                    {SEGS[seg + 1].el ? `scroll · phase ${SEGS[seg + 1].phase} — ${SEGS[seg + 1].word}` : 'scroll · the five align'}
+                  </span>
+                  <span className="sf-bounce" style={{ color: SEGS[seg + 1].accent, fontSize: 13, lineHeight: 1 }}>↓</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -325,7 +383,13 @@ export default function SarathiStory({ onStart }) {
         .st-cta .sf-arrow{transition:transform .2s}
         .st-cta:hover{box-shadow:0 16px 40px -10px rgba(245,181,114,.6)}
         .sf-tick:hover span:last-child{opacity:.85 !important;transform:translateX(0) !important}
+        .sf-pins .sf-pin{display:flex;align-items:center;gap:8px;opacity:0}
+        .sf-pins.sf-pins-on .sf-pin{animation:sfPin .55s cubic-bezier(.22,1,.36,1) forwards;animation-delay:var(--d)}
+        @keyframes sfPin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+        .sf-pindot{width:9px;height:9px;border-radius:50%;flex:none}
+        .sf-pinlabel{font-family:var(--font-body);font-size:11.5px;font-weight:600;color:#eef1fa;background:rgba(10,12,18,.55);border:1px solid rgba(151,168,205,.22);padding:5px 12px;border-radius:999px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);white-space:nowrap}
         @media (max-width:880px){.sf-rail{display:none}.sf-navlinks a{display:none}}
+        @media (max-width:680px){.sf-pinlabel{font-size:10px;padding:4px 9px}.sf-pindot{width:7px;height:7px}}
       `}</style>
     </div>
   );
