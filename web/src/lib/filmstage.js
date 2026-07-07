@@ -226,10 +226,14 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
   ro.observe(container);
 
   const accentColor = new THREE.Color('#f5b572');
+  const figLit = new THREE.Color(1, 1, 1);
+  const figShadow = new THREE.Color('#707a92');   // the unawakened state: cold, dimmed
   let dead = false;
 
-  function setShot(cam, idx, p, t, mx, my, accentHex, coreI = 0) {
+  function setShot(cam, idx, p, t, mx, my, accentHex, coreI = 0, dimI = 0) {
     if (dead) return;
+    // ACT I — the lack: the charioteer stands in shadow until the element answers
+    fig.material.color.copy(figLit).lerp(figShadow, dimI);
     // heartbeat: double-thump pulse, only alive while the conductor says so (water)
     const beat = Math.pow(Math.max(0, Math.sin(t * 0.0026 * Math.PI * 2)), 6) + 0.55 * Math.pow(Math.max(0, Math.sin(t * 0.0026 * Math.PI * 2 + 0.9)), 8);
     heart.material.opacity = coreI * (0.35 + 0.5 * beat);
@@ -257,8 +261,10 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
     mandala.rotation.z = t * 0.00013;
     ring2.rotation.z = -t * 0.00022;
     ring3.rotation.z = t * 0.00008;
-    const mp = 0.75 + 0.25 * Math.sin(t * 0.0016);
+    const mp = (0.75 + 0.25 * Math.sin(t * 0.0016)) * (1 - 0.5 * dimI);
     ring1.material.opacity = 0.8 * mp; spokes.material.opacity = 0.7 * mp;
+    ring2.material.opacity = 0.45 * (1 - 0.5 * dimI);
+    ring3.material.opacity = 0.3 * (1 - 0.5 * dimI);
     // dust: drift toward camera, tint toward the active element
     accentColor.set(accentHex);
     dustMat.color.lerp(accentColor, 0.02);
@@ -269,9 +275,9 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
     const sm01 = (x) => { const c = Math.max(0, Math.min(1, x)); return c * c * (3 - 2 * c); };
     const elIdx = idx - 1;                                  // 0..4 during element chapters
     const inEl = elIdx >= 0 && elIdx < 5;
-    const ramp = inEl ? sm01((p - 0.08) / 0.22) * (1 - sm01((p - 0.96) / 0.04)) : 0;
+    const ramp = inEl ? sm01((p - 0.42) / 0.2) * (1 - sm01((p - 0.96) / 0.04)) : 0;   // the gift arrives in Act II
     const finaleP = idx >= 6 ? sm01((p - 0.05) / 0.3) : 0;
-    if (inEl) awakened[elIdx] = Math.max(awakened[elIdx], sm01((p - 0.2) / 0.5));
+    if (inEl) awakened[elIdx] = Math.max(awakened[elIdx], sm01((p - 0.5) / 0.4));
     streams.forEach((S, i) => flowStreams(S, (inEl && i === elIdx) ? ramp : finaleP * 0.5));
     chakras.forEach((c, i) => {
       const cur = inEl && i === elIdx ? ramp : 0;
@@ -303,11 +309,12 @@ export async function createFilmStage(container, heroUrl, accents, videos = {}) 
       const target = idx >= 6 ? 1.35 : current ? 1.5 : reached ? 1 : 0.45;
       const s = o.scale.x + (target - o.scale.x) * 0.06;
       o.scale.set(s, s, s);
-      o.material.opacity = idx >= 6 ? 0.95 : current ? 0.95 : reached ? 0.8 : 0.3;
+      o.material.opacity = (idx >= 6 ? 0.95 : current ? 0.95 : reached ? 0.8 : 0.3) * (1 - 0.35 * dimI);
     });
-    // rays breathe — and blaze in the finale as the five align
-    rays.forEach((r, i) => { r.material.opacity = 0.07 + 0.05 * Math.abs(Math.sin(t * 0.0009 + i)) + 0.1 * cc; });
+    // rays breathe — dim with the lack, blaze in the finale as the five align
+    rays.forEach((r, i) => { r.material.opacity = (0.07 + 0.05 * Math.abs(Math.sin(t * 0.0009 + i))) * (1 - 0.6 * dimI) + 0.1 * cc; });
     ring1.material.opacity = 0.8 * mp * (1 + 0.5 * cc);
+    dustMat.opacity = 0.5 * (1 - 0.4 * dimI);
     renderer.render(scene, camera);
   }
 

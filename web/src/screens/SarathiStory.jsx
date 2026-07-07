@@ -28,26 +28,31 @@ const SEGS = [
     eyebrow: '01 · akasha · space · the mind', title: 'Space remembers.',
     body: 'From space begins the field of memory. Every session, meal, heartbeat and note becomes a living record, so Sarathi speaks with your whole history behind it.',
     shloka: { sa: 'mattaḥ smṛtir jñānam', en: 'from me: memory, and knowing', src: 'Gita 15.15' },
+    lack: { line: 'Before space: a scattered mind.', sub: 'Sessions unlogged, meals forgotten, sleep unexamined — a body with no memory of its own story. He cannot see how far he has come, so he stops.' },
     pins: [{ x: '58%', y: '24%', t: 'Health Vault · every record yours' }, { x: '66%', y: '40%', t: 'Lifelong memory' }, { x: '56%', y: '56%', t: 'Syncs Apple Health' }] },
   { id: 'vayu',    w: 1.1,  mode: 'air',   accent: '#7fd4f0', cam: { s: 1.9,  fx: 50, fy: 22 }, word: 'वायु', el: 'air', phase: 2,
     eyebrow: '02 · vayu · air · the breath', title: 'Air moves you.',
     body: 'Vayu is breath becoming motion. Sarathi reads your movement like wind over a battlefield: every rep counted, graded and corrected while you move.',
     shloka: { sa: 'prāṇāpāna-samāyuktaḥ', en: 'joined with the winds of breath', src: 'Gita 15.14' },
+    lack: { line: 'Before air: breath without direction.', sub: 'Reps done alone and unseen — no one counting, no one correcting, no way to know if the form was ever true.' },
     pins: [{ x: '58%', y: '24%', t: 'Form Coach · live rep grading' }, { x: '67%', y: '42%', t: 'On-device camera AI' }, { x: '56%', y: '58%', t: '3D replay · every rep scored' }] },
   { id: 'agni',    w: 1.1,  mode: 'fire',  accent: '#ff9e5e', cam: { s: 2.5,  fx: 50, fy: 48 }, word: 'अग्नि', el: 'fire', phase: 3,
     eyebrow: '03 · agni · fire · the furnace', title: 'Fire transforms you.',
     body: 'The Gita names the fire in the body: Vaiśvānara. Log a meal in one line and Sarathi turns fuel into guidance: macros, protein, timing and the flame you train with.',
     shloka: { sa: 'ahaṁ vaiśvānaro bhūtvā', en: 'I am the fire that digests all food', src: 'Gita 15.14' },
+    lack: { line: 'Before fire: fuel burned blind.', sub: 'Meals eaten without knowing what they build. The furnace is fed every day — and never once read.' },
     pins: [{ x: '58%', y: '26%', t: 'One-line meal logging' }, { x: '66%', y: '43%', t: 'Macros read instantly' }, { x: '56%', y: '60%', t: 'Protein ritual · Twin drinks with you' }] },
   { id: 'apas',    w: 1.3,  mode: 'water', accent: '#2ec4b6', cam: { s: 2.3,  fx: 50, fy: 26 }, word: 'आपस्', el: 'water', core: true, phase: 4,
     eyebrow: '04 · apas · water · the tides', title: 'Water restores you.',
     body: 'When the ocean was churned, amrita rose from the depths. Your nights are that churn: sleep, HRV and strain flow together, then return as a readiness score you can trust.',
     shloka: { sa: 'āpo hi ṣṭhā mayobhuvaḥ', en: 'O Waters, source of all wellbeing', src: 'Rig Veda 10.9' },
+    lack: { line: 'Before water: rest that restores nothing.', sub: 'Tired mornings, guessed recovery — training hard on days the body quietly asked for mercy.' },
     pins: [{ x: '59%', y: '25%', t: 'Readiness score each dawn' }, { x: '67%', y: '41%', t: 'Sleep · HRV · strain' }, { x: '56%', y: '57%', t: 'Per-muscle recovery map' }] },
   { id: 'prithvi', w: 1.1,  mode: 'earth', accent: '#d9b26a', cam: { s: 2.1,  fx: 50, fy: 80 }, word: 'पृथ्वी', el: 'earth', phase: 5,
     eyebrow: '05 · prithvi · earth · the foundation', title: 'Earth is what you build.',
     body: 'When the herb could not be found, Hanuman lifted the mountain. Training is that kind of devotion: bone, muscle and habit built grain by grain, visible in your Twin.',
     shloka: { sa: 'mātā bhūmiḥ putro ’haṁ pṛthivyāḥ', en: 'Earth is my mother; I am her son', src: 'Atharva Veda 12.1' },
+    lack: { line: 'Before earth: effort that leaves no trace.', sub: 'Weeks of honest work with nothing to show for it. Progress invisible — and motivation crumbling with it.' },
     pins: [{ x: '58%', y: '26%', t: 'True-size Twin · your measurements' }, { x: '66%', y: '43%', t: 'Becoming slider · today → goal' }, { x: '56%', y: '59%', t: 'Try-on · fits goal-you' }] },
   { id: 'balance', w: 1.4,  mode: 'align', accent: '#ffdeba', cam: { s: 0.94, fx: 50, fy: 32 }, cta: true,
     eyebrow: 'the five in balance', title: 'When the five align, you rise.',
@@ -139,6 +144,7 @@ function Nav({ onStart, S }) {
 export default function SarathiStory({ onStart }) {
   const rm = useReducedMotion() || reducedQ();
   const [seg, setSeg] = useState(0);
+  const [act, setAct] = useState(1);   // element chapters play in two acts: 0 = the lack, 1 = the gift
   const [active, setActive] = useState(0);
   const wrapRef = useRef(null), figRef = useRef(null), ambRef = useRef(null), cvRef = useRef(null), coreRef = useRef(null), hintRef = useRef(null), railFill = useRef(null), cardRef = useRef(null), pinsRef = useRef(null), nextRef = useRef(null);
   const stageDivRef = useRef(null), stageApi = useRef(null);
@@ -167,7 +173,7 @@ export default function SarathiStory({ onStart }) {
     const onMove = (e) => { mouse.current = { x: (e.clientX / window.innerWidth - 0.5) * 2, y: (e.clientY / window.innerHeight - 0.5) * 2 }; };
     window.addEventListener('mousemove', onMove, { passive: true });
     const dpr = Math.min(1.5, window.devicePixelRatio || 1);
-    let raf, lastSeg = -1;
+    let raf, lastSeg = -1, lastAct = -1;
     const loop = (t) => {
       const vh = window.innerHeight;
       const wrap = wrapRef.current; if (!wrap) { raf = requestAnimationFrame(loop); return; }
@@ -179,28 +185,32 @@ export default function SarathiStory({ onStart }) {
       for (let i = 0; i < SEGS.length; i++) { if (G <= acc + SEGS[i].w || i === SEGS.length - 1) { idx = i; p = clamp01((G - acc) / SEGS[i].w); break; } acc += SEGS[i].w; }
       const S = SEGS[idx];
       if (idx !== lastSeg) { lastSeg = idx; setSeg(idx); setActive(idx); }
+      // two-act chapters: Act I (the lack — dimmed, narrator) until ~40%, then Act II (the gift)
+      const curAct = S.lack && p < 0.4 ? 0 : 1;
+      if (curAct !== lastAct) { lastAct = curAct; setAct(curAct); }
+      const dim = S.lack ? 1 - ease3(clamp01((p - 0.34) / 0.14)) : 0;
       // continuous camera: lerp from previous segment cam during the first 35%
       const prev = SEGS[Math.max(0, idx - 1)].cam, cur = S.cam;
       const ct = idx === 0 ? 1 : ease3(clamp01(p / 0.45));
       const s = lerp(prev.s, cur.s, ct), fx = lerp(prev.fx, cur.fx, ct), fy = lerp(prev.fy, cur.fy, ct);
       const mx = mouse.current.x, my = mouse.current.y;
-      const coreI = S.core ? clamp01((p - 0.2) / 0.15) * (1 - clamp01((p - 0.9) / 0.1)) : 0;
+      const coreI = S.core ? clamp01((p - 0.5) / 0.15) * (1 - clamp01((p - 0.9) / 0.1)) : 0;
       if (stageApi.current) {
-        stageApi.current.setShot({ s, fx, fy }, idx, p, t, mx, my, S.accent, coreI);
+        stageApi.current.setShot({ s, fx, fy }, idx, p, t, mx, my, S.accent, coreI, dim);
       } else if (figRef.current) {
         figRef.current.style.transformOrigin = `${fx}% ${fy}%`;
         figRef.current.style.transform = `translate3d(${mx * 10}px, ${my * 6}px, 0) scale(${s.toFixed(4)})`;
       }
       // ambient world tint
       const tinT = Math.sin(Math.PI * p);
-      if (ambRef.current) ambRef.current.style.background = `radial-gradient(90% 70% at 50% 42%, ${mixc('#05070c', S.accent, 0.16 * tinT + 0.05)} 0%, #030406 72%)`;
+      if (ambRef.current) ambRef.current.style.background = `radial-gradient(90% 70% at 50% 42%, ${mixc('#05070c', S.accent, (0.16 * tinT + 0.05) * (1 - 0.6 * dim))} 0%, #030406 72%)`;
       // heart core (apas only)
       if (coreRef.current) coreRef.current.style.opacity = stageApi.current ? '0' : coreI.toFixed(2);
       // scroll hint + progress rail
       if (hintRef.current) hintRef.current.style.opacity = (idx === 0 && p < 0.08) ? '1' : '0';
       if (railFill.current) railFill.current.style.width = `${((G / TOTAL_W) * 100).toFixed(2)}%`;
-      // feature pins: pop in mid-phase, retire before the handoff (NRG's labeled pins)
-      if (pinsRef.current) pinsRef.current.classList.toggle('sf-pins-on', !!S.pins && p > 0.24 && p < 0.93);
+      // feature pins: Act II only — the lack stays clean of UI, the gift gets named
+      if (pinsRef.current) pinsRef.current.classList.toggle('sf-pins-on', !!S.pins && p > 0.5 && p < 0.93);
       // "Scroll to Phase N" pull: the named reward at each phase's end
       if (nextRef.current) nextRef.current.style.opacity = (idx < SEGS.length - 1 && p > 0.84) ? '1' : '0';
       // story panel presence: breathe between segments without making the copy unreadable.
@@ -214,8 +224,8 @@ export default function SarathiStory({ onStart }) {
         const ctx = cv.getContext('2d');
         ctx.clearRect(0, 0, W, H);
         const fadeIn = ease3(clamp01(p / 0.25));
-        if (P2.current.parts && fadeIn < 1) drawParticles(ctx, P2.current.parts, P2.current.mode, (1 - fadeIn) * 0.9, SEGS[Math.max(0, idx - 1)].accent, W, H, t, 1);
-        if (P.current.parts) drawParticles(ctx, P.current.parts, S.mode, fadeIn * Math.min(1, 0.35 + tinT), S.accent, W, H, t, p);
+        if (P2.current.parts && fadeIn < 1) drawParticles(ctx, P2.current.parts, P2.current.mode, (1 - fadeIn) * 0.9 * (1 - 0.55 * dim), SEGS[Math.max(0, idx - 1)].accent, W, H, t, 1);
+        if (P.current.parts) drawParticles(ctx, P.current.parts, S.mode, fadeIn * Math.min(1, 0.35 + tinT) * (1 - 0.55 * dim), S.accent, W, H, t, p);
       }
       raf = requestAnimationFrame(loop);
     };
@@ -244,6 +254,7 @@ export default function SarathiStory({ onStart }) {
             <section key={x.id} style={{ margin: '56px 0' }}>
               <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: x.accent, marginBottom: 12 }}>{x.eyebrow}</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: '#f6f8ff', margin: '0 0 12px', whiteSpace: 'pre-line' }}>{x.title}</h2>
+              {x.lack && <p style={{ fontStyle: 'italic', color: '#8e9ab8', fontSize: 14 }}>{x.lack.line} {x.lack.sub}</p>}
               {x.shloka && <p style={{ fontStyle: 'italic', color: '#9aa6c4', fontSize: 13 }}>“{x.shloka.sa}” — {x.shloka.en}. {x.shloka.src}</p>}
               <p style={{ color: '#aab4cc', lineHeight: 1.65 }}>{x.body}</p>
               {x.cta && <button onClick={onStart} className="st-cta" style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600, color: '#1a0f06', background: GOLD, border: 'none', borderRadius: 999, padding: '14px 28px', cursor: 'pointer' }}>Meet your Twin</button>}
@@ -320,29 +331,52 @@ export default function SarathiStory({ onStart }) {
           <div ref={cardRef} className="sf-story-panel" style={{ '--accent': S.accent }}>
             {/* enter-only keyed swap — AnimatePresence mode="wait" wedges under rapid
                 scroll (interrupted exits never resolve; found by live QA) */}
-              <motion.div key={S.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px 10px', marginBottom: 10, flexWrap: 'wrap' }}>
-                  {(S.phase || S.cta) && (
-                    <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: S.accent, border: `1px solid ${S.accent}55`, borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>
-                      {S.cta ? 'all five gathered' : `phase ${S.phase} of 5`}
-                    </span>
-                  )}
-                  <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.accent }}>{S.eyebrow}</div>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px 28px', justifyContent: 'space-between' }}>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: seg === 0 ? 'clamp(1.65rem, 3vw, 2.65rem)' : 'clamp(1.85rem, 3.35vw, 3rem)', lineHeight: 1.08, fontWeight: 600, letterSpacing: 0, color: '#f6f8ff', margin: 0, whiteSpace: 'pre-line', flex: '1 1 340px' }}>{S.title}</h2>
-                  {S.shloka && (
-                    <div style={{ flex: '1 1 260px', maxWidth: 380, fontStyle: 'italic', fontSize: 12.5, lineHeight: 1.5, color: '#9aa6c4', textAlign: 'right' }}>
-                      “{S.shloka.sa}”<br />{S.shloka.en} · <span style={{ fontStyle: 'normal', fontFamily: 'var(--font-eyebrow)', fontSize: 9.5, letterSpacing: '0.12em', color: S.accent, textTransform: 'uppercase' }}>{S.shloka.src}</span>
+              <motion.div key={`${S.id}-${act}`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
+                {act === 0 && S.lack ? (
+                  /* ACT I — the lack: the narrator names the unawakened state before the gift */
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px 10px', marginBottom: 10, flexWrap: 'wrap' }}>
+                      {S.phase && (
+                        <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#8e9ab8', border: '1px solid rgba(151,168,205,.3)', borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>
+                          phase {S.phase} of 5
+                        </span>
+                      )}
+                      <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#8e9ab8' }}>the lack · before {S.word}</div>
                     </div>
-                  )}
-                </div>
-                <p style={{ fontSize: 'clamp(14px, 1.25vw, 16px)', lineHeight: 1.65, color: '#d0d7e8', margin: '14px 0 0', maxWidth: '62ch' }}>{S.body}</p>
-                {S.cta && (
-                  <motion.button initial={false} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
-                    onClick={onStart} className="st-cta" style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: '#1a0f06', background: GOLD, border: `1px solid ${GOLD}`, borderRadius: '999px', padding: '13px 26px', cursor: 'pointer' }}>
-                    Meet your Twin <Arrow size={16} />
-                  </motion.button>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.85rem, 3.35vw, 3rem)', lineHeight: 1.08, fontWeight: 600, letterSpacing: 0, color: '#c3c9d9', margin: 0, whiteSpace: 'pre-line' }}>{S.lack.line}</h2>
+                    <p style={{ fontSize: 'clamp(14px, 1.25vw, 16px)', lineHeight: 1.65, color: '#8e9ab8', margin: '14px 0 0', maxWidth: '62ch' }}>{S.lack.sub}</p>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 14 }}>
+                      <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: S.accent }}>keep going — {S.word} answers</span>
+                      <span className="sf-bounce" style={{ color: S.accent, fontSize: 13, lineHeight: 1 }}>↓</span>
+                    </div>
+                  </>
+                ) : (
+                  /* ACT II — the gift: the element pours its power in, and the feature is named */
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px 10px', marginBottom: 10, flexWrap: 'wrap' }}>
+                      {(S.phase || S.cta) && (
+                        <span style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: S.accent, border: `1px solid ${S.accent}55`, borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>
+                          {S.cta ? 'all five gathered' : `phase ${S.phase} of 5`}
+                        </span>
+                      )}
+                      <div style={{ fontFamily: 'var(--font-eyebrow)', fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: S.accent }}>{S.eyebrow}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px 28px', justifyContent: 'space-between' }}>
+                      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: seg === 0 ? 'clamp(1.65rem, 3vw, 2.65rem)' : 'clamp(1.85rem, 3.35vw, 3rem)', lineHeight: 1.08, fontWeight: 600, letterSpacing: 0, color: '#f6f8ff', margin: 0, whiteSpace: 'pre-line', flex: '1 1 340px' }}>{S.title}</h2>
+                      {S.shloka && (
+                        <div style={{ flex: '1 1 260px', maxWidth: 380, fontStyle: 'italic', fontSize: 12.5, lineHeight: 1.5, color: '#9aa6c4', textAlign: 'right' }}>
+                          “{S.shloka.sa}”<br />{S.shloka.en} · <span style={{ fontStyle: 'normal', fontFamily: 'var(--font-eyebrow)', fontSize: 9.5, letterSpacing: '0.12em', color: S.accent, textTransform: 'uppercase' }}>{S.shloka.src}</span>
+                        </div>
+                      )}
+                    </div>
+                    <p style={{ fontSize: 'clamp(14px, 1.25vw, 16px)', lineHeight: 1.65, color: '#d0d7e8', margin: '14px 0 0', maxWidth: '62ch' }}>{S.body}</p>
+                    {S.cta && (
+                      <motion.button initial={false} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
+                        onClick={onStart} className="st-cta" style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: '#1a0f06', background: GOLD, border: `1px solid ${GOLD}`, borderRadius: '999px', padding: '13px 26px', cursor: 'pointer' }}>
+                        Meet your Twin <Arrow size={16} />
+                      </motion.button>
+                    )}
+                  </>
                 )}
               </motion.div>
             {/* the collection — elements gathered so far live IN the card */}
@@ -452,7 +486,7 @@ export default function SarathiStory({ onStart }) {
         .sf-pinlabel{font-family:var(--font-body);font-size:11.5px;font-weight:600;color:#eef1fa;background:rgba(10,12,18,.55);border:1px solid rgba(151,168,205,.22);padding:5px 12px;border-radius:999px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);white-space:nowrap}
         @media (max-width:980px){.sf-proof-inner{grid-template-columns:1fr}.sf-proof-grid{grid-template-columns:1fr}.sf-story-panel{left:50%;right:auto;top:auto;bottom:max(42px,5vh);transform:translateX(-50%);width:min(680px,92vw);padding:18px 20px}.sf-story-scrim{background:linear-gradient(180deg,rgba(3,4,6,.22) 0%,transparent 30%,rgba(3,4,6,.92) 67%,rgba(3,4,6,.98) 100%)}}
         @media (max-width:880px){.sf-rail{display:none}.sf-navlinks a{display:none}.sf-element-glyph{right:20px;top:96px;font-size:clamp(3.6rem,18vw,7rem)}}
-        @media (max-width:680px){.sf-pinlabel{font-size:10px;padding:4px 9px}.sf-pindot{width:7px;height:7px}.sf-story-panel h2{font-size:clamp(1.45rem,8vw,2.1rem)!important}.sf-proof-card{min-height:190px}.sf-power-line{width:86vw}}
+        @media (max-width:680px){.sf-pins{display:none}.sf-story-panel h2{font-size:clamp(1.45rem,8vw,2.1rem)!important}.sf-proof-card{min-height:190px}.sf-power-line{width:86vw}}
       `}</style>
     </div>
   );
