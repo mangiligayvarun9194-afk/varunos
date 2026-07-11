@@ -12,6 +12,8 @@
       localStorage.setItem('varunos_key', data.key);
       localStorage.setItem('varunos_onboarded', '1');
       localStorage.setItem('varunos_paired', '1');
+      localStorage.setItem('sarathi_seen_landing', '1');   // paired device: straight to the app
+      if (data.skipPin) localStorage.setItem('varunos_pin_skipped', '1');  // QA/dev hand-off links
     }
   } catch (_) {}
   history.replaceState(null, '', location.pathname + location.search);

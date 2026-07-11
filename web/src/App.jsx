@@ -23,7 +23,11 @@ export default function App() {
     if (!localStorage.getItem('varunos_pin_skipped')) return 'create';
     return null;
   });
-  const [tab, setTab] = useState('today');
+  // Deep-linkable tabs: /?tab=twin opens the app on that tab (validated).
+  const [tab, setTab] = useState(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    return ['today', 'log', 'coach', 'twin', 'insights', 'library', 'formcoach', 'settings'].includes(t) ? t : 'today';
+  });
   const [sheet, setSheet] = useState(null); // checkin | workout | meal | bp | glucose
   const [connected, setConnected] = useState(null);
   const [authed, setAuthed] = useState(null); // null=checking, true=ok, false=bad/missing key

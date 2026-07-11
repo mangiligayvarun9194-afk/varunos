@@ -4,6 +4,7 @@ import App from './App.jsx';
 import SarathiHero from './screens/SarathiHero.jsx';
 import SarathiCinematic from './screens/SarathiCinematic.jsx';
 import SarathiStory from './screens/SarathiStory.jsx';
+import SarathiJourney from './screens/SarathiJourney.jsx';
 import SarathiPitch from './screens/SarathiPitch.jsx';
 import { WeatherBackdropDemo } from './screens/WeatherBackdrop.jsx';
 import InvestorDashboard from './screens/InvestorDashboard.jsx';
@@ -15,6 +16,7 @@ import './theme.css';
 const DEMO = null;
 const hash = typeof window !== 'undefined' ? window.location.hash : '';
 const pick = hash === '#pitch' ? 'pitch'
+  : hash === '#journey' ? 'journey'
   : hash === '#weather' ? 'weather'
   : hash === '#investors' ? 'investors'
   : DEMO || (hash === '#sarathi-story' ? 'story' : hash === '#sarathi-cinematic' ? 'cinematic' : hash === '#sarathi-hero' ? 'carousel' : null);
@@ -36,6 +38,7 @@ if ('serviceWorker' in navigator) {
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     {pick === 'pitch' ? <SarathiPitch />
+      : pick === 'journey' ? <SarathiJourney onStart={goApp} />
       : pick === 'investors' ? <InvestorDashboard />
       : pick === 'weather' ? <div style={{ position: 'fixed', inset: 0, background: '#06080d' }}><WeatherBackdropDemo /></div>
       : pick === 'story' ? <SarathiStory onStart={goApp} />

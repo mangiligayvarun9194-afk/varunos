@@ -33,10 +33,13 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 
 
 def _parse(ts: str):
+    """ISO string -> aware-UTC datetime. Naive stamps (older rows, some imports)
+    are assumed UTC — mixing naive and aware datetimes makes `>` raise."""
     try:
-        return datetime.fromisoformat((ts or "").replace("Z", "+00:00"))
+        dt = datetime.fromisoformat((ts or "").replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def _status(score: int) -> str:

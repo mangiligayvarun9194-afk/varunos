@@ -71,3 +71,16 @@ class TestRecommend:
         r = rm.analyze(sets, now=NOW)
         assert "muscles" in r and "train_today" in r and "avoid" in r
         assert r["fresh_count"] >= 1
+
+
+def test_mixed_naive_and_aware_timestamps_do_not_crash():
+    """Imported history may carry naive stamps while new logs are tz-aware —
+    comparison must not raise (regression: TypeError in muscle_readiness)."""
+    from varunos.core import readiness_muscle as rm
+    sets = [
+        {"exercise_id": "squat", "weight_kg": 100, "reps": 5, "ts": "2026-07-05T10:00:00"},           # naive
+        {"exercise_id": "squat", "weight_kg": 100, "reps": 5, "ts": "2026-07-06T10:00:00+00:00"},     # aware
+        {"exercise_id": "bench_press", "weight_kg": 80, "reps": 8, "ts": "2026-07-04T09:00:00Z"},     # Z-form
+    ]
+    out = rm.analyze(sets)
+    assert "muscles" in out and "legs" in out["muscles"]
