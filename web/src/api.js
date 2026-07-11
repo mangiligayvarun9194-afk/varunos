@@ -22,7 +22,7 @@
 // When the app is served by the Sarathi server itself (Render or local
 // uvicorn), same-origin is the right default. The localhost fallback only
 // matters for `vite dev`.
-const defaultBase = location.port === '5173' ? 'http://127.0.0.1:8000' : location.origin;
+const defaultBase = ['5173', '5174'].includes(location.port) ? 'http://127.0.0.1:8000' : location.origin;
 
 export let API_BASE = localStorage.getItem('varunos_api') || defaultBase;
 export let API_KEY = localStorage.getItem('varunos_key') || '';
