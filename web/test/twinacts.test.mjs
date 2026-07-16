@@ -106,14 +106,25 @@ for (const [factory, id, duration] of EXPECT) {
   ok(peaks >= 2, `celebrate: >=2 arm pumps (found ${peaks})`);
 }
 
+// --- nod: the small same-day return greeting ---
+{
+  const nod = CLIPS.nod();
+  ok(nod.duration <= 1.2, 'nod is quick — an acknowledgement, not a ceremony');
+  const mid = nod.poseAt(0.4);
+  ok(mid.head.rx > 0.08 && mid.head.rx <= 0.2, `nod dips the head gently (${mid.head.rx.toFixed(2)} rad)`);
+  const start = nod.poseAt(0), end = nod.poseAt(1);
+  ok(Math.abs(start.head.rx) < 1e-6 && Math.abs(end.head.rx) < 1e-6, 'nod starts and ends at neutral');
+  ok(Math.abs(mid.lArm.rz) < 1e-6, 'nod never moves the arms — head and a hint of spine only');
+}
+
 // --- registry ---
 ok(CLIPS.greeting === clipGreeting && CLIPS.celebrate === clipCelebrate && CLIPS.shake === clipShake,
   'CLIPS maps ids to factories');
 {
   const ids = listClips();
-  ok(Array.isArray(ids) && ids.length === 3
-    && ['greeting', 'celebrate', 'shake'].every((k) => ids.includes(k)),
-    'listClips returns all three ids');
+  ok(Array.isArray(ids) && ids.length === 4
+    && ['greeting', 'celebrate', 'shake', 'nod'].every((k) => ids.includes(k)),
+    'listClips returns all four ids');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

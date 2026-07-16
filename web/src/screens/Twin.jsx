@@ -15,6 +15,7 @@ import { buildMuscleAttribute, GROUP_LABEL, GROUP_READINESS } from '../lib/twinS
 import { boneScalesFromMorphs } from '../lib/twinmorph.js';
 import { lerpMorphs, becomingLabel, becomingWeeks } from '../lib/becoming.js';
 import { CLIPS } from '../lib/twinacts.js';
+import { decide } from '../lib/twinmind.js';
 import { getLocationPreset } from '../lib/weatherworld.js';
 import WeatherBackdrop from './WeatherBackdrop.jsx';
 import TryOnPanel from './TryOnPanel.jsx';
@@ -777,8 +778,8 @@ export default function Twin() {
 
           (twin.composer || twin.renderer).render(scene, camera);
         };
-        // Living gestures: greeting on arrival; celebrate/shake fired by real app events
-        // (Log/FormCoach dispatch window CustomEvents when a workout or protein is logged).
+        // Living gestures: celebrate/shake fired by real app events (Log/FormCoach
+        // dispatch window CustomEvents when a workout or protein is logged).
         twin.gesture = null;
         twin.playGesture = (id) => {
           try { const mk = CLIPS[id]; const c = mk && mk(); if (c) twin.gesture = { clip: c, t0: performance.now() }; } catch (_) {}
@@ -787,7 +788,26 @@ export default function Twin() {
         twin._onShake = () => twin.playGesture('shake');
         window.addEventListener('sarathi:workout-logged', twin._onWorkout);
         window.addEventListener('sarathi:protein-logged', twin._onShake);
-        setTimeout(() => { if (!dead) twin.playGesture('greeting'); }, 900);
+        // TWINMIND decides the arrival — full namaste once per day (whatever the
+        // hour's variant), a small nod when you return hours later, and silence
+        // if you only stepped away for a moment. He notices you; he never loops.
+        {
+          const PERF_CLIP = {
+            'arrival.dawn': 'greeting', 'arrival.day': 'greeting', 'arrival.dusk': 'greeting',
+            'arrival.streak': 'celebrate', 'arrival.return': 'nod',
+            'ritual.hydrate': 'shake', 'ritual.medication': 'nod',
+            'event.celebrate': 'celebrate', 'event.shake': 'shake',
+          };
+          const lastSeenMs = Number(localStorage.getItem('sarathi_twin_last_seen') || 0);
+          const perf = decide({
+            now: new Date(),
+            lastSeenAt: lastSeenMs ? new Date(lastSeenMs) : null,
+          });
+          localStorage.setItem('sarathi_twin_last_seen', String(Date.now()));
+          if (typeof window !== 'undefined') window.__twinPerf = perf ? perf.id : null;  // QA hook
+          const clipId = perf && PERF_CLIP[perf.id];
+          if (clipId) setTimeout(() => { if (!dead) twin.playGesture(clipId); }, 900);
+        }
         loop();
         setPhase('ready');
       } catch (e) {

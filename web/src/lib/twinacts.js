@@ -125,10 +125,31 @@ export function clipShake() {
   };
 }
 
+// --- nod: the small same-day return greeting -------------------------------
+// A quick acknowledging head bow with a hint of spine — "I see you're back."
+// Deliberately tiny (0.8s, ≤0.2 rad): TwinMind's law is that returning within
+// the same day never earns the full namaste twice.
+export function clipNod() {
+  return {
+    id: 'nod',
+    duration: 0.9,
+    loop: false,
+    poseAt(t01) {
+      const t = clamp01(t01);
+      const p = neutralPose();
+      const dip = win(t, 0.05, 0.35, 0.55, 0.95);
+      p.head.rx = 0.18 * dip;
+      p.spine.rx = 0.03 * dip;
+      return p;
+    },
+  };
+}
+
 export const CLIPS = {
   greeting: clipGreeting,
   celebrate: clipCelebrate,
   shake: clipShake,
+  nod: clipNod,
 };
 
 export const listClips = () => Object.keys(CLIPS);
