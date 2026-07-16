@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sarathi · AnimLab — craft certification</title>
+  <style>
+    body { margin: 0; background: #05070c; color: #e8ecf7; font: 13px -apple-system, sans-serif; overflow: hidden; }
+    #hud { position: fixed; top: 14px; left: 14px; z-index: 5; background: rgba(10,12,18,.72); border: 1px solid rgba(151,168,205,.2);
+           border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(10px); width: 240px; }
+    #hud b { color: #f5b572; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; display: block; margin-bottom: 8px; }
+    button { display: inline-block; margin: 3px 4px 3px 0; background: #f5b572; color: #1a0f06; border: 0; border-radius: 999px;
+             padding: 7px 14px; font-weight: 600; cursor: pointer; font-size: 12.5px; }
+    button.ghost { background: none; color: #c7cfe2; border: 1px solid rgba(151,168,205,.35); }
+    label { display: block; margin-top: 10px; color: #8e9ab8; font-size: 11.5px; }
+    input[type=range] { width: 100%; }
+    #fps { position: fixed; right: 14px; top: 14px; color: #59648a; font-size: 11px; z-index: 5; }
+    #status { margin-top: 8px; color: #8e9ab8; font-size: 11.5px; min-height: 16px; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <b>AnimLab · craft exam</b>
+    <button id="wave">Play wave (hand-keyed)</button>
+    <button id="breathe" class="ghost">Breath: on</button>
+    <label>Exertion (drives sweat + breath) <input id="exert" type="range" min="0" max="100" value="0" /></label>
+    <div id="status">loading rig…</div>
+  </div>
+  <div id="fps"></div>
+  <script type="module" src="/src/animlab.js"></script>
+</body>
+</html>
