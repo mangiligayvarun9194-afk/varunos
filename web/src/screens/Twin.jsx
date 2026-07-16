@@ -170,7 +170,10 @@ const EMISSIVE_INJECT = `#include <emissivemap_fragment>
     + vec3(1.0, 0.78, 0.42) * fres * 0.4
     + irid * fres * 0.14 * (1.0 - a2)
     + goldC * band * scn * 0.9
-    + vec3(0.25, 0.45, 0.7) * band * 0.04;`;
+    + vec3(0.25, 0.45, 0.7) * band * 0.04;
+  // sweat film: where wet, the inner glow dims and light goes specular instead —
+  // dark glistening patches on the gold (wetHere comes from the color_fragment inject)
+  totalEmissiveRadiance *= (1.0 - 0.45 * wetHere);`;
 
 export default function Twin() {
   const toast = useToast();
@@ -367,6 +370,7 @@ export default function Twin() {
           uScan: { value: new Array(8).fill(0) },    // 1 for the next-to-train groups
           uScanY: { value: -1 },                     // scan band height (0..1), <0 = off
           uBodyY0: { value: 0 }, uBodyY1: { value: 1 },
+          uWet: { value: 0 },                        // sweat: 0 dry → 1 drenched
         };
         const bodyMeshes = [];
         const installMuscle = (mat) => {
@@ -378,11 +382,29 @@ export default function Twin() {
             sh.uniforms.uScanY = muscleU.uScanY;
             sh.uniforms.uBodyY0 = muscleU.uBodyY0;
             sh.uniforms.uBodyY1 = muscleU.uBodyY1;
-            sh.vertexShader = 'attribute float aMuscle;\nvarying float vMuscle;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;\n'
+            sh.uniforms.uWet = muscleU.uWet;
+            // r160: the generic vUv varying only exists under USE_UV — force it on
+            // both stages so the sweat mask can read the mesh UVs.
+            sh.vertexShader = '#define USE_UV\nattribute float aMuscle;\nvarying float vMuscle;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;\n'
               + sh.vertexShader.replace('void main() {', 'void main() {\n  vMuscle = aMuscle;\n  vObjPos = position;\n  vObjNormal = normal;');
-            sh.fragmentShader = 'varying float vMuscle;\nuniform float uTime;\nuniform float uAct[8];\nuniform float uPulse[8];\nuniform float uScan[8];\nuniform float uScanY;\nuniform float uBodyY0;\nuniform float uBodyY1;\n'
+            sh.fragmentShader = '#define USE_UV\nvarying float vMuscle;\nuniform float uTime;\nuniform float uAct[8];\nuniform float uPulse[8];\nuniform float uScan[8];\nuniform float uScanY;\nuniform float uBodyY0;\nuniform float uBodyY1;\nuniform float uWet;\n'
               + NOISE_GLSL
-              + sh.fragmentShader.replace('#include <emissivemap_fragment>', EMISSIVE_INJECT);
+              + sh.fragmentShader
+                .replace('#include <common>', `#include <common>
+        float wnoise(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float wmask(vec2 p){
+          float n = wnoise(floor(p * 9.0 + vec2(0.0, uTime * 0.15)));
+          float n2 = wnoise(floor(p * 23.0 - vec2(uTime * 0.08, 0.0)));
+          return smoothstep(0.35, 0.9, n * 0.65 + n2 * 0.35);
+        }`)
+                // Sweat, physically honest: wet skin darkens AND sharpens (roughness ↓),
+                // masked by slow scrolling noise so it blooms in patches, never like paint.
+                .replace('#include <color_fragment>', `#include <color_fragment>
+        float wetHere = uWet * wmask(vUv);
+        diffuseColor.rgb *= (1.0 - 0.38 * wetHere);`)
+                .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        roughnessFactor = mix(roughnessFactor, 0.16, wetHere);`)
+                .replace('#include <emissivemap_fragment>', EMISSIVE_INJECT);
           };
           mat.customProgramCacheKey = () => 'twin-muscle';
         };
@@ -544,6 +566,7 @@ export default function Twin() {
           camRad: h * 1.9, camY: h * 0.62, camLookY: h * 0.5,
           _X: new THREE.Vector3(1, 0, 0), _l: new THREE.Vector3(), _r: new THREE.Vector3(),
           _g: new THREE.Vector3(), lastMode: null, t: 0, raf: 0,
+          exertion: 0, breathPhase: 0,   // living layer: effort builds sweat + breath rate
           muscleU, bodyMeshes, lastPulseMode: null,
           mocap: { cache: {}, active: null, loading: null, mixer: null } };
         twinRef.current = twin;
@@ -623,6 +646,27 @@ export default function Twin() {
           const m = modeRef.current;
           let p = 0;
 
+          // LIVING LAYER — he breathes every frame of his life, under everything.
+          // One `exertion` value (0..1) rises through a workout and fades after,
+          // driving breath rate AND depth AND the sweat uniform coherently:
+          // calm 0.25 Hz chest rise → 1.1 Hz panting, dry → glistening.
+          // Applied INSIDE each pose branch (after posing, before the foot-lock
+          // and bar/glow placement) so everything downstream sees the breath.
+          const working = !!(EXdata[m] || MOCAP[m]);
+          const exTarget = working ? 0.85 : (m === 'celebrate' ? 0.5 : 0);
+          // effort builds in ~10 s of training, drains over ~40 s of rest
+          twin.exertion += (exTarget - twin.exertion) * (exTarget > twin.exertion ? 0.0035 : 0.0008);
+          const applyLiving = () => {
+            const rate = 0.25 + twin.exertion * 0.85;
+            // integrate phase (never sin(t·rate): a drifting rate at large t warps the rhythm)
+            twin.breathPhase += 0.016 * Math.PI * 2 * rate;
+            const b = Math.sin(twin.breathPhase) * (0.014 + twin.exertion * 0.035);
+            if (rig.spine2) rig.spine2.rotation.x += b;                  // chest rise
+            if (rig.neck) rig.neck.rotation.x -= b * 0.4;                // head stays level
+            // weight shift: slow non-harmonic sway kills the "loop tell"
+            if (rig.hips) rig.hips.rotation.z += Math.sin(t * 0.31) * 0.012 + Math.sin(t * 0.13) * 0.008;
+          };
+
           // Living-Anatomy glow: animate flow, ease activation toward readiness, decay
           // the pulse, and flash the muscle of the lift the moment it changes.
           muscleU.uTime.value = t;
@@ -645,16 +689,16 @@ export default function Twin() {
           }
 
           if (MOCAP[m]) {
-            // Real motion-capture on the high-poly avatar: advance the mixer, or
-            // stand in the rest pose while the clip is still loading.
-            if (twin.mocap.active !== m) showMocap(m);
-            if (twin.mocap.mixer) {
-              twin.mocap.mixer.update(0.016);
-            } else {
-              for (const [k, b] of Object.entries(rig)) {
-                if (b && rest[k]) { b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos); }
-              }
+            // Real motion-capture on the high-poly avatar: reset to rest FIRST
+            // (bones the clip doesn't track would otherwise accumulate the
+            // additive living layer forever), then let the mixer overwrite its
+            // tracked bones — or hold rest while the clip is still loading.
+            for (const [k, b] of Object.entries(rig)) {
+              if (b && rest[k]) { b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos); }
             }
+            if (twin.mocap.active !== m) showMocap(m);
+            if (twin.mocap.mixer) twin.mocap.mixer.update(0.016);
+            applyLiving();
             // Keep feet planted (mocap is grounded; re-ground guards against drift).
             root.updateMatrixWorld(true);
             {
@@ -671,8 +715,6 @@ export default function Twin() {
               if (!b || !rest[k]) continue;
               b.rotation.copy(rest[k].rot); b.position.copy(rest[k].pos);
             }
-            const breathe = Math.sin(t * 1.8) * 0.5 + 0.5;
-            if (rig.spine2) rig.spine2.rotation.x += breathe * 0.025;
             const ex = EXdata[m];
             if (m === 'celebrate') {
               const hop = Math.abs(Math.sin(t * 5));
@@ -708,6 +750,7 @@ export default function Twin() {
                 }
               }
             }
+            applyLiving();
 
             // Foot-lock: re-ground every frame so the lowest foot stays on the floor.
             root.updateMatrixWorld(true);
@@ -751,6 +794,10 @@ export default function Twin() {
               s.scale.setScalar(0.32 + p * 0.16);
             });
           }
+
+          // sweat blooms slowly toward the effort level, and dries after
+          muscleU.uWet.value += (twin.exertion * 0.9 - muscleU.uWet.value) * 0.02;
+          if (typeof window !== 'undefined') window.__twinVitals = { exertion: twin.exertion, wet: muscleU.uWet.value };  // QA hook
           twin.lastMode = m;
 
           // --- VFX ---
@@ -784,7 +831,9 @@ export default function Twin() {
         twin.playGesture = (id) => {
           try { const mk = CLIPS[id]; const c = mk && mk(); if (c) twin.gesture = { clip: c, t0: performance.now() }; } catch (_) {}
         };
-        twin._onWorkout = () => twin.playGesture('celebrate');
+        // A logged workout is real effort: he celebrates AND arrives breathing
+        // hard, sweat blooming, cooling down over the next minute.
+        twin._onWorkout = () => { twin.playGesture('celebrate'); twin.exertion = Math.max(twin.exertion, 0.75); };
         twin._onShake = () => twin.playGesture('shake');
         window.addEventListener('sarathi:workout-logged', twin._onWorkout);
         window.addEventListener('sarathi:protein-logged', twin._onShake);
@@ -820,6 +869,7 @@ export default function Twin() {
       if (twin) {
         if (twin._onWorkout) window.removeEventListener('sarathi:workout-logged', twin._onWorkout);
         if (twin._onShake) window.removeEventListener('sarathi:protein-logged', twin._onShake);
+        try { delete window.__twinVitals; } catch (_) {}
         cancelAnimationFrame(twin.raf);
         twin.composer?.dispose?.();
         twin.renderer.dispose();
