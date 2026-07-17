@@ -83,17 +83,17 @@ const EXdata = {
   deadlift: { bar: true, glow: 'back', tempo: { up: 1.2, hold: 0.2, down: 1.5, rest: 0.45 },
     pose: (p) => ({ hipsY: -0.06 * p, spine: { x: 0.85 * p }, spine2: { x: 0.12 * p }, neck: { x: -0.45 * p },
       lUpLeg: { x: -0.25 * p }, rUpLeg: { x: -0.25 * p }, lLeg: { x: 0.35 * p }, rLeg: { x: 0.35 * p } }) },
-  // Biceps curl — bar in hands, forearms flex up (elbow flexion axis, mirrored).
-  curl: { bar: true, glow: 'arms', tempo: { up: 0.9, hold: 0.35, down: 1.1, rest: 0.3 },
+  // Biceps curl — dumbbells in hands, forearms flex up (elbow axis, mirrored).
+  curl: { bar: false, dumb: true, glow: 'arms', tempo: { up: 0.9, hold: 0.35, down: 1.1, rest: 0.3 },
     pose: (p) => ({ lFore: { z: 1.9 * p }, rFore: { z: -1.9 * p } }) },
   // Bent-over row — hinge and hold (bar in hands), forearms pull the bar to the torso.
   row: { bar: true, glow: 'back', tempo: { up: 0.85, hold: 0.35, down: 1.1, rest: 0.3 },
     grip: { spine: { x: 0.8 }, spine2: { x: 0.18 }, neck: { x: -0.5 },
       lUpLeg: { x: -0.28 }, rUpLeg: { x: -0.28 }, lLeg: { x: 0.38 }, rLeg: { x: 0.38 } },
     pose: (p) => ({ lFore: { z: 1.1 * p }, rFore: { z: -1.1 * p } }) },
-  // Press — bar in hands driven up to the shoulders/chest (a clean upward path;
-  // a true overhead lockout needs shoulder axes this rig doesn't cleanly expose).
-  press: { bar: true, glow: 'shoulders', tempo: { up: 1.0, hold: 0.3, down: 1.3, rest: 0.35 },
+  // Press — dumbbells in hands driven up to the shoulders/chest (a clean upward
+  // path; a true overhead lockout needs shoulder axes this rig doesn't expose).
+  press: { bar: false, dumb: true, glow: 'shoulders', tempo: { up: 1.0, hold: 0.3, down: 1.3, rest: 0.35 },
     pose: (p) => ({ lFore: { z: 1.7 * p }, rFore: { z: -1.7 * p }, spine: { x: -0.04 * p } }) },
 };
 
@@ -571,6 +571,35 @@ export default function Twin() {
           mocap: { cache: {}, active: null, loading: null, mixer: null } };
         twinRef.current = twin;
 
+        // GYM SET — hand-built props (tools/props_gym.py, Blender): bench + mat
+        // dress the stage; the dumbbell pair rides the hands during curls and
+        // presses. Loaded async AFTER `twin` exists (its callback writes
+        // twin.dumbL/R); the stage never waits on set dressing.
+        new GLTFLoader().loadAsync('/models/gym-props.glb').then((gp) => {
+          if (dead) return;
+          const bench = gp.scene.getObjectByName('Bench');
+          const gmat = gp.scene.getObjectByName('Mat');
+          const dLsrc = gp.scene.getObjectByName('DumbbellL');
+          const dRsrc = gp.scene.getObjectByName('DumbbellR');
+          const dress = new THREE.Group();
+          if (bench) { bench.position.set(1.02, 0, -0.62); bench.rotation.set(0, -0.5, 0); dress.add(bench); }
+          if (gmat) { gmat.position.set(-0.92, 0, -0.35); gmat.rotation.set(0, 0.18, 0); dress.add(gmat); }
+          if (dLsrc) { const d = dLsrc.clone(); d.position.set(-0.86, 0.085, -0.28); d.rotation.set(0, 0.4, 0); dress.add(d); }
+          dress.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+          scene.add(dress);
+          const prepHand = (src) => {
+            const d = src.clone();
+            d.position.set(0, 0, 0);
+            d.rotation.set(0, 0, 0);          // grip axis stays world-X, like the bar
+            d.visible = false;
+            d.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+            scene.add(d);
+            return d;
+          };
+          if (dLsrc) twin.dumbL = prepHand(dLsrc);
+          if (dRsrc) twin.dumbR = prepHand(dRsrc);
+        }).catch(() => { /* set dressing is optional — the Twin stands regardless */ });
+
         // Tap a muscle → inspect its readiness. Raycast the body, read the hit
         // vertex's muscle-group tag, surface it in the panel.
         const _ray = new THREE.Raycaster(); const _ndc = new THREE.Vector2();
@@ -795,6 +824,22 @@ export default function Twin() {
             });
           }
 
+          // DUMBBELLS — one per hand for curls (mocap) and presses (procedural).
+          // They track the hand bones every frame, riding a palm's depth under
+          // the wrist joint so the grip reads as held, not skewered.
+          {
+            const wantDumb = (m === 'curl' || (EXdata[m] && EXdata[m].dumb))
+              && rig.lHand && rig.rHand && twin.dumbL && twin.dumbR;
+            if (twin.dumbL) twin.dumbL.visible = !!wantDumb;
+            if (twin.dumbR) twin.dumbR.visible = !!wantDumb;
+            if (wantDumb) {
+              rig.lHand.getWorldPosition(twin._l);
+              rig.rHand.getWorldPosition(twin._r);
+              twin.dumbL.position.set(twin._l.x, twin._l.y - 0.03, twin._l.z);
+              twin.dumbR.position.set(twin._r.x, twin._r.y - 0.03, twin._r.z);
+            }
+          }
+
           // sweat blooms slowly toward the effort level, and dries after
           muscleU.uWet.value += (twin.exertion * 0.9 - muscleU.uWet.value) * 0.02;
           if (typeof window !== 'undefined') window.__twinVitals = { exertion: twin.exertion, wet: muscleU.uWet.value };  // QA hook
@@ -880,6 +925,9 @@ export default function Twin() {
   }, [bootId]);
 
   function setAction(m) { setMode(m); modeRef.current = m; }
+  // QA hook (same family as __twinPerf/__twinVitals): lets demo scripts and
+  // headless verification drive the exercise engine without UI.
+  if (typeof window !== 'undefined') window.__twinSetMode = setAction;
 
   function saveUrl() {
     const u = url.trim();
