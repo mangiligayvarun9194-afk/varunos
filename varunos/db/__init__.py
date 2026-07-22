@@ -1118,6 +1118,16 @@ def log_event(user_id: str, kind: str, channel: str | None = None, payload: dict
         return cur.lastrowid
 
 
+def activity_days() -> list[tuple[str, str]]:
+    """Distinct (user_id, YYYY-MM-DD) active pairs across ALL users — any
+    observability event counts as activity. Feeds core.retention (pure)."""
+    rows = conn().execute(
+        "SELECT DISTINCT user_id, substr(ts, 1, 10) AS day FROM observability_event"
+        " WHERE user_id IS NOT NULL"
+    ).fetchall()
+    return [(r["user_id"], r["day"]) for r in rows]
+
+
 def list_events(user_id: str, kind: str | None = None, limit: int = 50) -> list[dict]:
     if kind:
         rows = conn().execute(

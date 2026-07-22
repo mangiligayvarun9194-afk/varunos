@@ -1855,6 +1855,30 @@ def observability_events(kind: Optional[str] = None, limit: int = Query(50, ge=1
     return {"events": db.list_events(uid, kind=kind, limit=limit)}
 
 
+# ========== RETENTION (the investor chart) ==========
+
+@router.post("/v1/track/open")
+def track_open():
+    """One cheap ping per app open — the raw material of the cohort chart.
+    The web client debounces to once per day; the server just records."""
+    uid = _user_id_from_default()
+    db.log_event(uid, "app_open", channel="web")
+    return {"ok": True}
+
+
+@router.get("/v1/retention")
+def retention_report():
+    """Cohort retention across ALL users (D1/D7/D30, DAU/WAU/MAU, week-6
+    survivors, weekly cohorts). Owner-only: this is a founder dashboard,
+    not user data."""
+    from varunos.core.retention import retention as _retention
+    if _user_id_from_default() != auth_mod._owner_id():
+        raise HTTPException(status_code=403, detail="owner only")
+    from datetime import date, timezone, datetime
+    today = datetime.now(timezone.utc).date()
+    return _retention(db.activity_days(), today=today)
+
+
 class AlertIn(BaseModel):
     event_id: Optional[str] = None
     user_id: Optional[str] = None

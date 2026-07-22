@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, MotionConfig, AnimatePresence } from 'framer-motion';
-import { API_BASE, API_KEY, healthCheck, getProfile, setConnection } from './api.js';
+import { API_BASE, API_KEY, api, healthCheck, getProfile, setConnection } from './api.js';
 import { ToastProvider, Dock } from './components/ui.jsx';
 import Lock from './screens/Lock.jsx';
 import Auth from './screens/Auth.jsx';
@@ -50,6 +50,17 @@ export default function App() {
     const t = setInterval(() => healthCheck().then(setConnected), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // Retention heartbeat: one ping per local day marks this user active in the
+  // cohort chart. Fire-and-forget; never block or gate the UI on it.
+  useEffect(() => {
+    if (authed !== true) return;
+    const day = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('sarathi_open_ping') === day) return;
+    api('/v1/track/open', { method: 'POST', body: {} })
+      .then(() => localStorage.setItem('sarathi_open_ping', day))
+      .catch(() => {});
+  }, [authed]);
 
   function openTab(name) {
     setSheet(null);
